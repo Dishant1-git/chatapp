@@ -1,16 +1,13 @@
 // Ghosting rules. Keep in sync with backend/utils/ghost.js
 //
-// When A ghosts B, the conversation's "ghost" moves through these stages:
-//   pending   — B may send exactly one message to change A's mind
-//   awaiting  — B used it; B can't send anything until A decides
-//   emojiOnly — A chose to ghost B; B can only send emojis for 15 minutes
-//   full      — the 15 minutes are over; B can't send anything
+// When A ghosts B, the conversation's "ghost" has one of two stages:
+//   pending   — B may send exactly one normal message
+//   emojiOnly — B used it; from now on B can only send emojis
+// It stays that way until A unghosts B, which removes the ghost.
 
-// The server sends the stage it saw; "emojiOnly" turns into "full" on the clock
-export function ghostStage(ghost, now = Date.now()) {
+export function ghostStage(ghost) {
   if (!ghost?.by) return null;
-  if (ghost.stage === 'emojiOnly' && new Date(ghost.emojiUntil).getTime() <= now) return 'full';
-  return ghost.stage;
+  return ghost.stage === 'pending' ? 'pending' : 'emojiOnly';
 }
 
 // Keycaps (1️⃣, #️⃣) are the only emojis that start with a normal character

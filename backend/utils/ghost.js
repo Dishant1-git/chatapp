@@ -1,19 +1,14 @@
 // Ghosting rules. Keep in sync with frontend/lib/ghost.js
 //
-// When A ghosts B, the conversation's "ghost" moves through these stages:
-//   pending   — B may send exactly one message to change A's mind
-//   awaiting  — B used it; B can't send anything until A decides
-//   emojiOnly — A chose to ghost B; B can only send emojis for 15 minutes
-//   full      — the 15 minutes are over; B can't send anything
-// If A forgives B (or unghosts them) the ghost is removed.
+// When A ghosts B, the conversation's "ghost" has one of two stages:
+//   pending   — B may send exactly one normal message
+//   emojiOnly — B used it; from now on B can only send emojis
+// It stays that way until A unghosts B, which removes the ghost.
 
-export const GHOST_EMOJI_MS = 15 * 60 * 1000;
-
-// "full" isn't stored — it's worked out from emojiUntil, so no timer job is needed
-export function ghostStage(ghost, now = Date.now()) {
+// "awaiting" was used by an older version for the same thing as emojiOnly
+export function ghostStage(ghost) {
   if (!ghost?.by) return null;
-  if (ghost.stage === 'emojiOnly' && new Date(ghost.emojiUntil).getTime() <= now) return 'full';
-  return ghost.stage;
+  return ghost.stage === 'pending' ? 'pending' : 'emojiOnly';
 }
 
 // Shapes a stored ghost for the browser
@@ -23,7 +18,6 @@ export function formatGhost(ghost) {
     by: String(ghost.by),
     stage: ghostStage(ghost),
     messageId: ghost.messageId ? String(ghost.messageId) : null,
-    emojiUntil: ghost.emojiUntil || null,
   };
 }
 

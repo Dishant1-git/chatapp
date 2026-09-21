@@ -5,10 +5,10 @@ import { formatGhost } from '../utils/ghost.js';
 const ghostSchema = new mongoose.Schema(
   {
     by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    stage: { type: String, enum: ['pending', 'awaiting', 'emojiOnly'], required: true },
+    // "awaiting" is only found in chats ghosted by an older version (treated as emojiOnly)
+    stage: { type: String, enum: ['pending', 'emojiOnly', 'awaiting'], required: true },
     // The one message the ghosted person sent
     messageId: { type: mongoose.Schema.Types.ObjectId, ref: 'Message', default: null },
-    emojiUntil: { type: Date, default: null },
   },
   { _id: false }
 );

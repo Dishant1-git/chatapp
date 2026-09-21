@@ -9,7 +9,7 @@ import { imageUpload } from '../middleware/upload.js';
 import { groupLimiter } from '../middleware/rateLimits.js';
 import { saveImage } from '../utils/storage.js';
 import { publishEvent } from '../utils/publish.js';
-import { GHOST_EMOJI_MS, formatGhost } from '../utils/ghost.js';
+import { formatGhost } from '../utils/ghost.js';
 import { getIO, userRoom, conversationRoom, emitToConversation } from '../socket/io.js';
 import { leaveCallsFor } from '../socket/calls.js';
 
@@ -418,7 +418,8 @@ function emitGhost(conversation) {
 }
 
 // POST /api/conversations/:id/ghost — ghost the other person.
-// They get one message to change my mind (enforced in POST /api/messages).
+// They get one normal message, then only emojis until I unghost them
+// (enforced in POST /api/messages).
 router.post('/:id/ghost', async (req, res) => {
   const conversation = await findMyConversation(req, res);
   if (!conversation) return;
@@ -439,29 +440,6 @@ router.post('/:id/ghost', async (req, res) => {
     { returnDocument: 'after' }
   );
   if (!updated) return res.status(409).json({ error: 'This chat just changed. Please try again.' });
-
-  emitGhost(updated);
-  res.json({ ghost: formatGhost(updated.ghost) });
-});
-
-// POST /api/conversations/:id/ghost/verdict { ghost: true | false }
-// After reading their one message: ghost them (emojis only for 15 minutes,
-// then nothing at all) or forgive them.
-router.post('/:id/ghost/verdict', async (req, res) => {
-  const conversation = await findMyConversation(req, res);
-  if (!conversation) return;
-
-  const update =
-    req.body?.ghost === true
-      ? { 'ghost.stage': 'emojiOnly', 'ghost.emojiUntil': new Date(Date.now() + GHOST_EMOJI_MS) }
-      : { ghost: null };
-
-  const updated = await Conversation.findOneAndUpdate(
-    { _id: conversation._id, 'ghost.by': req.userId, 'ghost.stage': 'awaiting' },
-    update,
-    { returnDocument: 'after' }
-  );
-  if (!updated) return res.status(409).json({ error: "There's no message waiting for your decision." });
 
   emitGhost(updated);
   res.json({ ghost: formatGhost(updated.ghost) });

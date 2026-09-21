@@ -62,19 +62,16 @@ router.post('/', messageLimiter, async (req, res) => {
     if (!original) return res.status(404).json({ error: 'The message you are replying to no longer exists.' });
   }
 
-  // Ghosted by the other person (direct chats only): one message to change
-  // their mind, then emojis only, then nothing
+  // Ghosted by the other person (direct chats only): one normal message,
+  // then emojis only until they unghost you
   const receiverId = conversation.type === 'group' ? null : recipients[0];
   const ghostedByReceiver = receiverId && String(conversation.ghost?.by) === String(receiverId);
   const stage = ghostedByReceiver ? ghostStage(conversation.ghost) : null;
-  const USED_CHANCE = "You've sent your one message. Wait for them to decide.";
-
-  if (stage === 'awaiting') return res.status(403).json({ error: USED_CHANCE });
-  if (stage === 'full') return res.status(403).json({ error: "You've been ghosted. You can't send messages here." });
+  const EMOJIS_ONLY = "You've used your one message. You can only send emojis until they unghost you.";
 
   if (stage === 'emojiOnly') {
     if (image || ciphertext || !text || text.length > 200 || !isOnlyEmoji(text)) {
-      return res.status(403).json({ error: "You've been ghosted. You can only send emojis." });
+      return res.status(403).json({ error: EMOJIS_ONLY });
     }
     const message = await publishMessage(
       conversation,
@@ -134,9 +131,9 @@ router.post('/', messageLimiter, async (req, res) => {
     // Claim the one message atomically so two quick sends can't both get through
     const claimed = await Conversation.updateOne(
       { _id: conversationId, 'ghost.by': receiverId, 'ghost.stage': 'pending' },
-      { 'ghost.stage': 'awaiting' }
+      { 'ghost.stage': 'emojiOnly' }
     );
-    if (!claimed.modifiedCount) return res.status(403).json({ error: USED_CHANCE });
+    if (!claimed.modifiedCount) return res.status(403).json({ error: EMOJIS_ONLY });
   }
 
   const message = await publishMessage(
@@ -158,9 +155,9 @@ router.post('/', messageLimiter, async (req, res) => {
   );
 
   if (stage === 'pending') {
-    // Remember which message was the one chance, and show the ghoster the verdict buttons
+    // Remember which message was the one chance, and tell both of them it's used
     const updated = await Conversation.findOneAndUpdate(
-      { _id: conversationId, 'ghost.by': receiverId, 'ghost.stage': 'awaiting' },
+      { _id: conversationId, 'ghost.by': receiverId, 'ghost.stage': 'emojiOnly' },
       { 'ghost.messageId': message._id },
       { returnDocument: 'after' }
     );
@@ -223,13 +220,6 @@ router.post('/:id/reaction', async (req, res) => {
   const message = await findMyMessage(req, res);
   if (!message) return;
   if (message.isDeleted || message.messageType === 'event') return res.status(404).json({ error: 'Message not found.' });
-
-  // Fully ghosted people can't react either
-  const conversation = await Conversation.findById(message.conversationId).select('ghost');
-  const ghostedByOther = conversation?.ghost?.by && String(conversation.ghost.by) !== req.userId;
-  if (ghostedByOther && ghostStage(conversation.ghost) === 'full') {
-    return res.status(403).json({ error: "You've been ghosted. You can't react here." });
-  }
 
   const existing = message.reactions.find((r) => String(r.userId) === req.userId);
   const sameEmoji = existing?.emoji === emoji;

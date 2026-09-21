@@ -87,28 +87,19 @@ export default function ChatWindow({ conversationId }) {
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [notice, setNotice] = useState('');
-  const [isDeciding, setIsDeciding] = useState(false);
-  const [, rerender] = useState(0);
+  const [isUnghosting, setIsUnghosting] = useState(false);
 
-  // Ghosting only exists in one-to-one chats
+  // Ghosting only exists in one-to-one chats. A ghosted person gets one normal
+  // message, then can only send emojis until they're unghosted.
   const ghost = isGroupChat ? null : conversation?.ghost || null;
   const stage = ghostStage(ghost);
   const iAmGhosted = Boolean(stage) && ghost.by !== myId;
-  const canSend = !iAmGhosted || stage === 'pending' || stage === 'emojiOnly';
   const emojiOnly = iAmGhosted && stage === 'emojiOnly';
   // Read by deliver(), which is a stable callback
   const emojiOnlyRef = useRef(emojiOnly);
   useEffect(() => {
     emojiOnlyRef.current = emojiOnly;
   });
-
-  // Emojis-only ends on its own after 15 minutes: re-render then to lock the input
-  const emojiUntil = stage === 'emojiOnly' ? ghost.emojiUntil : null;
-  useEffect(() => {
-    if (!emojiUntil) return;
-    const timer = setTimeout(() => rerender((n) => n + 1), new Date(emojiUntil).getTime() - Date.now() + 50);
-    return () => clearTimeout(timer);
-  }, [emojiUntil]);
 
   const listRef = useRef(null);
   const messageEls = useRef(new Map());
@@ -481,19 +472,15 @@ export default function ChatWindow({ conversationId }) {
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
   }, []);
 
-  // The ghoster's answer to the ghosted person's one message
-  async function decideGhost(shouldGhost) {
-    setIsDeciding(true);
+  async function unghost() {
+    setIsUnghosting(true);
     try {
-      const data = await api(`/api/conversations/${conversationId}/ghost/verdict`, {
-        method: 'POST',
-        body: { ghost: shouldGhost },
-      });
-      updateConversation(conversationId, { ghost: data.ghost });
+      await api(`/api/conversations/${conversationId}/ghost`, { method: 'DELETE' });
+      updateConversation(conversationId, { ghost: null });
     } catch (err) {
       showNotice(err.message);
     } finally {
-      setIsDeciding(false);
+      setIsUnghosting(false);
     }
   }
 
@@ -717,25 +704,22 @@ export default function ChatWindow({ conversationId }) {
           ghost={ghost}
           myId={myId}
           otherName={otherUser?.name}
-          isDeciding={isDeciding}
-          onDecide={decideGhost}
+          isUnghosting={isUnghosting}
+          onUnghost={unghost}
           onJumpTo={jumpTo}
-          asFooter={!canSend}
         />
       )}
 
-      {canSend && (
-        <MessageInput
-          conversationId={conversationId}
-          replyingTo={replyingTo}
-          replyName={replyingTo ? (replyingTo.senderId === myId ? 'yourself' : nameOf(replyingTo.senderId)) : ''}
-          emojiOnly={emojiOnly}
-          onCancelReply={() => setReplyingTo(null)}
-          onSendText={sendMessage}
-          onPickImage={setPickedImage}
-          onError={showNotice}
-        />
-      )}
+      <MessageInput
+        conversationId={conversationId}
+        replyingTo={replyingTo}
+        replyName={replyingTo ? (replyingTo.senderId === myId ? 'yourself' : nameOf(replyingTo.senderId)) : ''}
+        emojiOnly={emojiOnly}
+        onCancelReply={() => setReplyingTo(null)}
+        onSendText={sendMessage}
+        onPickImage={setPickedImage}
+        onError={showNotice}
+      />
 
       <AnimatePresence>
         {showInfo && isGroupChat && (
