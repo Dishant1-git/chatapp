@@ -1,0 +1,126 @@
+@import 'tailwindcss';
+
+/* Dark mode is controlled by a "dark" class on <html> (see ThemeToggle) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Colour tokens. Components use these (bg-panel, text-muted, ...) so
+   light/dark switching happens here instead of in every component. */
+:root {
+  --app: #eef0f3;
+  --panel: #ffffff;
+  --panel-soft: #f5f6f8;
+  --hover: #f0f2f5;
+  --fg: #111827;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --chat: #f1f3f5;
+  --bubble-out: #d5f2e9;
+  --bubble-in: #ffffff;
+  --brand: #0d8a74;
+  --brand-strong: #0a6f5e;
+  --brand-soft: #e3f5f0;
+  --tick-read: #2f8fdd;
+  color-scheme: light;
+}
+
+.dark {
+  --app: #0a0e13;
+  --panel: #11171e;
+  --panel-soft: #161e27;
+  --hover: #1b2530;
+  --fg: #e6eaee;
+  --muted: #8a96a3;
+  --line: #222c37;
+  --chat: #0c1117;
+  --bubble-out: #11463d;
+  --bubble-in: #1b242e;
+  --brand: #19b394;
+  --brand-strong: #3fcbad;
+  --brand-soft: #123a33;
+  --tick-read: #53b6ff;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-app: var(--app);
+  --color-panel: var(--panel);
+  --color-panel-soft: var(--panel-soft);
+  --color-hover: var(--hover);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-chat: var(--chat);
+  --color-bubble-out: var(--bubble-out);
+  --color-bubble-in: var(--bubble-in);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-soft: var(--brand-soft);
+  --color-tick-read: var(--tick-read);
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--app);
+  color: var(--fg);
+  -webkit-tap-highlight-color: transparent;
+  /* Stop the whole page from bouncing on iOS; only lists scroll */
+  overscroll-behavior: none;
+}
+
+/* Thin, quiet scrollbars */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+/* Soft pattern behind messages so the chat area doesn't look flat */
+.chat-bg {
+  background-color: var(--chat);
+  background-image: radial-gradient(var(--line) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* Briefly highlights a message after jumping to it from a reply */
+@keyframes flash {
+  0%,
+  100% {
+    background-color: transparent;
+  }
+  30% {
+    background-color: color-mix(in srgb, var(--brand) 18%, transparent);
+  }
+}
+.flash {
+  animation: flash 1.4s ease;
+}
+
+/* Mobile: the chat screen slides in from the right, like a native app */
+@keyframes slide-in {
+  from {
+    transform: translateX(24%);
+    opacity: 0.4;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@media (max-width: 767px) {
+  .mobile-slide-in {
+    animation: slide-in 0.22s ease-out;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-slide-in,
+  .flash {
+    animation: none;
+  }
+}
