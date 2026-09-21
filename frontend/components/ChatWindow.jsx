@@ -10,17 +10,12 @@ import { ChatAvatar } from './Avatar';
 import Message from './Message';
 import MessageInput from './MessageInput';
 import DeleteDialog from './DeleteDialog';
-<<<<<<< Updated upstream
 import ChatMenu from './ChatMenu';
 import GhostBanner from './GhostBanner';
-import { ImageLightbox, ImageSendPreview } from './ImagePreview';
-import { api } from '@/lib/client';
-import { ghostStage } from '@/lib/ghost';
-import { formatDayDivider, formatLastSeen, isDifferentDay } from '@/lib/format';
-=======
 import GroupInfo from './GroupInfo';
 import { ImageLightbox, ImageSendPreview } from './ImagePreview';
 import { api } from '@/lib/client';
+import { ghostStage } from '@/lib/ghost';
 import { describeEvent, formatDayDivider, formatLastSeen, formatTime, isDifferentDay } from '@/lib/format';
 import { encryptFile, encryptMessage, openMessage, openMessages, prepareImage, rememberImage } from '@/lib/e2ee';
 import {
@@ -32,7 +27,6 @@ import {
   memberSummary,
   typingText,
 } from '@/lib/conversations';
->>>>>>> Stashed changes
 
 // Start loading older messages when the user scrolls this close to the top
 const LOAD_OLDER_THRESHOLD = 150;
@@ -96,10 +90,17 @@ export default function ChatWindow({ conversationId }) {
   const [isDeciding, setIsDeciding] = useState(false);
   const [, rerender] = useState(0);
 
-  const ghost = conversation?.ghost || null;
+  // Ghosting only exists in one-to-one chats
+  const ghost = isGroupChat ? null : conversation?.ghost || null;
   const stage = ghostStage(ghost);
   const iAmGhosted = Boolean(stage) && ghost.by !== myId;
   const canSend = !iAmGhosted || stage === 'pending' || stage === 'emojiOnly';
+  const emojiOnly = iAmGhosted && stage === 'emojiOnly';
+  // Read by deliver(), which is a stable callback
+  const emojiOnlyRef = useRef(emojiOnly);
+  useEffect(() => {
+    emojiOnlyRef.current = emojiOnly;
+  });
 
   // Emojis-only ends on its own after 15 minutes: re-render then to lock the input
   const emojiUntil = stage === 'emojiOnly' ? ghost.emojiUntil : null;
@@ -340,7 +341,13 @@ export default function ChatWindow({ conversationId }) {
       try {
         let result;
         try {
-          result = await encryptAndSend(conversationRef.current?.participants || []);
+          result = emojiOnlyRef.current
+            ? // Ghosted, emojis only: sent unencrypted so the server can check it's only emojis
+              await api('/api/messages', {
+                method: 'POST',
+                body: { conversationId, text: temp.text, replyTo: temp.replyTo?._id, clientId: temp._id },
+              })
+            : await encryptAndSend(conversationRef.current?.participants || []);
         } catch (err) {
           if (err.code !== 'KEYS_CHANGED') throw err;
           // Someone joined, left or got new keys since we loaded the chat: refresh and try once more
@@ -539,16 +546,6 @@ export default function ChatWindow({ conversationId }) {
         >
           <ArrowLeft size={22} />
         </button>
-<<<<<<< Updated upstream
-        {otherUser && <Avatar user={otherUser} size={40} />}
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate leading-tight font-semibold">{otherUser?.name || '…'}</h2>
-          <p className={`truncate text-xs ${isTyping || otherUser?.isOnline ? 'text-brand' : 'text-muted'}`}>
-            {statusText}
-          </p>
-        </div>
-        {conversation && <ChatMenu conversation={conversation} myId={myId} onError={showNotice} />}
-=======
         <button
           type="button"
           onClick={() => isGroupChat && setShowInfo(true)}
@@ -592,7 +589,7 @@ export default function ChatWindow({ conversationId }) {
               </button>
             </div>
           ))}
->>>>>>> Stashed changes
+        {conversation && <ChatMenu conversation={conversation} myId={myId} onError={showNotice} />}
       </header>
 
       <div
@@ -715,8 +712,7 @@ export default function ChatWindow({ conversationId }) {
         </div>
       )}
 
-<<<<<<< Updated upstream
-      {ghost && (
+      {ghost && !isGroupChat && (
         <GhostBanner
           ghost={ghost}
           myId={myId}
@@ -732,25 +728,14 @@ export default function ChatWindow({ conversationId }) {
         <MessageInput
           conversationId={conversationId}
           replyingTo={replyingTo}
-          replyName={replyingTo?.senderId === myId ? 'yourself' : otherUser?.name}
-          emojiOnly={iAmGhosted && stage === 'emojiOnly'}
+          replyName={replyingTo ? (replyingTo.senderId === myId ? 'yourself' : nameOf(replyingTo.senderId)) : ''}
+          emojiOnly={emojiOnly}
           onCancelReply={() => setReplyingTo(null)}
           onSendText={sendMessage}
           onPickImage={setPickedImage}
           onError={showNotice}
         />
       )}
-=======
-      <MessageInput
-        conversationId={conversationId}
-        replyingTo={replyingTo}
-        replyName={replyingTo ? (replyingTo.senderId === myId ? 'yourself' : nameOf(replyingTo.senderId)) : ''}
-        onCancelReply={() => setReplyingTo(null)}
-        onSendText={sendMessage}
-        onPickImage={setPickedImage}
-        onError={showNotice}
-      />
->>>>>>> Stashed changes
 
       <AnimatePresence>
         {showInfo && isGroupChat && (

@@ -3,11 +3,7 @@
 import { memo, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence } from 'framer-motion';
-<<<<<<< Updated upstream
-import { BellOff, Ghost, MessageCirclePlus, Search, WifiOff, X } from 'lucide-react';
-=======
-import { MessageCirclePlus, Search, Users, WifiOff, X } from 'lucide-react';
->>>>>>> Stashed changes
+import { BellOff, Ghost, MessageCirclePlus, Search, Users, WifiOff, X } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import Avatar, { ChatAvatar } from './Avatar';
 import ThemeToggle from './ThemeToggle';
@@ -153,21 +149,15 @@ export default function ChatList() {
 }
 
 // memo: a row only re-renders when its own conversation changes
-<<<<<<< Updated upstream
-const ConversationItem = memo(function ConversationItem({ conversation, myId, isActive, isTyping }) {
-  const { otherUser, lastMessage, lastMessageAt, unreadCount, isMuted, ghost } = conversation;
+const ConversationItem = memo(function ConversationItem({ conversation, myId, isActive, typingUsers }) {
+  const { lastMessage, lastMessageAt, unreadCount, isMuted, ghost } = conversation;
   const isMine = lastMessage?.senderId === myId;
   const showUnread = unreadCount > 0 && !isMuted;
-=======
-const ConversationItem = memo(function ConversationItem({ conversation, myId, isActive, typingUsers }) {
-  const { lastMessage, lastMessageAt, unreadCount } = conversation;
-  const isMine = lastMessage?.senderId === myId;
   const nameOf = makeNameOf(conversation, myId);
   const typing = typingText(conversation, typingUsers);
   // In groups, show who wrote the last message: "Ann: see you soon"
   const showSender =
     isGroup(conversation) && !isMine && lastMessage && !lastMessage.isDeleted && lastMessage.messageType !== 'event';
->>>>>>> Stashed changes
 
   return (
     <li>
@@ -181,9 +171,8 @@ const ConversationItem = memo(function ConversationItem({ conversation, myId, is
 
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">
-<<<<<<< Updated upstream
             <p className="flex min-w-0 items-center gap-1.5 font-medium">
-              <span className="truncate">{otherUser.name}</span>
+              <span className="truncate">{conversationTitle(conversation)}</span>
               {ghost && (
                 <Ghost
                   size={14}
@@ -193,10 +182,6 @@ const ConversationItem = memo(function ConversationItem({ conversation, myId, is
               )}
             </p>
             <span className={`shrink-0 text-xs ${showUnread ? 'font-medium text-brand' : 'text-muted'}`}>
-=======
-            <p className="truncate font-medium">{conversationTitle(conversation)}</p>
-            <span className={`shrink-0 text-xs ${unreadCount > 0 ? 'font-medium text-brand' : 'text-muted'}`}>
->>>>>>> Stashed changes
               {lastMessage ? formatListDate(lastMessageAt) : ''}
             </span>
           </div>

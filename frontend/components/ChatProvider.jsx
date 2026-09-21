@@ -251,7 +251,7 @@ export default function ChatProvider({ children }) {
           const { conversation } = await api(`/api/conversations/${conversationId}`);
           const opened = await openConversation(conversation);
           setConversations((prev) => (prev.some((c) => c._id === opened._id) ? prev : [opened, ...prev]));
-          if (isForMe && !isViewing) showNotification(message, opened);
+          if (isForMe && !isViewing && !opened.isMuted) showNotification(message, opened);
         } catch {
           // Not a member (anymore) — ignore
         }
@@ -272,10 +272,13 @@ export default function ChatProvider({ children }) {
       });
 
       if (!isMine) {
-<<<<<<< Updated upstream
-        setTyping(conversationId, false);
-        if (!isViewing && !existing.isMuted) showNotification(message, existing);
+        setTyping(conversationId, message.senderId, false);
+        if (isForMe && !isViewing && !existing.isMuted) showNotification(message, existing);
       }
+    }
+
+    function handleNewMessage({ message }) {
+      messageQueue.current = messageQueue.current.then(() => processNewMessage(message)).catch(() => {});
     }
 
     function handleMute({ conversationId, isMuted }) {
@@ -286,19 +289,7 @@ export default function ChatProvider({ children }) {
       updateConversation(conversationId, { ghost });
     }
 
-    function handlePresence({ userId, isOnline, lastSeen }) {
-=======
-        setTyping(conversationId, message.senderId, false);
-        if (isForMe && !isViewing) showNotification(message, existing);
-      }
-    }
-
-    function handleNewMessage({ message }) {
-      messageQueue.current = messageQueue.current.then(() => processNewMessage(message)).catch(() => {});
-    }
-
     function updateMember(userId, changes) {
->>>>>>> Stashed changes
       setConversations((prev) =>
         prev.map((c) => {
           if (!c.participants?.some((p) => p._id === userId)) return c;
@@ -379,13 +370,10 @@ export default function ChatProvider({ children }) {
     socket.on('message:deleted', handleDeleted);
     socket.on('messages:read', handleRead);
     socket.on('messages:delivered', handleDelivered);
-<<<<<<< Updated upstream
     socket.on('conversation:mute', handleMute);
     socket.on('conversation:ghost', handleGhost);
-=======
     socket.on('conversation:updated', handleConversationUpdated);
     socket.on('conversation:removed', handleConversationRemoved);
->>>>>>> Stashed changes
 
     return () => {
       socket.off('connect', handleConnect);
@@ -397,13 +385,10 @@ export default function ChatProvider({ children }) {
       socket.off('message:deleted', handleDeleted);
       socket.off('messages:read', handleRead);
       socket.off('messages:delivered', handleDelivered);
-<<<<<<< Updated upstream
       socket.off('conversation:mute', handleMute);
       socket.off('conversation:ghost', handleGhost);
-=======
       socket.off('conversation:updated', handleConversationUpdated);
       socket.off('conversation:removed', handleConversationRemoved);
->>>>>>> Stashed changes
     };
   }, [socket, router, loadConversations, updateConversation, showNotification, setTyping]);
 

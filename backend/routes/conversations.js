@@ -5,14 +5,11 @@ import Conversation, { MAX_GROUP_MEMBERS, conversationKey, formatConversation } 
 import Message, { REPLY_FIELDS, REFRESH_TICKS } from '../models/Message.js';
 import User from '../models/User.js';
 import { requireAuth } from '../middleware/auth.js';
-<<<<<<< Updated upstream
-import { GHOST_EMOJI_MS, formatGhost } from '../utils/ghost.js';
-=======
 import { imageUpload } from '../middleware/upload.js';
 import { groupLimiter } from '../middleware/rateLimits.js';
 import { saveImage } from '../utils/storage.js';
 import { publishEvent } from '../utils/publish.js';
->>>>>>> Stashed changes
+import { GHOST_EMOJI_MS, formatGhost } from '../utils/ghost.js';
 import { getIO, userRoom, conversationRoom, emitToConversation } from '../socket/io.js';
 import { leaveCallsFor } from '../socket/calls.js';
 
@@ -425,6 +422,7 @@ function emitGhost(conversation) {
 router.post('/:id/ghost', async (req, res) => {
   const conversation = await findMyConversation(req, res);
   if (!conversation) return;
+  if (conversation.type === 'group') return badRequest(res, 'You can only ghost someone in a one-to-one chat.');
 
   if (conversation.ghost?.by) {
     const error =

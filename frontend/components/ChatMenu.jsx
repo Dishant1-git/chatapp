@@ -80,13 +80,16 @@ export default function ChatMenu({ conversation, myId, onError }) {
           ) : (
             <MenuItem icon={BellOff} label="Mute" onClick={() => setMuted(true)} />
           )}
-          <MenuItem
-            icon={Ghost}
-            label={ghostedByMe ? `Unghost ${otherUser.name}` : 'Ghosted'}
-            hint={ghostedByThem ? `${otherUser.name} is ghosting you` : ''}
-            disabled={ghostedByThem}
-            onClick={toggleGhost}
-          />
+          {/* Ghosting is for one-to-one chats only */}
+          {otherUser && (
+            <MenuItem
+              icon={Ghost}
+              label={ghostedByMe ? `Unghost ${otherUser.name}` : 'Ghosted'}
+              hint={ghostedByThem ? `${otherUser.name} is ghosting you` : ''}
+              disabled={ghostedByThem}
+              onClick={toggleGhost}
+            />
+          )}
         </motion.div>
       )}
     </div>
