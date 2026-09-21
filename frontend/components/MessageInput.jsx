@@ -5,6 +5,7 @@ import { ImagePlus, SendHorizontal, Smile, X } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import { checkImageFile } from './ImagePreview';
 import { messagePreview } from '@/lib/format';
+import { isOnlyEmoji } from '@/lib/ghost';
 
 const EMOJIS = [
   '😀', '😂', '🤣', '😊', '😍', '🥰', '😘', '😎', '🤔', '😅', '😉', '🙂',
@@ -20,6 +21,7 @@ export default function MessageInput({
   conversationId,
   replyingTo,
   replyName,
+  emojiOnly = false, // ghosted: only emojis can be sent, no photos
   onCancelReply,
   onSendText,
   onPickImage,
@@ -27,7 +29,7 @@ export default function MessageInput({
 }) {
   const { socket } = useChat();
   const [text, setText] = useState('');
-  const [showEmojis, setShowEmojis] = useState(false);
+  const [showEmojis, setShowEmojis] = useState(emojiOnly);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
   const typing = useRef({ active: false, lastSent: 0, timer: null });
@@ -75,6 +77,14 @@ export default function MessageInput({
     if (replyingTo) textareaRef.current?.focus();
   }, [replyingTo]);
 
+  // Just got ghosted: open the emoji picker, since that's all that can be sent
+  useEffect(() => {
+    if (emojiOnly) setShowEmojis(true);
+  }, [emojiOnly]);
+
+  const trimmed = text.trim();
+  const canSend = Boolean(trimmed) && (!emojiOnly || isOnlyEmoji(trimmed));
+
   function handleChange(event) {
     setText(event.target.value);
     if (event.target.value.trim()) notifyTyping();
@@ -82,11 +92,11 @@ export default function MessageInput({
   }
 
   function send() {
-    const trimmed = text.trim();
     if (!trimmed) return;
+    if (!canSend) return onError('You can only send emojis.');
     onSendText(trimmed);
     setText('');
-    setShowEmojis(false);
+    setShowEmojis(emojiOnly);
     stopTyping();
   }
 
@@ -174,32 +184,36 @@ export default function MessageInput({
           onBlur={stopTyping}
           rows={1}
           maxLength={4000}
-          placeholder="Type a message"
+          placeholder={emojiOnly ? 'Emojis only' : 'Type a message'}
           // text-base (16px) stops iOS from zooming into the field
           className="scroll-thin max-h-32 min-w-0 flex-1 resize-none rounded-3xl bg-panel-soft px-4 py-2.5 text-base leading-6 outline-none placeholder:text-muted md:text-[15px]"
         />
 
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
-          aria-label="Send a photo"
-        >
-          <ImagePlus size={22} />
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          onChange={handleFile}
-          className="hidden"
-        />
+        {!emojiOnly && (
+          <>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
+              aria-label="Send a photo"
+            >
+              <ImagePlus size={22} />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleFile}
+              className="hidden"
+            />
+          </>
+        )}
 
         <button
           type="button"
           onPointerDown={(e) => e.preventDefault()} // don't close the mobile keyboard
           onClick={send}
-          disabled={!text.trim()}
+          disabled={!canSend}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-white transition hover:bg-brand-strong disabled:opacity-40"
           aria-label="Send message"
         >

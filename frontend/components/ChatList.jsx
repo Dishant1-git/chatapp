@@ -3,7 +3,7 @@
 import { memo, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence } from 'framer-motion';
-import { MessageCirclePlus, Search, WifiOff, X } from 'lucide-react';
+import { BellOff, Ghost, MessageCirclePlus, Search, WifiOff, X } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import Avatar from './Avatar';
 import ThemeToggle from './ThemeToggle';
@@ -138,8 +138,9 @@ export default function ChatList() {
 
 // memo: a row only re-renders when its own conversation changes
 const ConversationItem = memo(function ConversationItem({ conversation, myId, isActive, isTyping }) {
-  const { otherUser, lastMessage, lastMessageAt, unreadCount } = conversation;
+  const { otherUser, lastMessage, lastMessageAt, unreadCount, isMuted, ghost } = conversation;
   const isMine = lastMessage?.senderId === myId;
+  const showUnread = unreadCount > 0 && !isMuted;
 
   return (
     <li>
@@ -153,8 +154,17 @@ const ConversationItem = memo(function ConversationItem({ conversation, myId, is
 
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">
-            <p className="truncate font-medium">{otherUser.name}</p>
-            <span className={`shrink-0 text-xs ${unreadCount > 0 ? 'font-medium text-brand' : 'text-muted'}`}>
+            <p className="flex min-w-0 items-center gap-1.5 font-medium">
+              <span className="truncate">{otherUser.name}</span>
+              {ghost && (
+                <Ghost
+                  size={14}
+                  className="shrink-0 text-muted"
+                  aria-label={ghost.by === myId ? 'You ghosted them' : 'Ghosted you'}
+                />
+              )}
+            </p>
+            <span className={`shrink-0 text-xs ${showUnread ? 'font-medium text-brand' : 'text-muted'}`}>
               {lastMessage ? formatListDate(lastMessageAt) : ''}
             </span>
           </div>
@@ -172,11 +182,18 @@ const ConversationItem = memo(function ConversationItem({ conversation, myId, is
                 </>
               )}
             </p>
-            {unreadCount > 0 && (
-              <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-brand px-1.5 text-[11px] font-semibold text-white">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            )}
+            <span className="flex shrink-0 items-center gap-1.5">
+              {isMuted && <BellOff size={15} className="text-muted" aria-label="Muted" />}
+              {unreadCount > 0 && (
+                <span
+                  className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold text-white ${
+                    isMuted ? 'bg-muted' : 'bg-brand'
+                  }`}
+                >
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </span>
           </div>
         </div>
       </Link>

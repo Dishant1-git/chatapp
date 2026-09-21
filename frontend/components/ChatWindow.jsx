@@ -9,8 +9,11 @@ import Avatar from './Avatar';
 import Message from './Message';
 import MessageInput from './MessageInput';
 import DeleteDialog from './DeleteDialog';
+import ChatMenu from './ChatMenu';
+import GhostBanner from './GhostBanner';
 import { ImageLightbox, ImageSendPreview } from './ImagePreview';
 import { api } from '@/lib/client';
+import { ghostStage } from '@/lib/ghost';
 import { formatDayDivider, formatLastSeen, isDifferentDay } from '@/lib/format';
 
 // Start loading older messages when the user scrolls this close to the top
@@ -57,6 +60,21 @@ export default function ChatWindow({ conversationId }) {
   const [deleting, setDeleting] = useState(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [notice, setNotice] = useState('');
+  const [isDeciding, setIsDeciding] = useState(false);
+  const [, rerender] = useState(0);
+
+  const ghost = conversation?.ghost || null;
+  const stage = ghostStage(ghost);
+  const iAmGhosted = Boolean(stage) && ghost.by !== myId;
+  const canSend = !iAmGhosted || stage === 'pending' || stage === 'emojiOnly';
+
+  // Emojis-only ends on its own after 15 minutes: re-render then to lock the input
+  const emojiUntil = stage === 'emojiOnly' ? ghost.emojiUntil : null;
+  useEffect(() => {
+    if (!emojiUntil) return;
+    const timer = setTimeout(() => rerender((n) => n + 1), new Date(emojiUntil).getTime() - Date.now() + 50);
+    return () => clearTimeout(timer);
+  }, [emojiUntil]);
 
   const listRef = useRef(null);
   const messageEls = useRef(new Map());
@@ -395,6 +413,22 @@ export default function ChatWindow({ conversationId }) {
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
   }, []);
 
+  // The ghoster's answer to the ghosted person's one message
+  async function decideGhost(shouldGhost) {
+    setIsDeciding(true);
+    try {
+      const data = await api(`/api/conversations/${conversationId}/ghost/verdict`, {
+        method: 'POST',
+        body: { ghost: shouldGhost },
+      });
+      updateConversation(conversationId, { ghost: data.ghost });
+    } catch (err) {
+      showNotice(err.message);
+    } finally {
+      setIsDeciding(false);
+    }
+  }
+
   const closeLightbox = useCallback(() => setLightboxSrc(null), []);
   const closeImagePicker = useCallback(() => setPickedImage(null), []);
   const closeDeleteDialog = useCallback(() => setDeleting(null), []);
@@ -439,6 +473,7 @@ export default function ChatWindow({ conversationId }) {
             {statusText}
           </p>
         </div>
+        {conversation && <ChatMenu conversation={conversation} myId={myId} onError={showNotice} />}
       </header>
 
       <div
@@ -547,15 +582,30 @@ export default function ChatWindow({ conversationId }) {
         </div>
       )}
 
-      <MessageInput
-        conversationId={conversationId}
-        replyingTo={replyingTo}
-        replyName={replyingTo?.senderId === myId ? 'yourself' : otherUser?.name}
-        onCancelReply={() => setReplyingTo(null)}
-        onSendText={sendMessage}
-        onPickImage={setPickedImage}
-        onError={showNotice}
-      />
+      {ghost && (
+        <GhostBanner
+          ghost={ghost}
+          myId={myId}
+          otherName={otherUser?.name}
+          isDeciding={isDeciding}
+          onDecide={decideGhost}
+          onJumpTo={jumpTo}
+          asFooter={!canSend}
+        />
+      )}
+
+      {canSend && (
+        <MessageInput
+          conversationId={conversationId}
+          replyingTo={replyingTo}
+          replyName={replyingTo?.senderId === myId ? 'yourself' : otherUser?.name}
+          emojiOnly={iAmGhosted && stage === 'emojiOnly'}
+          onCancelReply={() => setReplyingTo(null)}
+          onSendText={sendMessage}
+          onPickImage={setPickedImage}
+          onError={showNotice}
+        />
+      )}
 
       <AnimatePresence>
         {pickedImage && (

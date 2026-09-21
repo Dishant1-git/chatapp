@@ -1,4 +1,17 @@
 import mongoose from 'mongoose';
+import { formatGhost } from '../utils/ghost.js';
+
+// One person ghosting the other — see utils/ghost.js for the stages
+const ghostSchema = new mongoose.Schema(
+  {
+    by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    stage: { type: String, enum: ['pending', 'awaiting', 'emojiOnly'], required: true },
+    // The one message the ghosted person sent
+    messageId: { type: mongoose.Schema.Types.ObjectId, ref: 'Message', default: null },
+    emojiUntil: { type: Date, default: null },
+  },
+  { _id: false }
+);
 
 const conversationSchema = new mongoose.Schema(
   {
@@ -9,6 +22,9 @@ const conversationSchema = new mongoose.Schema(
     key: { type: String, required: true, unique: true },
     lastMessage: { type: mongoose.Schema.Types.ObjectId, ref: 'Message', default: null },
     lastMessageAt: { type: Date, default: Date.now },
+    // Users who muted this chat (no notifications for them)
+    mutedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    ghost: { type: ghostSchema, default: null },
   },
   { timestamps: true }
 );
@@ -40,6 +56,8 @@ export function formatConversation(conversation, userId, unreadCount = 0) {
     lastMessage,
     lastMessageAt: conv.lastMessageAt,
     unreadCount,
+    isMuted: (conv.mutedBy || []).some((id) => String(id) === String(userId)),
+    ghost: formatGhost(conv.ghost),
   };
 }
 

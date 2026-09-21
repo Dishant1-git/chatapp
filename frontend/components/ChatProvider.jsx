@@ -250,8 +250,16 @@ export default function ChatProvider({ children }) {
 
       if (!isMine) {
         setTyping(conversationId, false);
-        if (!isViewing) showNotification(message, existing);
+        if (!isViewing && !existing.isMuted) showNotification(message, existing);
       }
+    }
+
+    function handleMute({ conversationId, isMuted }) {
+      updateConversation(conversationId, { isMuted });
+    }
+
+    function handleGhost({ conversationId, ghost }) {
+      updateConversation(conversationId, { ghost });
     }
 
     function handlePresence({ userId, isOnline, lastSeen }) {
@@ -307,6 +315,8 @@ export default function ChatProvider({ children }) {
     socket.on('message:deleted', handleDeleted);
     socket.on('messages:read', handleRead);
     socket.on('messages:delivered', handleDelivered);
+    socket.on('conversation:mute', handleMute);
+    socket.on('conversation:ghost', handleGhost);
 
     return () => {
       socket.off('connect', handleConnect);
@@ -317,11 +327,13 @@ export default function ChatProvider({ children }) {
       socket.off('message:deleted', handleDeleted);
       socket.off('messages:read', handleRead);
       socket.off('messages:delivered', handleDelivered);
+      socket.off('conversation:mute', handleMute);
+      socket.off('conversation:ghost', handleGhost);
     };
   }, [socket, addConversation, updateConversation, showNotification, setTyping]);
 
-  // Show the unread count in the browser tab, e.g. "(3) Ghosted"
-  const totalUnread = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+  // Show the unread count in the browser tab, e.g. "(3) Ghosted". Muted chats don't count.
+  const totalUnread = conversations.reduce((sum, c) => sum + (c.isMuted ? 0 : c.unreadCount || 0), 0);
   useEffect(() => {
     document.title = totalUnread > 0 ? `(${totalUnread}) Ghosted` : 'Ghosted';
   }, [totalUnread]);

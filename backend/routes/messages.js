@@ -6,6 +6,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { messageLimiter } from '../middleware/rateLimits.js';
 import { UPLOAD_URL_PATTERN, deleteImage } from '../utils/storage.js';
 import { REACTIONS } from '../utils/reactions.js';
+import { formatGhost, ghostStage, isOnlyEmoji } from '../utils/ghost.js';
 import { getIO, isUserOnline, conversationRoom, userRoom, emitToConversation } from '../socket/io.js';
 
 const router = Router();
@@ -50,6 +51,25 @@ router.post('/', messageLimiter, async (req, res) => {
     if (!original) return res.status(404).json({ error: 'The message you are replying to no longer exists.' });
   }
 
+  // Ghosted by the receiver: one message to change their mind, then emojis only, then nothing
+  const ghostedByReceiver = String(conversation.ghost?.by) === String(receiverId);
+  const stage = ghostedByReceiver ? ghostStage(conversation.ghost) : null;
+  const USED_CHANCE = "You've sent your one message. Wait for them to decide.";
+
+  if (stage === 'awaiting') return res.status(403).json({ error: USED_CHANCE });
+  if (stage === 'full') return res.status(403).json({ error: "You've been ghosted. You can't send messages here." });
+  if (stage === 'emojiOnly' && (image || !isOnlyEmoji(text))) {
+    return res.status(403).json({ error: "You've been ghosted. You can only send emojis." });
+  }
+  if (stage === 'pending') {
+    // Claim the one message atomically so two quick sends can't both get through
+    const claimed = await Conversation.updateOne(
+      { _id: conversationId, 'ghost.by': receiverId, 'ghost.stage': 'pending' },
+      { 'ghost.stage': 'awaiting' }
+    );
+    if (!claimed.modifiedCount) return res.status(403).json({ error: USED_CHANCE });
+  }
+
   const message = await Message.create({
     conversationId,
     senderId: req.userId,
@@ -73,6 +93,21 @@ router.post('/', messageLimiter, async (req, res) => {
   getIO()
     ?.to([conversationRoom(conversationId), userRoom(req.userId), userRoom(receiverId)])
     .emit('message:new', { message, clientId });
+
+  if (stage === 'pending') {
+    // Remember which message was the one chance, and show the ghoster the verdict buttons
+    const updated = await Conversation.findOneAndUpdate(
+      { _id: conversationId, 'ghost.by': receiverId, 'ghost.stage': 'awaiting' },
+      { 'ghost.messageId': message._id },
+      { returnDocument: 'after' }
+    );
+    if (updated) {
+      emitToConversation(conversationId, 'conversation:ghost', {
+        conversationId,
+        ghost: formatGhost(updated.ghost),
+      });
+    }
+  }
 
   res.status(201).json({ message });
 });
@@ -120,6 +155,13 @@ router.post('/:id/reaction', async (req, res) => {
   const message = await findMyMessage(req, res);
   if (!message) return;
   if (message.isDeleted) return res.status(404).json({ error: 'Message not found.' });
+
+  // Fully ghosted people can't react either
+  const conversation = await Conversation.findById(message.conversationId).select('ghost');
+  const ghostedByOther = conversation?.ghost?.by && String(conversation.ghost.by) !== req.userId;
+  if (ghostedByOther && ghostStage(conversation.ghost) === 'full') {
+    return res.status(403).json({ error: "You've been ghosted. You can't react here." });
+  }
 
   const existing = message.reactions.find((r) => String(r.userId) === req.userId);
   const sameEmoji = existing?.emoji === emoji;

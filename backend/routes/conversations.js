@@ -4,6 +4,7 @@ import Conversation, { conversationKey, formatConversation } from '../models/Con
 import Message from '../models/Message.js';
 import User from '../models/User.js';
 import { requireAuth } from '../middleware/auth.js';
+import { GHOST_EMOJI_MS, formatGhost } from '../utils/ghost.js';
 import { getIO, userRoom, conversationRoom, emitToConversation } from '../socket/io.js';
 
 const router = Router();
@@ -152,6 +153,99 @@ router.post('/:id/read', async (req, res) => {
   }
 
   res.json({ updated: result.modifiedCount });
+});
+
+// POST /api/conversations/:id/mute { muted } — only affects me
+router.post('/:id/mute', async (req, res) => {
+  const conversation = await findMyConversation(req, res);
+  if (!conversation) return;
+
+  const isMuted = req.body?.muted === true;
+  await Conversation.updateOne(
+    { _id: conversation._id },
+    isMuted ? { $addToSet: { mutedBy: req.userId } } : { $pull: { mutedBy: req.userId } }
+  );
+
+  // My other tabs and devices
+  getIO()?.to(userRoom(req.userId)).emit('conversation:mute', {
+    conversationId: String(conversation._id),
+    isMuted,
+  });
+
+  res.json({ isMuted });
+});
+
+// Both users see the ghost banner change straight away
+function emitGhost(conversation) {
+  emitToConversation(conversation._id, 'conversation:ghost', {
+    conversationId: String(conversation._id),
+    ghost: formatGhost(conversation.ghost),
+  });
+}
+
+// POST /api/conversations/:id/ghost — ghost the other person.
+// They get one message to change my mind (enforced in POST /api/messages).
+router.post('/:id/ghost', async (req, res) => {
+  const conversation = await findMyConversation(req, res);
+  if (!conversation) return;
+
+  if (conversation.ghost?.by) {
+    const error =
+      String(conversation.ghost.by) === req.userId
+        ? "You're already ghosting them."
+        : "You can't ghost someone who is ghosting you.";
+    return res.status(409).json({ error });
+  }
+
+  // "ghost: null" also matches old conversations without the field
+  const updated = await Conversation.findOneAndUpdate(
+    { _id: conversation._id, ghost: null },
+    { ghost: { by: req.userId, stage: 'pending' } },
+    { returnDocument: 'after' }
+  );
+  if (!updated) return res.status(409).json({ error: 'This chat just changed. Please try again.' });
+
+  emitGhost(updated);
+  res.json({ ghost: formatGhost(updated.ghost) });
+});
+
+// POST /api/conversations/:id/ghost/verdict { ghost: true | false }
+// After reading their one message: ghost them (emojis only for 15 minutes,
+// then nothing at all) or forgive them.
+router.post('/:id/ghost/verdict', async (req, res) => {
+  const conversation = await findMyConversation(req, res);
+  if (!conversation) return;
+
+  const update =
+    req.body?.ghost === true
+      ? { 'ghost.stage': 'emojiOnly', 'ghost.emojiUntil': new Date(Date.now() + GHOST_EMOJI_MS) }
+      : { ghost: null };
+
+  const updated = await Conversation.findOneAndUpdate(
+    { _id: conversation._id, 'ghost.by': req.userId, 'ghost.stage': 'awaiting' },
+    update,
+    { returnDocument: 'after' }
+  );
+  if (!updated) return res.status(409).json({ error: "There's no message waiting for your decision." });
+
+  emitGhost(updated);
+  res.json({ ghost: formatGhost(updated.ghost) });
+});
+
+// DELETE /api/conversations/:id/ghost — stop ghosting (only the one who ghosted can)
+router.delete('/:id/ghost', async (req, res) => {
+  const conversation = await findMyConversation(req, res);
+  if (!conversation) return;
+
+  const updated = await Conversation.findOneAndUpdate(
+    { _id: conversation._id, 'ghost.by': req.userId },
+    { ghost: null },
+    { returnDocument: 'after' }
+  );
+  if (!updated) return res.status(404).json({ error: "You aren't ghosting anyone in this chat." });
+
+  emitGhost(updated);
+  res.json({ ghost: null });
 });
 
 export default router;
