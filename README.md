@@ -156,7 +156,7 @@ frontend/
 | DELETE | `/api/messages/:id?for=me\|everyone`       | Delete a message                              |
 | POST   | `/api/messages/:id/reaction`               | Toggle a reaction `{ emoji }`                 |
 | POST   | `/api/upload`                              | Upload a chat image, returns its URL          |
-| GET    | `/api/health`                              | Health check                                  |
+| GET    | `/api/health`                              | Health check: server uptime + database status. 200 when healthy, 503 when the database is down |
 
 ### Socket events (server → browser)
 
@@ -189,5 +189,6 @@ The frontend can run on the same server or elsewhere.
 3. If the frontend and backend are on **different servers**, set `TRUST_PROXY=1` on the backend
    so sign-up rate limiting sees visitors' real IP addresses.
 4. Make `UPLOAD_DIR` a persistent disk, or switch `backend/utils/storage.js` to S3/Cloudinary.
+5. Point your host's health check (on Render: **Settings → Health Check Path**) at `/api/health`.
 
 Running several backend instances would need the Socket.IO Redis adapter and a shared rate-limit store.

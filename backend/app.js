@@ -7,6 +7,7 @@ import userRoutes from './routes/users.js';
 import conversationRoutes from './routes/conversations.js';
 import messageRoutes from './routes/messages.js';
 import uploadRoutes from './routes/upload.js';
+import healthRoutes from './routes/health.js';
 import { requireDatabase, notFound, errorHandler } from './middleware/errors.js';
 import { getUploadDir } from './utils/storage.js';
 
@@ -33,7 +34,8 @@ export function createApp(allowedOrigins) {
   // Uploaded images. File names are random and never reused, so cache them for a year.
   app.use('/uploads', express.static(getUploadDir(), { maxAge: '365d', immutable: true, fallthrough: false }));
 
-  app.get('/api/health', (req, res) => res.json({ ok: true }));
+  // Before requireDatabase, so it can report a database problem instead of being blocked by it
+  app.use('/api/health', healthRoutes);
 
   app.use('/api', requireDatabase);
   app.use('/api/auth', authRoutes);
