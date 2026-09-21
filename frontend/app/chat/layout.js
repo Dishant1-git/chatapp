@@ -39,7 +39,7 @@ function ChatShell({ children }) {
         <p className="max-w-xs text-muted">{loadError}</p>
         <button
           onClick={retryLoad}
-          className="rounded-full bg-cta px-5 py-2 font-medium text-on-accent hover:bg-cta-strong"
+          className="rounded-full bg-brand px-5 py-2 font-medium text-white hover:bg-brand-strong"
         >
           Try again
         </button>

@@ -57,7 +57,7 @@ export default function NewGroup({ onClose }) {
           <button
             onClick={() => setStep('details')}
             disabled={selected.length === 0}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-cta py-2.5 font-medium text-on-accent transition hover:bg-cta-strong disabled:opacity-40"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-medium text-white transition hover:bg-brand-strong disabled:opacity-40"
           >
             Next <ArrowRight size={18} />
           </button>
@@ -93,7 +93,7 @@ export default function NewGroup({ onClose }) {
             placeholder="e.g. Weekend trip"
             className="w-full rounded-xl border border-line bg-panel-soft px-3.5 py-2.5 text-base outline-none focus:border-brand md:text-sm"
           />
-          {error && <p className="mt-2 text-sm text-danger">{error}</p>}
+          {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
         </div>
 
         <p className="mt-6 px-5 text-sm font-medium text-muted">Members: {selected.length + 1}</p>
@@ -110,7 +110,7 @@ export default function NewGroup({ onClose }) {
           <button
             type="submit"
             disabled={isCreating || !name.trim()}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-cta py-2.5 font-medium text-on-accent transition hover:bg-cta-strong disabled:opacity-40"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-medium text-white transition hover:bg-brand-strong disabled:opacity-40"
           >
             {isCreating ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />} Create group
           </button>
@@ -200,7 +200,7 @@ export function PeoplePicker({ selected, onChange, exclude = [] }) {
         </div>
       </div>
 
-      {error && <p className="px-5 pb-2 text-sm text-danger">{error}</p>}
+      {error && <p className="px-5 pb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       <ul className="scroll-thin min-h-0 flex-1 overflow-y-auto">
         {!query.trim() && people.length > 0 && (
@@ -220,7 +220,7 @@ export function PeoplePicker({ selected, onChange, exclude = [] }) {
               </div>
               <span
                 className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition ${
-                  isSelected(person) ? 'border-brand bg-accent text-on-accent' : 'border-line'
+                  isSelected(person) ? 'border-brand bg-brand text-white' : 'border-line'
                 }`}
               >
                 {isSelected(person) && <Check size={14} strokeWidth={3} />}

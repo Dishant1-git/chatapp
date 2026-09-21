@@ -12,12 +12,12 @@ export default function Navbar() {
   return (
     <nav className="hidden h-16 shrink-0 items-center justify-between px-4 md:flex lg:px-6">
       <div className="flex items-center gap-2.5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent text-on-accent">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-white">
           <MessageCircle size={20} />
         </div>
         <span className="text-lg font-semibold tracking-tight">Ghosted</span>
         {!isConnected && (
-          <span className="ml-2 rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-medium text-brand">
+          <span className="ml-2 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
             Reconnecting…
           </span>
         )}

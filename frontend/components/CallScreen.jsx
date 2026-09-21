@@ -72,7 +72,7 @@ export function IncomingCall({ call, conversation, onAccept, onDecline }) {
 
   return (
     <motion.div
-      className="fixed inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[55] mx-auto max-w-sm rounded-3xl border border-cotton/10 bg-noir p-5 text-cotton shadow-2xl"
+      className="fixed inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[55] mx-auto max-w-sm rounded-3xl border border-white/10 bg-neutral-900 p-5 text-white shadow-2xl"
       initial={{ opacity: 0, y: -24 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -24 }}
@@ -86,7 +86,7 @@ export function IncomingCall({ call, conversation, onAccept, onDecline }) {
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-lg font-semibold">{title}</p>
-          <p className="truncate text-sm text-cotton/70">
+          <p className="truncate text-sm text-white/70">
             {inGroup && caller && caller._id !== user._id ? `${caller.name} · ` : ''}
             Incoming {kind}
           </p>
@@ -96,7 +96,7 @@ export function IncomingCall({ call, conversation, onAccept, onDecline }) {
       <div className="mt-5 flex gap-3">
         <button
           onClick={onDecline}
-          className="flex flex-1 items-center justify-center gap-2 rounded-full bg-cherry py-3 font-medium transition hover:bg-maroon"
+          className="flex flex-1 items-center justify-center gap-2 rounded-full bg-red-600 py-3 font-medium transition hover:bg-red-700"
         >
           <PhoneOff size={19} /> Decline
         </button>
@@ -122,10 +122,10 @@ function ControlButton({ onClick, label, active = true, danger = false, children
       title={label}
       className={`flex h-14 w-14 items-center justify-center rounded-full transition ${
         danger
-          ? 'bg-cherry hover:bg-maroon'
+          ? 'bg-red-600 hover:bg-red-700'
           : active
-            ? 'bg-cotton/15 hover:bg-cotton/25'
-            : 'bg-cotton text-noir hover:bg-cotton/90'
+            ? 'bg-white/15 hover:bg-white/25'
+            : 'bg-white text-neutral-900 hover:bg-white/90'
       }`}
     >
       {children}
@@ -136,14 +136,14 @@ function ControlButton({ onClick, label, active = true, danger = false, children
 // A person in the call: their video, or their picture when the camera is off
 function Tile({ person, stream, showVideo, micOff, label, mirrored = false, className = '' }) {
   return (
-    <div className={`relative flex items-center justify-center overflow-hidden rounded-2xl bg-cotton/[0.07] ${className}`}>
+    <div className={`relative flex items-center justify-center overflow-hidden rounded-2xl bg-neutral-800 ${className}`}>
       {showVideo ? (
         <StreamVideo stream={stream} mirrored={mirrored} className="h-full w-full object-cover" />
       ) : (
         <Avatar user={person} size={88} />
       )}
-      <span className="absolute bottom-2 left-2 flex max-w-[80%] items-center gap-1 rounded-full bg-noir/50 px-2.5 py-0.5 text-xs">
-        {micOff && <MicOff size={12} className="shrink-0 text-cherry-light" />}
+      <span className="absolute bottom-2 left-2 flex max-w-[80%] items-center gap-1 rounded-full bg-black/50 px-2.5 py-0.5 text-xs">
+        {micOff && <MicOff size={12} className="shrink-0 text-red-400" />}
         <span className="truncate">{label}</span>
       </span>
     </div>
@@ -188,7 +188,7 @@ export function CallScreen({
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex flex-col bg-noir pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-cotton"
+      className="fixed inset-0 z-50 flex flex-col bg-neutral-950 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -196,7 +196,7 @@ export function CallScreen({
       <header className="relative z-10 flex items-center gap-3 px-4 py-3">
         <button
           onClick={onMinimize}
-          className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-cotton/10"
+          className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-white/10"
           aria-label="Minimize call"
           title="Back to chats"
         >
@@ -204,7 +204,7 @@ export function CallScreen({
         </button>
         <div className="min-w-0 flex-1 text-center">
           <p className="truncate font-semibold">{title}</p>
-          <p className="flex items-center justify-center gap-1 text-xs text-cotton/60">
+          <p className="flex items-center justify-center gap-1 text-xs text-white/60">
             <Lock size={11} /> {statusLine(call, peers, timer) || 'End-to-end encrypted'}
           </p>
         </div>
@@ -225,7 +225,7 @@ export function CallScreen({
               {conversation && <ChatAvatar conversation={conversation} size={120} />}
             </div>
             <p className="relative text-2xl font-semibold">{title}</p>
-            <p className="relative text-cotton/70">{call.status === 'calling' ? 'Ringing…' : 'Connecting…'}</p>
+            <p className="relative text-white/70">{call.status === 'calling' ? 'Ringing…' : 'Connecting…'}</p>
           </div>
         ) : isOneToOne ? (
           <>
@@ -234,7 +234,7 @@ export function CallScreen({
               <StreamVideo
                 stream={localStream}
                 mirrored={facingMode === 'user'}
-                className="absolute right-5 bottom-5 h-40 w-28 rounded-xl border border-cotton/20 object-cover shadow-lg sm:h-48 sm:w-36"
+                className="absolute right-5 bottom-5 h-40 w-28 rounded-xl border border-white/20 object-cover shadow-lg sm:h-48 sm:w-36"
               />
             )}
           </>
@@ -292,16 +292,16 @@ export function MinimizedCall({ call, conversation, peers, onExpand, onHangUp })
 
   return (
     // Phones: above the message box. Desktop: in the empty middle of the top bar.
-    <div className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-40 mx-auto flex max-w-sm items-center gap-3 rounded-full bg-cherry py-2 pr-2 pl-4 text-cotton shadow-xl md:top-3 md:bottom-auto">
+    <div className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-40 mx-auto flex max-w-sm items-center gap-3 rounded-full bg-emerald-700 py-2 pr-2 pl-4 text-white shadow-xl md:top-3 md:bottom-auto">
       <button onClick={onExpand} className="flex min-w-0 flex-1 items-center gap-2 text-left" aria-label="Return to call">
         {call.video ? <Video size={17} className="shrink-0" /> : <Phone size={17} className="shrink-0" />}
         <span className="truncate text-sm font-medium">{conversationTitle(conversation) || 'Call'}</span>
-        <span className="shrink-0 text-xs text-cotton/80">{statusLine(call, peers, timer)}</span>
+        <span className="shrink-0 text-xs text-white/80">{statusLine(call, peers, timer)}</span>
         <Maximize2 size={15} className="ml-auto shrink-0 opacity-80" />
       </button>
       <button
         onClick={onHangUp}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-cherry hover:bg-maroon"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-600 hover:bg-red-700"
         aria-label="End call"
       >
         <PhoneOff size={17} />

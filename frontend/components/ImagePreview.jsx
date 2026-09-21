@@ -35,21 +35,21 @@ export function ImageSendPreview({ file, onCancel, onSend }) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex flex-col bg-noir/95 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+      className="fixed inset-0 z-50 flex flex-col bg-black/95 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      <div className="flex items-center justify-between p-3 text-cotton">
+      <div className="flex items-center justify-between p-3 text-white">
         <button
           type="button"
           onClick={onCancel}
-          className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-cotton/10"
+          className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/10"
           aria-label="Cancel"
         >
           <X size={24} />
         </button>
-        <span className="text-sm text-cotton/70">Send photo</span>
+        <span className="text-sm text-white/70">Send photo</span>
         <span className="w-11" />
       </div>
 
@@ -64,11 +64,11 @@ export function ImageSendPreview({ file, onCancel, onSend }) {
           placeholder="Add a caption…"
           maxLength={4000}
           autoFocus
-          className="min-w-0 flex-1 rounded-full bg-cotton/10 px-4 py-3 text-base text-cotton outline-none placeholder:text-cotton/50 md:text-sm"
+          className="min-w-0 flex-1 rounded-full bg-white/10 px-4 py-3 text-base text-white outline-none placeholder:text-white/50 md:text-sm"
         />
         <button
           type="submit"
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-cta text-on-accent transition hover:bg-cta-strong"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand text-white transition hover:bg-brand-strong"
           aria-label="Send photo"
         >
           <SendHorizontal size={20} />
@@ -84,7 +84,7 @@ export function ImageLightbox({ src, onClose }) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-noir/90 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -93,7 +93,7 @@ export function ImageLightbox({ src, onClose }) {
       <button
         type="button"
         onClick={onClose}
-        className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 flex h-11 w-11 items-center justify-center rounded-full text-cotton hover:bg-cotton/10"
+        className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 flex h-11 w-11 items-center justify-center rounded-full text-white hover:bg-white/10"
         aria-label="Close"
       >
         <X size={24} />

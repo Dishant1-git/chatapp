@@ -73,7 +73,7 @@ export default function UserSearch({ initialQuery = '', onClose }) {
         </div>
       </div>
 
-      {error && <p className="px-5 pb-2 text-sm text-danger">{error}</p>}
+      {error && <p className="px-5 pb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       <ul className="scroll-thin min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
         {results.map((person) => (

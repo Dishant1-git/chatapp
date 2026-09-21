@@ -9,7 +9,7 @@ export default function AuthCard({ title, subtitle, children, footer, icon: Icon
 
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent text-on-accent shadow-sm">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand text-white shadow-sm">
             <Icon size={28} />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
@@ -39,7 +39,7 @@ export function Field({ label, ...inputProps }) {
 export function FormError({ message }) {
   if (!message) return null;
   return (
-    <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
+    <p role="alert" className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400">
       {message}
     </p>
   );
@@ -50,7 +50,7 @@ export function SubmitButton({ loading, children }) {
     <button
       type="submit"
       disabled={loading}
-      className="w-full rounded-xl bg-cta py-2.5 font-medium text-on-accent transition hover:bg-cta-strong disabled:opacity-60"
+      className="w-full rounded-xl bg-brand py-2.5 font-medium text-white transition hover:bg-brand-strong disabled:opacity-60"
     >
       {loading ? 'Please wait…' : children}
     </button>

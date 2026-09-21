@@ -1,9 +1,7 @@
 import { Users } from 'lucide-react';
 
 // Profile picture with a fallback to the person's initials
-// Shades of the palette (cherry, maroon and mixes of them with noir and cotton).
-// Plain noir is left out: it would disappear on the dark theme.
-const COLORS = ['#810100', '#630000', '#9c3b34', '#5a574e', '#7a2e27', '#4a3a36'];
+const COLORS = ['#0d8a74', '#2563eb', '#9333ea', '#db2777', '#ea580c', '#0891b2', '#4f46e5', '#65a30d'];
 
 export function colorFor(name = '') {
   let total = 0;
@@ -30,7 +28,7 @@ export default function Avatar({ user, size = 44, showStatus = false, isGroup = 
         />
       ) : (
         <div
-          className="flex h-full w-full items-center justify-center rounded-full font-semibold text-cotton select-none"
+          className="flex h-full w-full items-center justify-center rounded-full font-semibold text-white select-none"
           style={{ backgroundColor: colorFor(name), fontSize: size * 0.38 }}
         >
           {isGroup ? <Users size={size * 0.46} /> : initials(name)}

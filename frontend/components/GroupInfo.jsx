@@ -127,12 +127,12 @@ export default function GroupInfo({ conversation, onClose }) {
       {view === 'add' ? (
         <>
           <PeoplePicker selected={toAdd} onChange={setToAdd} exclude={conversation.participants.map((p) => p._id)} />
-          {error && <p className="px-5 pb-2 text-sm text-danger">{error}</p>}
+          {error && <p className="px-5 pb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
           <div className="shrink-0 border-t border-line p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <button
               onClick={addMembers}
               disabled={toAdd.length === 0 || busy === 'add'}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-cta py-2.5 font-medium text-on-accent transition hover:bg-cta-strong disabled:opacity-40"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-medium text-white transition hover:bg-brand-strong disabled:opacity-40"
             >
               {busy === 'add' ? <Loader2 size={18} className="animate-spin" /> : <UserPlus size={18} />}
               Add {toAdd.length || ''} {toAdd.length === 1 ? 'person' : 'people'}
@@ -146,7 +146,7 @@ export default function GroupInfo({ conversation, onClose }) {
               <ChatAvatar conversation={conversation} size={112} />
               {amAdmin && (
                 <>
-                  <span className="absolute inset-0 flex items-center justify-center rounded-full bg-noir/50 text-cotton opacity-0 transition group-hover:opacity-100">
+                  <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition group-hover:opacity-100">
                     {busy === 'details' ? <Loader2 className="animate-spin" /> : <Camera size={24} />}
                   </span>
                   <input
@@ -172,7 +172,7 @@ export default function GroupInfo({ conversation, onClose }) {
                 <button
                   type="submit"
                   disabled={busy === 'details' || !name.trim()}
-                  className="rounded-xl bg-cta px-4 text-sm font-medium text-on-accent disabled:opacity-50"
+                  className="rounded-xl bg-brand px-4 text-sm font-medium text-white disabled:opacity-50"
                 >
                   Save
                 </button>
@@ -194,7 +194,7 @@ export default function GroupInfo({ conversation, onClose }) {
             <p className="mt-1 text-sm text-muted">Group · {conversation.participants.length} members</p>
           </div>
 
-          {error && <p className="mx-5 mb-3 text-sm text-danger">{error}</p>}
+          {error && <p className="mx-5 mb-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
           <div className="mx-5 mb-4 flex items-start gap-2 rounded-xl bg-panel-soft px-3.5 py-3 text-xs text-muted">
             <Lock size={14} className="mt-0.5 shrink-0" />
@@ -209,7 +209,7 @@ export default function GroupInfo({ conversation, onClose }) {
                 onClick={() => setView('add')}
                 className="flex w-full items-center gap-3 px-5 py-2.5 text-left transition hover:bg-hover"
               >
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-on-accent">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand text-white">
                   <UserPlus size={19} />
                 </span>
                 <span className="font-medium">Add members</span>
@@ -248,7 +248,7 @@ export default function GroupInfo({ conversation, onClose }) {
                         <button
                           onClick={() => removeMember(member)}
                           disabled={Boolean(busy)}
-                          className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-danger"
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-red-600"
                           title="Remove from group"
                           aria-label={`Remove ${member.name}`}
                         >
@@ -265,7 +265,7 @@ export default function GroupInfo({ conversation, onClose }) {
           <button
             onClick={leave}
             disabled={Boolean(busy)}
-            className="mt-2 flex w-full items-center gap-3 border-t border-line px-5 py-4 text-left text-sm font-medium text-danger hover:bg-hover disabled:opacity-60"
+            className="mt-2 flex w-full items-center gap-3 border-t border-line px-5 py-4 text-left text-sm font-medium text-red-600 hover:bg-hover disabled:opacity-60 dark:text-red-400"
           >
             {busy === 'leave' ? <Loader2 size={18} className="animate-spin" /> : <LogOut size={18} />} Leave group
           </button>
