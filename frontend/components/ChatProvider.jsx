@@ -4,45 +4,17 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { usePathname, useRouter } from 'next/navigation';
 import { api, logoutAndRedirect } from '@/lib/client';
 import { messagePreview } from '@/lib/format';
+import { clearDeviceKeys, getSessionKeyId, openMessage, restoreSession } from '@/lib/e2ee';
+import { makeNameOf, markDeliveredTo, markReadBy, openConversation } from '@/lib/conversations';
+import { playNotificationSound, unlockAudio } from '@/lib/sounds';
 import { useSocket } from '@/hooks/useSocket';
 
-// Holds everything the chat list and chat window share:
-// the logged-in user, the socket, the conversation list, typing state and toasts.
+// Holds everything the chat list and chat window share: the logged-in user,
+// the socket, the conversation list, typing state, toasts and the encryption lock.
 const ChatContext = createContext(null);
 
 export function useChat() {
   return useContext(ChatContext);
-}
-
-// A short two-tone "ping" made with the Web Audio API, so no sound file is needed
-let audioContext = null;
-
-function unlockAudio() {
-  // Browsers only allow sound after the user has interacted with the page
-  try {
-    audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
-    if (audioContext.state === 'suspended') audioContext.resume();
-  } catch {
-    audioContext = null;
-  }
-}
-
-function playNotificationSound() {
-  if (!audioContext || audioContext.state !== 'running') return;
-  const now = audioContext.currentTime;
-  const oscillator = audioContext.createOscillator();
-  const gain = audioContext.createGain();
-
-  oscillator.type = 'sine';
-  oscillator.frequency.setValueAtTime(880, now);
-  oscillator.frequency.setValueAtTime(1320, now + 0.09);
-  gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(0.12, now + 0.02);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
-
-  oscillator.connect(gain).connect(audioContext.destination);
-  oscillator.start(now);
-  oscillator.stop(now + 0.32);
 }
 
 export default function ChatProvider({ children }) {
@@ -54,11 +26,13 @@ export default function ChatProvider({ children }) {
   const [conversations, setConversations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [typingIn, setTypingIn] = useState({}); // { [conversationId]: true }
+  // checking | setup (no keys yet) | locked (PIN needed on this device) | ready
+  const [keyStatus, setKeyStatus] = useState('checking');
+  const [typingIn, setTypingIn] = useState({}); // { [conversationId]: { [userId]: true } }
   const [toasts, setToasts] = useState([]);
-  const [sidebarPanel, setSidebarPanel] = useState(null); // null | 'newChat' | 'profile'
+  const [sidebarPanel, setSidebarPanel] = useState(null); // null | 'newChat' | 'newGroup' | 'profile'
 
-  const { socket, isConnected } = useSocket(Boolean(user));
+  const { socket, isConnected } = useSocket(keyStatus === 'ready');
 
   // Socket handlers are registered once, so they read the latest values from refs
   const userRef = useRef(null);
@@ -68,6 +42,8 @@ export default function ChatProvider({ children }) {
   const typingTimers = useRef({});
   const hasNavigated = useRef(false);
   const firstPath = useRef(pathname);
+  // Incoming messages are decrypted one after another so they stay in order
+  const messageQueue = useRef(Promise.resolve());
 
   useEffect(() => {
     userRef.current = user;
@@ -80,13 +56,23 @@ export default function ChatProvider({ children }) {
     if (pathname !== firstPath.current) hasNavigated.current = true;
   }, [pathname]);
 
+  const loadConversations = useCallback(async () => {
+    const list = await api('/api/conversations');
+    setConversations(await Promise.all(list.conversations.map(openConversation)));
+  }, []);
+
   const loadInitialData = useCallback(async () => {
     setIsLoading(true);
     setLoadError('');
     try {
-      const [me, list] = await Promise.all([api('/api/auth/me'), api('/api/conversations')]);
+      const me = await api('/api/auth/me');
       setUser(me.user);
-      setConversations(list.conversations);
+      if (await restoreSession(me.user)) {
+        await loadConversations();
+        setKeyStatus('ready');
+      } else {
+        setKeyStatus(me.user.publicKey ? 'locked' : 'setup');
+      }
     } catch (err) {
       if (err.status === 401 || err.status === 404) {
         logoutAndRedirect();
@@ -96,13 +82,30 @@ export default function ChatProvider({ children }) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [loadConversations]);
 
   useEffect(() => {
     loadInitialData();
     window.addEventListener('pointerdown', unlockAudio, { once: true });
     return () => window.removeEventListener('pointerdown', unlockAudio);
   }, [loadInitialData]);
+
+  // Called by the PIN screen once the keys are unlocked (or newly created)
+  const onKeysReady = useCallback(
+    async (updatedUser) => {
+      if (updatedUser) setUser(updatedUser);
+      setIsLoading(true);
+      try {
+        await loadConversations();
+        setKeyStatus('ready');
+      } catch (err) {
+        setLoadError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [loadConversations]
+  );
 
   const updateConversation = useCallback((conversationId, changes) => {
     setConversations((prev) =>
@@ -114,10 +117,9 @@ export default function ChatProvider({ children }) {
     );
   }, []);
 
-  const addConversation = useCallback((conversation) => {
-    setConversations((prev) =>
-      prev.some((c) => c._id === conversation._id) ? prev : [conversation, ...prev]
-    );
+  const addConversation = useCallback(async (conversation) => {
+    const opened = await openConversation(conversation);
+    setConversations((prev) => (prev.some((c) => c._id === opened._id) ? prev : [opened, ...prev]));
   }, []);
 
   const markAsRead = useCallback(
@@ -139,7 +141,21 @@ export default function ChatProvider({ children }) {
         method: 'POST',
         body: { userId: otherUserId },
       });
-      addConversation(conversation);
+      await addConversation(conversation);
+      setSidebarPanel(null);
+      router.push(`/chat/${conversation._id}`);
+    },
+    [addConversation, router]
+  );
+
+  const createGroup = useCallback(
+    async ({ name, memberIds, image }) => {
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('members', JSON.stringify(memberIds));
+      if (image) formData.append('image', image);
+      const { conversation } = await api('/api/conversations/groups', { method: 'POST', formData });
+      await addConversation(conversation);
       setSidebarPanel(null);
       router.push(`/chat/${conversation._id}`);
     },
@@ -168,11 +184,17 @@ export default function ChatProvider({ children }) {
       if (notifiedIds.current.has(message._id)) return;
       notifiedIds.current.add(message._id);
 
+      const myId = userRef.current?._id;
+      const nameOf = makeNameOf(conversation, myId);
+      const isGroupChat = conversation.type === 'group';
+      const preview = messagePreview(message, { nameOf, myId });
+
       const toast = {
         id: message._id,
         conversationId: message.conversationId,
-        user: conversation.otherUser,
-        text: messagePreview(message),
+        conversation,
+        title: isGroupChat ? conversation.name : conversation.otherUser?.name,
+        text: isGroupChat && message.messageType !== 'event' ? `${nameOf(message.senderId)}: ${preview}` : preview,
       };
       setToasts((prev) => [...prev.slice(-2), toast]); // show at most 3
       setTimeout(() => dismissToast(toast.id), 5000);
@@ -181,19 +203,21 @@ export default function ChatProvider({ children }) {
     [dismissToast]
   );
 
-  const setTyping = useCallback((conversationId, isTyping) => {
-    clearTimeout(typingTimers.current[conversationId]);
+  const setTyping = useCallback((conversationId, userId, isTyping) => {
+    const timerKey = `${conversationId}:${userId}`;
+    clearTimeout(typingTimers.current[timerKey]);
     if (isTyping) {
       // Safety net: hide the indicator if "stopTyping" never arrives
-      typingTimers.current[conversationId] = setTimeout(
-        () => setTyping(conversationId, false),
-        5000
-      );
+      typingTimers.current[timerKey] = setTimeout(() => setTyping(conversationId, userId, false), 5000);
     }
     setTypingIn((prev) => {
-      if (Boolean(prev[conversationId]) === isTyping) return prev;
+      const current = prev[conversationId] || {};
+      if (Boolean(current[userId]) === isTyping) return prev;
+      const people = { ...current };
+      if (isTyping) people[userId] = true;
+      else delete people[userId];
       const next = { ...prev };
-      if (isTyping) next[conversationId] = true;
+      if (Object.keys(people).length) next[conversationId] = people;
       else delete next[conversationId];
       return next;
     });
@@ -207,31 +231,30 @@ export default function ChatProvider({ children }) {
 
     function handleConnect() {
       // After a reconnect, reload the list to pick up anything we missed
-      if (hasConnectedBefore) {
-        api('/api/conversations')
-          .then((data) => setConversations(data.conversations))
-          .catch(() => {});
-      }
+      if (hasConnectedBefore) loadConversations().catch(() => {});
       hasConnectedBefore = true;
     }
 
-    function handleNewMessage({ message }) {
+    async function processNewMessage(rawMessage) {
       const myId = userRef.current?._id;
-      const conversationId = message.conversationId;
+      const conversationId = rawMessage.conversationId;
+      const message = await openMessage(rawMessage);
       const isMine = message.senderId === myId;
-      const isViewing =
-        activeIdRef.current === conversationId && document.visibilityState === 'visible';
+      const isForMe = (message.recipients || []).includes(myId);
+      const isViewing = activeIdRef.current === conversationId && document.visibilityState === 'visible';
 
       const existing = conversationsRef.current.find((c) => c._id === conversationId);
 
       if (!existing) {
-        // Someone started a new chat with us
-        api(`/api/conversations/${conversationId}`)
-          .then(({ conversation }) => {
-            addConversation(conversation);
-            if (!isMine && !isViewing) showNotification(message, conversation);
-          })
-          .catch(() => {});
+        // Someone started a chat with us, or added us to a group
+        try {
+          const { conversation } = await api(`/api/conversations/${conversationId}`);
+          const opened = await openConversation(conversation);
+          setConversations((prev) => (prev.some((c) => c._id === opened._id) ? prev : [opened, ...prev]));
+          if (isForMe && !isViewing) showNotification(message, opened);
+        } catch {
+          // Not a member (anymore) — ignore
+        }
         return;
       }
 
@@ -242,13 +265,14 @@ export default function ChatProvider({ children }) {
           ...conv,
           lastMessage: message,
           lastMessageAt: message.createdAt,
-          unreadCount: isMine || isViewing ? conv.unreadCount : conv.unreadCount + 1,
+          unreadCount: isForMe && !isViewing ? conv.unreadCount + 1 : conv.unreadCount,
         };
         // Move the conversation to the top
         return [updated, ...prev.filter((c) => c._id !== conversationId)];
       });
 
       if (!isMine) {
+<<<<<<< Updated upstream
         setTyping(conversationId, false);
         if (!isViewing && !existing.isMuted) showNotification(message, existing);
       }
@@ -263,21 +287,51 @@ export default function ChatProvider({ children }) {
     }
 
     function handlePresence({ userId, isOnline, lastSeen }) {
+=======
+        setTyping(conversationId, message.senderId, false);
+        if (isForMe && !isViewing) showNotification(message, existing);
+      }
+    }
+
+    function handleNewMessage({ message }) {
+      messageQueue.current = messageQueue.current.then(() => processNewMessage(message)).catch(() => {});
+    }
+
+    function updateMember(userId, changes) {
+>>>>>>> Stashed changes
       setConversations((prev) =>
-        prev.map((c) =>
-          c.otherUser._id === userId
-            ? { ...c, otherUser: { ...c.otherUser, isOnline, lastSeen: lastSeen || c.otherUser.lastSeen } }
-            : c
-        )
+        prev.map((c) => {
+          if (!c.participants?.some((p) => p._id === userId)) return c;
+          const participants = c.participants.map((p) => (p._id === userId ? { ...p, ...changes } : p));
+          const otherUser = c.otherUser?._id === userId ? { ...c.otherUser, ...changes } : c.otherUser;
+          return { ...c, participants, otherUser };
+        })
       );
     }
 
+    function handlePresence({ userId, isOnline, lastSeen }) {
+      updateMember(userId, lastSeen ? { isOnline, lastSeen } : { isOnline });
+    }
+
+    // Someone set up or reset their encryption keys
+    function handleKeysChanged({ userId, publicKey, keyId }) {
+      // I reset my PIN on another device: the key on this one is outdated, so unlock again
+      if (userId === userRef.current?._id && keyId !== getSessionKeyId()) {
+        clearDeviceKeys().finally(() => {
+          setUser((u) => ({ ...u, publicKey, keyId }));
+          setKeyStatus('locked');
+        });
+        return;
+      }
+      updateMember(userId, { publicKey, keyId });
+    }
+
     function handleTyping({ conversationId, userId }) {
-      if (userId !== userRef.current?._id) setTyping(conversationId, true);
+      if (userId !== userRef.current?._id) setTyping(conversationId, userId, true);
     }
 
     function handleStopTyping({ conversationId, userId }) {
-      if (userId !== userRef.current?._id) setTyping(conversationId, false);
+      if (userId !== userRef.current?._id) setTyping(conversationId, userId, false);
     }
 
     function handleDeleted({ messageId, conversationId }) {
@@ -293,9 +347,7 @@ export default function ChatProvider({ children }) {
       updateConversation(conversationId, (c) => {
         // I read it on another tab or device
         if (readerId === myId) return { unreadCount: 0 };
-        if (c.lastMessage?.senderId === myId) {
-          return { lastMessage: { ...c.lastMessage, isRead: true, isDelivered: true } };
-        }
+        if (c.lastMessage?.senderId === myId) return { lastMessage: markReadBy(c.lastMessage, readerId) };
         return {};
       });
     }
@@ -303,34 +355,57 @@ export default function ChatProvider({ children }) {
     function handleDelivered({ conversationId, receiverId }) {
       if (receiverId === userRef.current?._id) return;
       updateConversation(conversationId, (c) =>
-        c.lastMessage ? { lastMessage: { ...c.lastMessage, isDelivered: true } } : {}
+        c.lastMessage ? { lastMessage: markDeliveredTo(c.lastMessage, receiverId) } : {}
       );
+    }
+
+    // A group's name, photo, members or admins changed
+    function handleConversationUpdated({ conversation }) {
+      updateConversation(conversation._id, conversation);
+    }
+
+    // I was removed from a group
+    function handleConversationRemoved({ conversationId }) {
+      setConversations((prev) => prev.filter((c) => c._id !== conversationId));
+      if (activeIdRef.current === conversationId) router.replace('/chat');
     }
 
     socket.on('connect', handleConnect);
     socket.on('message:new', handleNewMessage);
     socket.on('presence', handlePresence);
+    socket.on('keys:changed', handleKeysChanged);
     socket.on('typing', handleTyping);
     socket.on('stopTyping', handleStopTyping);
     socket.on('message:deleted', handleDeleted);
     socket.on('messages:read', handleRead);
     socket.on('messages:delivered', handleDelivered);
+<<<<<<< Updated upstream
     socket.on('conversation:mute', handleMute);
     socket.on('conversation:ghost', handleGhost);
+=======
+    socket.on('conversation:updated', handleConversationUpdated);
+    socket.on('conversation:removed', handleConversationRemoved);
+>>>>>>> Stashed changes
 
     return () => {
       socket.off('connect', handleConnect);
       socket.off('message:new', handleNewMessage);
       socket.off('presence', handlePresence);
+      socket.off('keys:changed', handleKeysChanged);
       socket.off('typing', handleTyping);
       socket.off('stopTyping', handleStopTyping);
       socket.off('message:deleted', handleDeleted);
       socket.off('messages:read', handleRead);
       socket.off('messages:delivered', handleDelivered);
+<<<<<<< Updated upstream
       socket.off('conversation:mute', handleMute);
       socket.off('conversation:ghost', handleGhost);
+=======
+      socket.off('conversation:updated', handleConversationUpdated);
+      socket.off('conversation:removed', handleConversationRemoved);
+>>>>>>> Stashed changes
     };
-  }, [socket, addConversation, updateConversation, showNotification, setTyping]);
+  }, [socket, router, loadConversations, updateConversation, showNotification, setTyping]);
 
   // Show the unread count in the browser tab, e.g. "(3) Ghosted". Muted chats don't count.
   const totalUnread = conversations.reduce((sum, c) => sum + (c.isMuted ? 0 : c.unreadCount || 0), 0);
@@ -340,6 +415,7 @@ export default function ChatProvider({ children }) {
 
   const logout = useCallback(async () => {
     try {
+      await clearDeviceKeys();
       await api('/api/auth/logout', { method: 'POST' });
     } finally {
       socket?.disconnect();
@@ -356,6 +432,8 @@ export default function ChatProvider({ children }) {
       isLoading,
       loadError,
       retryLoad: loadInitialData,
+      keyStatus,
+      onKeysReady,
       conversations,
       activeConversationId,
       typingIn,
@@ -367,6 +445,7 @@ export default function ChatProvider({ children }) {
       updateConversation,
       markAsRead,
       openChatWith,
+      createGroup,
       goBackToList,
       logout,
     }),
@@ -377,6 +456,8 @@ export default function ChatProvider({ children }) {
       isLoading,
       loadError,
       loadInitialData,
+      keyStatus,
+      onKeysReady,
       conversations,
       activeConversationId,
       typingIn,
@@ -387,6 +468,7 @@ export default function ChatProvider({ children }) {
       updateConversation,
       markAsRead,
       openChatWith,
+      createGroup,
       goBackToList,
       logout,
     ]

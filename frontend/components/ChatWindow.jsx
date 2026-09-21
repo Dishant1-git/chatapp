@@ -1,29 +1,50 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ChevronsDown, Loader2, MessageSquareOff } from 'lucide-react';
+import { ArrowLeft, ChevronsDown, Loader2, Lock, MessageSquareOff, Phone, PhoneCall, Video } from 'lucide-react';
 import { useChat } from './ChatProvider';
-import Avatar from './Avatar';
+import { useCalls } from './CallProvider';
+import { ChatAvatar } from './Avatar';
 import Message from './Message';
 import MessageInput from './MessageInput';
 import DeleteDialog from './DeleteDialog';
+<<<<<<< Updated upstream
 import ChatMenu from './ChatMenu';
 import GhostBanner from './GhostBanner';
 import { ImageLightbox, ImageSendPreview } from './ImagePreview';
 import { api } from '@/lib/client';
 import { ghostStage } from '@/lib/ghost';
 import { formatDayDivider, formatLastSeen, isDifferentDay } from '@/lib/format';
+=======
+import GroupInfo from './GroupInfo';
+import { ImageLightbox, ImageSendPreview } from './ImagePreview';
+import { api } from '@/lib/client';
+import { describeEvent, formatDayDivider, formatLastSeen, formatTime, isDifferentDay } from '@/lib/format';
+import { encryptFile, encryptMessage, openMessage, openMessages, prepareImage, rememberImage } from '@/lib/e2ee';
+import {
+  conversationTitle,
+  isGroup,
+  makeNameOf,
+  markDeliveredTo,
+  markReadBy,
+  memberSummary,
+  typingText,
+} from '@/lib/conversations';
+>>>>>>> Stashed changes
 
 // Start loading older messages when the user scrolls this close to the top
 const LOAD_OLDER_THRESHOLD = 150;
 
 // Adds a message to the list, or replaces the copy we already have.
 // clientId is the temporary id of the optimistic message the sender created.
-function addOrReplace(list, message, clientId) {
+// keepExisting: don't overwrite a copy that already arrived over the socket
+// (it may already have newer delivered/read ticks).
+function addOrReplace(list, message, clientId, { keepExisting = false } = {}) {
   if (list.some((m) => m._id === message._id)) {
-    return list.filter((m) => m._id !== clientId).map((m) => (m._id === message._id ? message : m));
+    const withoutTemp = list.filter((m) => m._id !== clientId);
+    return keepExisting ? withoutTemp : withoutTemp.map((m) => (m._id === message._id ? message : m));
   }
   if (clientId && list.some((m) => m._id === clientId)) {
     return list.map((m) => (m._id === clientId ? message : m));
@@ -42,11 +63,22 @@ function mergeLatest(list, latest) {
 export default function ChatWindow({ conversationId }) {
   const { user, socket, conversations, typingIn, addConversation, updateConversation, markAsRead, goBackToList } =
     useChat();
+  const { startCall, joinCall, activeCalls, currentCall } = useCalls();
 
   const conversation = conversations.find((c) => c._id === conversationId);
+  const isGroupChat = isGroup(conversation);
   const otherUser = conversation?.otherUser;
-  const isTyping = Boolean(typingIn[conversationId]);
   const myId = user._id;
+  const typing = typingText(conversation, typingIn[conversationId]);
+  // Only changes when someone joins, leaves or is renamed (not on every online/offline
+  // update), so memoized bubbles don't re-render
+  const memberNames = JSON.stringify((conversation?.participants || []).map((p) => [p._id, p.name]));
+  const nameOf = useMemo(
+    () => makeNameOf({ participants: JSON.parse(memberNames).map(([_id, name]) => ({ _id, name })) }, myId),
+    [memberNames, myId]
+  );
+  const activeCall = activeCalls[conversationId];
+  const canJoinCall = activeCall && currentCall?.callId !== activeCall.callId;
 
   const [messages, setMessages] = useState([]);
   const [hasMore, setHasMore] = useState(false);
@@ -59,6 +91,7 @@ export default function ChatWindow({ conversationId }) {
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const [notice, setNotice] = useState('');
   const [isDeciding, setIsDeciding] = useState(false);
   const [, rerender] = useState(0);
@@ -85,6 +118,8 @@ export default function ChatWindow({ conversationId }) {
   const scrollRestore = useRef(null);
   const stickToBottom = useRef(true);
   const noticeTimer = useRef(null);
+  // Incoming messages are decrypted one after another so they stay in order
+  const incomingQueue = useRef(Promise.resolve());
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -116,10 +151,11 @@ export default function ChatWindow({ conversationId }) {
     setStatus('loading');
 
     api(`/api/conversations/${conversationId}/messages`)
-      .then((data) => {
+      .then(async (data) => {
+        const opened = await openMessages(data.messages, conversationId);
         if (cancelled) return;
         stickToBottom.current = true;
-        setMessages(data.messages);
+        setMessages(opened);
         setHasMore(data.hasMore);
         setStatus('ready');
       })
@@ -157,12 +193,13 @@ export default function ChatWindow({ conversationId }) {
     setIsLoadingOlder(true);
     try {
       const data = await api(`/api/conversations/${conversationId}/messages?before=${oldest._id}`);
+      const opened = await openMessages(data.messages, conversationId);
       const el = listRef.current;
       if (el) scrollRestore.current = { height: el.scrollHeight, top: el.scrollTop };
-      setMessages((prev) => [...data.messages.filter((m) => !prev.some((p) => p._id === m._id)), ...prev]);
+      setMessages((prev) => [...opened.filter((m) => !prev.some((p) => p._id === m._id)), ...prev]);
       setHasMore(data.hasMore);
       hasMoreRef.current = data.hasMore;
-      return data.messages;
+      return opened;
     } catch (err) {
       showNotice(err.message);
       return [];
@@ -196,21 +233,23 @@ export default function ChatWindow({ conversationId }) {
 
     function onNewMessage({ message, clientId }) {
       if (message.conversationId !== conversationId) return;
-      if (message.senderId === myId) stickToBottom.current = true;
-      setMessages((prev) => addOrReplace(prev, message, clientId));
-      if (message.senderId !== myId && document.visibilityState === 'visible') {
-        markAsRead(conversationId);
-      }
+      incomingQueue.current = incomingQueue.current
+        .then(async () => {
+          const opened = await openMessage(message, conversationId);
+          if (opened.senderId === myId) stickToBottom.current = true;
+          setMessages((prev) => addOrReplace(prev, opened, clientId));
+          if (opened.senderId !== myId && document.visibilityState === 'visible') markAsRead(conversationId);
+        })
+        .catch(() => {});
     }
 
     function onDeleted({ messageId, conversationId: id }) {
       if (id !== conversationId) return;
+      const wiped = { isDeleted: true, text: '', image: '', ciphertext: '', undecryptable: false };
       setMessages((prev) =>
         prev.map((m) => {
-          if (m._id === messageId) return { ...m, isDeleted: true, text: '', image: '', reactions: [] };
-          if (m.replyTo?._id === messageId) {
-            return { ...m, replyTo: { ...m.replyTo, isDeleted: true, text: '', image: '' } };
-          }
+          if (m._id === messageId) return { ...m, ...wiped, reactions: [] };
+          if (m.replyTo?._id === messageId) return { ...m, replyTo: { ...m.replyTo, ...wiped } };
           return m;
         })
       );
@@ -223,22 +262,19 @@ export default function ChatWindow({ conversationId }) {
 
     function onRead({ conversationId: id, readerId }) {
       if (id !== conversationId || readerId === myId) return;
-      setMessages((prev) =>
-        prev.map((m) => (m.senderId === myId && !m.isRead ? { ...m, isRead: true, isDelivered: true } : m))
-      );
+      setMessages((prev) => prev.map((m) => (m.senderId === myId ? markReadBy(m, readerId) : m)));
     }
 
     function onDelivered({ conversationId: id, receiverId }) {
       if (id !== conversationId || receiverId === myId) return;
-      setMessages((prev) =>
-        prev.map((m) => (m.senderId === myId && !m.isDelivered ? { ...m, isDelivered: true } : m))
-      );
+      setMessages((prev) => prev.map((m) => (m.senderId === myId ? markDeliveredTo(m, receiverId) : m)));
     }
 
     // Back online: fetch whatever arrived while we were disconnected
     function onReconnect() {
       api(`/api/conversations/${conversationId}/messages`)
-        .then((data) => setMessages((prev) => mergeLatest(prev, data.messages)))
+        .then((data) => openMessages(data.messages, conversationId))
+        .then((latest) => setMessages((prev) => mergeLatest(prev, latest)))
         .catch(() => {});
       if (document.visibilityState === 'visible') markAsRead(conversationId);
     }
@@ -273,30 +309,54 @@ export default function ChatWindow({ conversationId }) {
 
   // ---- Sending ----
 
-  // Uploads the image (if any), saves the message, then swaps the optimistic copy for the real one
+  // Encrypts the message (and image) for every member, uploads, saves it,
+  // then swaps the optimistic copy for the real one
   const deliver = useCallback(
     async (temp) => {
-      try {
-        let image = '';
+      async function encryptAndSend(members) {
+        const payload = { text: temp.text };
+        let prepared = null;
         if (temp.file) {
-          const formData = new FormData();
-          formData.append('image', temp.file);
-          image = (await api('/api/upload', { method: 'POST', formData })).url;
+          prepared = await prepareImage(temp.file);
+          payload.image = { type: prepared.type, width: prepared.width, height: prepared.height };
         }
 
-        const { message } = await api('/api/messages', {
-          method: 'POST',
-          body: { conversationId, text: temp.text, image, replyTo: temp.replyTo?._id, clientId: temp._id },
-        });
+        const { encrypted, contentKey } = await encryptMessage({ conversationId, members, payload });
 
-        setMessages((prev) => addOrReplace(prev, message, temp._id));
-        if (temp.localImage) setTimeout(() => URL.revokeObjectURL(temp.localImage), 10000);
+        let image = '';
+        if (prepared) {
+          const file = await encryptFile(contentKey, prepared.blob);
+          image = (await api('/api/upload/encrypted', { method: 'POST', file })).url;
+          // Show our own copy without downloading and decrypting it again
+          rememberImage(image, temp.localImage);
+        }
+
+        return api('/api/messages', {
+          method: 'POST',
+          body: { conversationId, ...encrypted, image, replyTo: temp.replyTo?._id, clientId: temp._id },
+        });
+      }
+
+      try {
+        let result;
+        try {
+          result = await encryptAndSend(conversationRef.current?.participants || []);
+        } catch (err) {
+          if (err.code !== 'KEYS_CHANGED') throw err;
+          // Someone joined, left or got new keys since we loaded the chat: refresh and try once more
+          const { conversation: fresh } = await api(`/api/conversations/${conversationId}`);
+          updateConversation(conversationId, { participants: fresh.participants, otherUser: fresh.otherUser });
+          result = await encryptAndSend(fresh.participants);
+        }
+
+        const opened = await openMessage(result.message, conversationId);
+        setMessages((prev) => addOrReplace(prev, opened, temp._id, { keepExisting: true }));
       } catch (err) {
         setMessages((prev) => prev.map((m) => (m._id === temp._id ? { ...m, pending: false, failed: true } : m)));
         showNotice(err.message);
       }
     },
-    [conversationId, showNotice]
+    [conversationId, updateConversation, showNotice]
   );
 
   // The message shows up immediately with a clock icon, then gets its ticks once saved
@@ -355,6 +415,7 @@ export default function ChatWindow({ conversationId }) {
   const requestDelete = useCallback((message) => {
     // A message that never reached the server is simply removed
     if (message.failed) {
+      if (message.localImage) URL.revokeObjectURL(message.localImage);
       setMessages((prev) => prev.filter((m) => m._id !== message._id));
       return;
     }
@@ -433,6 +494,15 @@ export default function ChatWindow({ conversationId }) {
   const closeImagePicker = useCallback(() => setPickedImage(null), []);
   const closeDeleteDialog = useCallback(() => setDeleting(null), []);
 
+  async function handleCall(video) {
+    try {
+      if (canJoinCall) await joinCall(activeCall);
+      else await startCall(conversationId, video);
+    } catch (err) {
+      showNotice(err.message);
+    }
+  }
+
   // ---- Render ----
 
   if (status === 'notfound') {
@@ -448,13 +518,16 @@ export default function ChatWindow({ conversationId }) {
     );
   }
 
-  const statusText = isTyping
-    ? 'typing…'
-    : otherUser?.isOnline
-      ? 'online'
-      : otherUser
-        ? formatLastSeen(otherUser.lastSeen)
-        : '';
+  const statusText = typing
+    ? typing
+    : isGroupChat
+      ? memberSummary(conversation, myId)
+      : otherUser?.isOnline
+        ? 'online'
+        : otherUser
+          ? formatLastSeen(otherUser.lastSeen)
+          : '';
+  const statusIsHighlighted = Boolean(typing) || (!isGroupChat && otherUser?.isOnline);
 
   return (
     <div className="mobile-slide-in relative flex h-full min-h-0 flex-1 flex-col bg-panel">
@@ -466,6 +539,7 @@ export default function ChatWindow({ conversationId }) {
         >
           <ArrowLeft size={22} />
         </button>
+<<<<<<< Updated upstream
         {otherUser && <Avatar user={otherUser} size={40} />}
         <div className="min-w-0 flex-1">
           <h2 className="truncate leading-tight font-semibold">{otherUser?.name || '…'}</h2>
@@ -474,6 +548,51 @@ export default function ChatWindow({ conversationId }) {
           </p>
         </div>
         {conversation && <ChatMenu conversation={conversation} myId={myId} onError={showNotice} />}
+=======
+        <button
+          type="button"
+          onClick={() => isGroupChat && setShowInfo(true)}
+          className={`flex min-w-0 flex-1 items-center gap-2 rounded-xl py-1 text-left ${isGroupChat ? 'cursor-pointer' : 'cursor-default'}`}
+          aria-label={isGroupChat ? 'Group info' : undefined}
+        >
+          {conversation && <ChatAvatar conversation={conversation} size={40} />}
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate leading-tight font-semibold">{conversationTitle(conversation) || '…'}</h2>
+            <p className={`truncate text-xs ${statusIsHighlighted ? 'text-brand' : 'text-muted'}`}>{statusText}</p>
+          </div>
+        </button>
+
+        {conversation &&
+          (canJoinCall ? (
+            <button
+              onClick={() => handleCall(activeCall.video)}
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-emerald-600 px-3.5 text-sm font-medium text-white hover:bg-emerald-700"
+            >
+              <PhoneCall size={16} /> Join
+            </button>
+          ) : (
+            <div className="flex shrink-0 items-center">
+              <button
+                onClick={() => handleCall(true)}
+                disabled={Boolean(currentCall)}
+                className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg disabled:opacity-40"
+                aria-label="Video call"
+                title="Video call"
+              >
+                <Video size={21} />
+              </button>
+              <button
+                onClick={() => handleCall(false)}
+                disabled={Boolean(currentCall)}
+                className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg disabled:opacity-40"
+                aria-label="Voice call"
+                title="Voice call"
+              >
+                <Phone size={19} />
+              </button>
+            </div>
+          ))}
+>>>>>>> Stashed changes
       </header>
 
       <div
@@ -510,32 +629,46 @@ export default function ChatWindow({ conversationId }) {
               </div>
             )}
 
-            {!hasMore && otherUser && (
-              <p className="mx-auto mb-3 max-w-xs rounded-xl bg-panel/90 px-3 py-2 text-center text-xs text-muted shadow-sm">
-                This is the start of your conversation with {otherUser.name}.
+            {!hasMore && conversation && (
+              <p className="mx-auto mb-3 flex max-w-sm items-start gap-2 rounded-xl bg-amber-100/80 px-3 py-2 text-left text-xs text-amber-900 shadow-sm dark:bg-amber-400/10 dark:text-amber-200">
+                <Lock size={13} className="mt-0.5 shrink-0" />
+                <span>
+                  Messages and calls are end-to-end encrypted. No one outside this chat, not even Ghosted, can read or
+                  listen to them.
+                </span>
               </p>
             )}
 
             {messages.map((message, index) => {
               const previous = messages[index - 1];
               const showDay = !previous || isDifferentDay(previous.createdAt, message.createdAt);
-              const isGrouped = Boolean(previous) && !showDay && previous.senderId === message.senderId;
+
+              if (message.messageType === 'event') {
+                return (
+                  <Fragment key={message._id}>
+                    {showDay && <DayDivider date={message.createdAt} />}
+                    <EventNote message={message} nameOf={nameOf} myId={myId} />
+                  </Fragment>
+                );
+              }
+
+              const isGrouped =
+                Boolean(previous) &&
+                !showDay &&
+                previous.messageType !== 'event' &&
+                previous.senderId === message.senderId;
+              const isMine = message.senderId === myId;
 
               return (
                 <Fragment key={message._id}>
-                  {showDay && (
-                    <div className="my-3 flex justify-center">
-                      <span className="rounded-lg bg-panel px-3 py-1 text-xs font-medium text-muted shadow-sm">
-                        {formatDayDivider(message.createdAt)}
-                      </span>
-                    </div>
-                  )}
+                  {showDay && <DayDivider date={message.createdAt} />}
                   <Message
                     message={message}
-                    isMine={message.senderId === myId}
+                    isMine={isMine}
                     isGrouped={isGrouped}
                     myId={myId}
-                    otherUserName={otherUser?.name}
+                    nameOf={nameOf}
+                    showSender={isGroupChat && !isMine && !isGrouped}
                     registerRef={registerRef}
                     onReply={setReplyingTo}
                     onReact={react}
@@ -549,7 +682,7 @@ export default function ChatWindow({ conversationId }) {
               );
             })}
 
-            {isTyping && (
+            {typing && (
               <div className="mt-2.5 flex">
                 <div className="flex items-center gap-1 rounded-2xl rounded-tl-md bg-bubble-in px-4 py-3 shadow-sm">
                   {[0, 150, 300].map((delay) => (
@@ -582,6 +715,7 @@ export default function ChatWindow({ conversationId }) {
         </div>
       )}
 
+<<<<<<< Updated upstream
       {ghost && (
         <GhostBanner
           ghost={ghost}
@@ -606,8 +740,22 @@ export default function ChatWindow({ conversationId }) {
           onError={showNotice}
         />
       )}
+=======
+      <MessageInput
+        conversationId={conversationId}
+        replyingTo={replyingTo}
+        replyName={replyingTo ? (replyingTo.senderId === myId ? 'yourself' : nameOf(replyingTo.senderId)) : ''}
+        onCancelReply={() => setReplyingTo(null)}
+        onSendText={sendMessage}
+        onPickImage={setPickedImage}
+        onError={showNotice}
+      />
+>>>>>>> Stashed changes
 
       <AnimatePresence>
+        {showInfo && isGroupChat && (
+          <GroupInfo key="info" conversation={conversation} onClose={() => setShowInfo(false)} />
+        )}
         {pickedImage && (
           <ImageSendPreview
             key="send-preview"
@@ -630,6 +778,38 @@ export default function ChatWindow({ conversationId }) {
           />
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function DayDivider({ date }) {
+  return (
+    <div className="my-3 flex justify-center">
+      <span className="rounded-lg bg-panel px-3 py-1 text-xs font-medium text-muted shadow-sm">
+        {formatDayDivider(date)}
+      </span>
+    </div>
+  );
+}
+
+// Group changes and call logs: a small note in the middle of the chat
+function EventNote({ message, nameOf, myId }) {
+  const event = message.event || {};
+  const isCall = event.type === 'call';
+  const isMissed = isCall && !event.duration && String(message.senderId) !== myId;
+  const Icon = event.video ? Video : Phone;
+
+  return (
+    <div className="my-2 flex justify-center">
+      <span
+        className={`flex max-w-[85%] items-center gap-1.5 rounded-lg bg-panel/95 px-3 py-1 text-center text-xs shadow-sm ${
+          isMissed ? 'text-red-600 dark:text-red-400' : 'text-muted'
+        }`}
+      >
+        {isCall && <Icon size={13} className="shrink-0" />}
+        {describeEvent(message, nameOf, myId)}
+        {isCall && <span className="opacity-70">· {formatTime(message.createdAt)}</span>}
+      </span>
     </div>
   );
 }

@@ -5,6 +5,8 @@ import ChatProvider, { useChat } from '@/components/ChatProvider';
 import ChatList from '@/components/ChatList';
 import Navbar from '@/components/Navbar';
 import Notifications from '@/components/Notifications';
+import EncryptionGate from '@/components/EncryptionGate';
+import CallProvider from '@/components/CallProvider';
 import { useViewportHeight } from '@/hooks/useViewportHeight';
 
 // This layout stays mounted while you switch between chats, so the socket
@@ -20,7 +22,7 @@ export default function ChatLayout({ children }) {
 }
 
 function ChatShell({ children }) {
-  const { isLoading, loadError, retryLoad, activeConversationId } = useChat();
+  const { isLoading, loadError, retryLoad, activeConversationId, keyStatus } = useChat();
 
   if (isLoading) {
     return (
@@ -45,29 +47,35 @@ function ChatShell({ children }) {
     );
   }
 
+  // This device doesn't have the encryption key yet: ask for the PIN first
+  if (keyStatus !== 'ready') return <EncryptionGate />;
+
   // On mobile only one screen is shown at a time: the list, or the open chat.
   // On desktop (md and up) both are shown side by side.
   const isChatOpen = Boolean(activeConversationId);
 
   return (
-    <div className="flex h-[var(--app-height,100dvh)] flex-col overflow-hidden pt-[env(safe-area-inset-top)] md:bg-app">
-      <Navbar />
+    // CallProvider shows the incoming-call and in-call screens on top of everything
+    <CallProvider>
+      <div className="flex h-[var(--app-height,100dvh)] flex-col overflow-hidden pt-[env(safe-area-inset-top)] md:bg-app">
+        <Navbar />
 
-      <div className="flex min-h-0 flex-1 md:mx-auto md:w-full md:max-w-[1600px] md:px-4 md:pb-4 lg:px-6 lg:pb-6">
-        <div className="flex min-h-0 flex-1 overflow-hidden md:rounded-2xl md:border md:border-line md:shadow-sm">
-          <aside
-            className={`${isChatOpen ? 'hidden md:flex' : 'flex'} w-full flex-col bg-panel md:w-[340px] md:border-r md:border-line lg:w-[380px]`}
-          >
-            <ChatList />
-          </aside>
+        <div className="flex min-h-0 flex-1 md:mx-auto md:w-full md:max-w-[1600px] md:px-4 md:pb-4 lg:px-6 lg:pb-6">
+          <div className="flex min-h-0 flex-1 overflow-hidden md:rounded-2xl md:border md:border-line md:shadow-sm">
+            <aside
+              className={`${isChatOpen ? 'hidden md:flex' : 'flex'} w-full flex-col bg-panel md:w-[340px] md:border-r md:border-line lg:w-[380px]`}
+            >
+              <ChatList />
+            </aside>
 
-          <main className={`${isChatOpen ? 'flex' : 'hidden md:flex'} min-w-0 flex-1 flex-col`}>
-            {children}
-          </main>
+            <main className={`${isChatOpen ? 'flex' : 'hidden md:flex'} min-w-0 flex-1 flex-col`}>
+              {children}
+            </main>
+          </div>
         </div>
-      </div>
 
-      <Notifications />
-    </div>
+        <Notifications />
+      </div>
+    </CallProvider>
   );
 }

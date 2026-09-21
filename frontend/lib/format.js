@@ -54,10 +54,57 @@ export function formatLastSeen(value) {
   return `last seen ${date.toLocaleDateString()} at ${formatTime(date)}`;
 }
 
-// Short preview of a message for the chat list and reply quotes
-export function messagePreview(message) {
+// Call length: "0:42", "12:05", "1:02:03"
+export function formatDuration(totalSeconds) {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = String(seconds % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
+}
+
+function joinNames(names) {
+  if (names.length <= 1) return names[0] || 'someone';
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+// Text for group changes and calls. nameOf(userId) should return "You" for me.
+export function describeEvent(message, nameOf, myId) {
+  const event = message.event || {};
+  // Names saved with the note cover people who have since left the group
+  const name = (id) => nameOf(id, event.names?.[String(id)]);
+  const actor = name(message.senderId);
+  const targets = joinNames((event.targets || []).map(name));
+
+  switch (event.type) {
+    case 'created':
+      return `${actor} created the group “${event.name}”`;
+    case 'added':
+      return `${actor} added ${targets}`;
+    case 'removed':
+      return `${actor} removed ${targets}`;
+    case 'left':
+      return `${actor} left`;
+    case 'renamed':
+      return `${actor} changed the group name to “${event.name}”`;
+    case 'photo':
+      return `${actor} changed the group photo`;
+    case 'call': {
+      const kind = event.video ? 'video call' : 'voice call';
+      if (event.duration) return `${event.video ? 'Video' : 'Voice'} call · ${formatDuration(event.duration)}`;
+      return String(message.senderId) === myId ? `${kind[0].toUpperCase()}${kind.slice(1)} · No answer` : `Missed ${kind}`;
+    }
+    default:
+      return '';
+  }
+}
+
+// Short preview of a message for the chat list, notifications and reply quotes
+export function messagePreview(message, { nameOf = () => 'Someone', myId = null } = {}) {
   if (!message) return '';
   if (message.isDeleted) return 'This message was deleted';
+  if (message.messageType === 'event') return describeEvent(message, nameOf, myId);
+  if (message.undecryptable) return "🔒 This message can't be decrypted";
   if (message.messageType === 'image') return message.text ? `📷 ${message.text}` : '📷 Photo';
   return message.text;
 }

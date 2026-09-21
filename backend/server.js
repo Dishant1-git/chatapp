@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import http from 'node:http';
 import { createApp } from './app.js';
 import { connectDB } from './config/db.js';
+import { migrate } from './config/migrate.js';
 import { setupSocket } from './socket/index.js';
 import User from './models/User.js';
 
@@ -37,5 +38,6 @@ server.listen(PORT, () => {
 });
 
 await connectDB();
+await migrate();
 // If the server crashed earlier, some users may still be marked online
 await User.updateMany({ isOnline: true }, { isOnline: false });

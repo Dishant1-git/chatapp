@@ -1,5 +1,20 @@
 import mongoose from 'mongoose';
 
+// The user's end-to-end encryption key pair. The public key is shared with
+// everyone who chats with them. The private key never reaches the server in
+// readable form: the browser locks it with the user's PIN (which the server
+// never sees) and only that locked copy is stored here, so the user can
+// unlock it on any device.
+const keyBackupSchema = new mongoose.Schema(
+  {
+    encryptedPrivateKey: { type: String, required: true },
+    salt: { type: String, required: true },
+    iv: { type: String, required: true },
+    iterations: { type: Number, required: true },
+  },
+  { _id: false }
+);
+
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true, maxlength: 50 },
@@ -9,6 +24,12 @@ const userSchema = new mongoose.Schema(
     profileImage: { type: String, default: '' },
     isOnline: { type: Boolean, default: false },
     lastSeen: { type: Date, default: Date.now },
+    // Base64 SPKI public key (ECDH P-256), and a short hash of it. Senders
+    // include the keyId so the server can tell when they used an old key.
+    publicKey: { type: String, default: '' },
+    keyId: { type: String, default: '' },
+    // Only returned to the owner, by GET /api/keys/backup
+    keyBackup: { type: keyBackupSchema, default: null, select: false },
   },
   { timestamps: true }
 );
@@ -19,6 +40,7 @@ userSchema.index({ name: 1 });
 userSchema.set('toJSON', {
   transform(doc, ret) {
     delete ret.password;
+    delete ret.keyBackup;
     delete ret.__v;
     return ret;
   },

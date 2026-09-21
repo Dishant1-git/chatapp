@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useChat } from './ChatProvider';
-import Avatar from './Avatar';
+import { ChatAvatar } from './Avatar';
 
 // In-app "new message" toasts, shown when the message belongs to a chat you're not viewing
 export default function Notifications() {
@@ -31,9 +31,9 @@ export default function Notifications() {
                 router.push(`/chat/${toast.conversationId}`);
               }}
             >
-              <Avatar user={toast.user} size={40} />
+              <ChatAvatar conversation={toast.conversation} size={40} />
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{toast.user?.name}</p>
+                <p className="truncate text-sm font-semibold">{toast.title}</p>
                 <p className="truncate text-sm text-muted">{toast.text}</p>
               </div>
             </button>

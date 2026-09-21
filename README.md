@@ -1,11 +1,13 @@
 # Ghosted
 
-A real-time one-to-one chat app. The **frontend** is Next.js and the **backend** is
+A real-time chat app with end-to-end encryption, group chats and voice/video calls. The **frontend** is Next.js and the **backend** is
 Express + Socket.IO + MongoDB, each in its own folder.
 It's inspired by the feel of WhatsApp on mobile: a full-screen chat list, full-screen
 conversations, and a clean two-column layout on desktop.
 
 **Features:** register/login, profiles with photos, user search, private conversations,
+**group chats** (admins, add/remove members, rename, group photo), **end-to-end encrypted**
+messages and photos, **voice and video calls** (one-to-one and groups of up to 6),
 real-time messages, online status and last seen, typing indicator, sent/delivered/read ticks,
 photo sharing, reactions, replies, in-app notifications with unread counts, delete for
 me/everyone, message pagination, and light/dark mode.
@@ -61,6 +63,10 @@ npm start         # starts backend + frontend
 | `UPLOAD_DIR`       | `uploads`                            | Folder where uploaded images are stored                |
 | `TRUST_PROXY`      | `1`                                  | Optional. Set to `1` when the frontend runs on another server |
 | `COOKIE_SAME_SITE` | `none`                               | Optional. Only if the browser calls the API directly on another domain |
+| `STUN_URLS`        | `stun:stun.l.google.com:19302`       | Optional. STUN servers for calls, comma-separated      |
+| `TURN_URL`         | `turn:turn.example.com:3478`         | Optional but recommended in production. TURN relay for calls |
+| `TURN_USERNAME`    |                                      | TURN username                                          |
+| `TURN_CREDENTIAL`  |                                      | TURN password                                          |
 
 Generate a secret with:
 
@@ -86,9 +92,10 @@ Browser ──► Next.js (frontend) ──/api, /socket.io, /uploads──► E
   `/socket.io/` (including the WebSocket connection) to the backend using `rewrites` in
   `frontend/next.config.mjs`. The login cookie therefore belongs to the frontend's domain,
   and you don't need cross-site cookie settings, even when frontend and backend are hosted separately.
-- **Sending a message:** the browser calls `POST /api/messages`. The backend checks that you're
-  in the conversation, saves the message, and **then** emits `message:new` to the conversation's
-  Socket.IO room. Messages are never broadcast before they're saved.
+- **Sending a message:** the browser encrypts it, then calls `POST /api/messages`. The backend checks
+  that you're in the conversation and that the message was encrypted for every member, saves it, and
+  **then** emits `message:new` to the conversation's Socket.IO room. Messages are never broadcast
+  before they're saved.
 - **Socket.IO** pushes updates (new messages, reactions, deletes, read receipts, presence) and
   relays typing events. It's authenticated with the same http-only cookie as the API.
 - **Rooms:** each socket joins `user:<id>` and one `conversation:<id>` room per conversation,
@@ -97,10 +104,47 @@ Browser ──► Next.js (frontend) ──/api, /socket.io, /uploads──► E
   is written when the last tab closes.
 - **Ticks:** a message is *delivered* if the receiver has the app open when it's sent (or as soon
   as they connect), and *read* when they open the conversation.
-- **Images** are checked (type and 5 MB limit), resized and converted to WEBP with `sharp`,
-  stored in `UPLOAD_DIR` and served at `/uploads/<name>.webp`. Only
-  `backend/utils/storage.js` knows about this, so switching to S3 or Cloudinary means changing
-  `saveImage()` only.
+- **Chat photos** are resized and encrypted in the browser, then stored as-is in `UPLOAD_DIR` and
+  served at `/uploads/<name>.bin`, so the server never sees them. **Profile and group photos** aren't
+  secret: they're checked, resized and converted to WEBP with `sharp` and served at `/uploads/<name>.webp`.
+  Only `backend/utils/storage.js` knows where files go, so switching to S3 or Cloudinary means
+  changing `saveImage()` and `saveEncryptedFile()` only.
+
+### End-to-end encryption
+
+- Each user has an ECDH P-256 key pair, created in the browser the first time they log in. They
+  choose a **PIN** that locks the private key (PBKDF2 with 600,000 rounds, then AES-GCM). The server
+  stores the public key and the **locked** private key. The PIN never leaves the device, so the
+  server can't unlock it.
+- On a new device, the user enters their PIN once. The unlocked key is kept in IndexedDB as a
+  non-extractable key, and deleted on logout.
+- Every message gets a fresh AES-256-GCM key. The message (and its photo) is encrypted with it, and
+  that key is locked separately for each member of the chat (ECDH → HKDF → AES-KW). The server
+  checks that every current member got a copy, made with the latest version of their key.
+- The encrypted content is tied to its chat and sender, so the server can't move a message into
+  another chat or pass it off as someone else's.
+- **What the server can still see:** who talks to whom and when, group names and photos, reactions
+  and read receipts. Messages sent before encryption was added stay readable as they were.
+- **Trade-offs:** there's no forward secrecy (a stolen private key can open that user's old messages),
+  and there's no safety-number check yet, so users have to trust that the server hands out the real
+  public keys. A short PIN can be guessed by someone who has the database, so the app asks for at least
+  6 characters and suggests a phrase. Forgetting the PIN means resetting keys, which makes older
+  messages unreadable.
+- People added to a group can't read messages sent before they joined.
+
+### Calls
+
+- Calls use **WebRTC**. Audio and video go directly between browsers (or through a TURN relay) and are
+  always encrypted by WebRTC (DTLS-SRTP). The server only relays connection setup over Socket.IO
+  (`backend/socket/calls.js`) and keeps track of who is in which call, in memory.
+- Group calls connect everyone to everyone (a "mesh"), which works well for up to 6 people.
+  Whoever joins sends an offer to each person already in the call.
+- A call rings for 45 seconds. When it ends, a note like "Voice call · 3:12" or "Missed video call"
+  is added to the chat.
+- Browsers only allow the camera and microphone on **https** pages (or `localhost`). Opening the app
+  from another device through a local IP like `http://192.168.x.x:3000` won't work for calls.
+- Without a TURN server, calls fail on some networks (often mobile data or company Wi-Fi). Set
+  `TURN_URL` in production.
 
 ## Project structure
 
@@ -109,11 +153,12 @@ backend/
   server.js               Starts the HTTP server, Socket.IO and the MongoDB connection
   app.js                  Express app: security headers, CORS, JSON, routes, error handling
   config/db.js            MongoDB connection (retries until the database is reachable)
+  config/migrate.js       Updates older data on start (safe to run every time)
   models/                 User, Conversation, Message (Mongoose)
-  routes/                 auth, users, conversations, messages, upload
+  routes/                 auth, users, conversations (incl. groups), messages, upload, keys, calls
   middleware/             auth check, image upload, rate limits, errors
-  socket/                 Socket.IO setup (presence, typing, rooms) + helpers used by routes
-  utils/                  JWT cookie, image storage, reaction list
+  socket/                 Socket.IO setup (presence, typing, rooms), call signaling, helpers used by routes
+  utils/                  JWT cookie, file storage, publishing messages, reaction list
 
 frontend/
   proxy.js                Sends logged-out visitors to /login
@@ -124,8 +169,14 @@ frontend/
     chat/page.js          Empty state on desktop
     chat/[id]/page.js     A conversation
   components/
-    ChatProvider.jsx      Shared state: user, socket, conversations, typing, notifications
+    ChatProvider.jsx      Shared state: user, socket, conversations, typing, notifications, encryption lock
+    EncryptionGate.jsx    Create / enter / reset the encryption PIN
+    CallProvider.jsx      Calls: WebRTC connections, ringing, mic/camera
+    CallScreen.jsx        Incoming call, in-call screen, minimized call bar
     ChatList.jsx          Conversation list + search
+    NewGroup.jsx          "New group" panel and the people picker
+    GroupInfo.jsx         Group details, members and admin actions
+    SecureImage.jsx       Decrypts and shows chat photos
     ChatWindow.jsx        Messages, pagination, sending, real-time updates
     Message.jsx           A message bubble (reply quote, image, reactions, ticks, menu)
     MessageInput.jsx      Text box, emoji picker, photo button, typing events
@@ -134,7 +185,7 @@ frontend/
     ImagePreview.jsx      Photo preview before sending + full-size viewer
     ...                   Avatar, Navbar, Notifications, DeleteDialog, ThemeToggle, AuthCard
   hooks/                  useSocket, useViewportHeight, useEscapeKey
-  lib/                    fetch helper, date formatting, reaction list
+  lib/                    e2ee (encryption), sounds, fetch helper, formatting, conversation helpers
 ```
 
 ## API
@@ -149,19 +200,34 @@ frontend/
 | GET    | `/api/users/search?q=`                     | Search users by name or email                 |
 | GET    | `/api/conversations`                       | My conversations with unread counts           |
 | POST   | `/api/conversations`                       | Open (or create) a chat with `{ userId }`     |
+| POST   | `/api/conversations/groups`                | Create a group (multipart: `name`, `members`, `image?`) |
+| PATCH  | `/api/conversations/:id`                   | Rename / change group photo (admins)          |
+| POST   | `/api/conversations/:id/members`           | Add people `{ userIds }` (admins)             |
+| DELETE | `/api/conversations/:id/members/:userId`   | Remove someone (admins), or leave with your own id |
+| POST   | `/api/conversations/:id/admins/:userId`    | Make someone an admin (admins)                |
 | GET    | `/api/conversations/:id`                   | One conversation                              |
 | GET    | `/api/conversations/:id/messages?before=`  | 30 messages per page, older with `before`     |
 | POST   | `/api/conversations/:id/read`              | Mark messages as read                         |
-| POST   | `/api/messages`                            | Send `{ conversationId, text?, image?, replyTo? }` |
+| POST   | `/api/messages`                            | Send `{ conversationId, ciphertext, iv, senderKey, keys, image?, replyTo? }` |
 | DELETE | `/api/messages/:id?for=me\|everyone`       | Delete a message                              |
 | POST   | `/api/messages/:id/reaction`               | Toggle a reaction `{ emoji }`                 |
-| POST   | `/api/upload`                              | Upload a chat image, returns its URL          |
+| POST   | `/api/upload`                              | Upload an unencrypted image, returns its URL  |
+| POST   | `/api/upload/encrypted`                    | Upload an encrypted chat photo (raw bytes)    |
+| GET    | `/api/keys/backup`                         | My PIN-locked private key                     |
+| PUT    | `/api/keys`                                | Save my public key + locked private key (`reset: true` to replace) |
+| GET    | `/api/calls/config`                        | STUN/TURN servers for calls                   |
 | GET    | `/api/health`                              | Health check: server uptime + database status. 200 when healthy, 503 when the database is down |
 
 ### Socket events (server → browser)
 
 `message:new`, `message:deleted`, `message:reaction`, `messages:read`, `messages:delivered`,
-`presence`, `typing`, `stopTyping`. The browser only sends `typing` and `stopTyping`.
+`presence`, `typing`, `stopTyping`, `keys:changed`, `conversation:updated`, `conversation:removed`,
+and for calls: `call:incoming`, `call:answered-elsewhere`, `call:participant-joined`,
+`call:participant-left`, `call:declined`, `call:signal`, `call:media`, `call:ended`, `call:state`,
+`call:active`.
+
+The browser sends `typing` and `stopTyping`, and for calls `call:start`, `call:join`, `call:decline`,
+`call:leave`, `call:signal` and `call:media` (each answers through a Socket.IO acknowledgement).
 
 ## Security notes
 
@@ -169,7 +235,9 @@ frontend/
 - Auth uses a signed JWT in an **http-only**, `SameSite=Lax` cookie (`Secure` in production).
 - Every route reads the user id from the cookie. Sender, receiver and participant checks are done
   on the server; ids sent by the browser are never trusted.
-- Only the sender can delete a message for everyone.
+- Only the sender can delete a message for everyone. Only group admins can add or remove people
+  or change the group's name and photo.
+- Messages and chat photos are end-to-end encrypted (see above).
 - Helmet sets security headers on the API, and the frontend sets its own in `next.config.mjs`.
 - Rate limits: login is limited **per email address** (so a password can't be brute-forced
   from many IPs), sign-up per IP, and messages/uploads per user. They're kept in memory,
@@ -191,4 +259,7 @@ The frontend can run on the same server or elsewhere.
 4. Make `UPLOAD_DIR` a persistent disk, or switch `backend/utils/storage.js` to S3/Cloudinary.
 5. Point your host's health check (on Render: **Settings → Health Check Path**) at `/api/health`.
 
-Running several backend instances would need the Socket.IO Redis adapter and a shared rate-limit store.
+6. Set `TURN_URL`, `TURN_USERNAME` and `TURN_CREDENTIAL` so calls work on every network.
+
+Running several backend instances would need the Socket.IO Redis adapter, a shared rate-limit store,
+and shared call state (calls are tracked in memory in `backend/socket/calls.js`).

@@ -12,6 +12,9 @@ export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 // Matches the URLs saveImage() produces. Used to reject image URLs we didn't create.
 export const UPLOAD_URL_PATTERN = /^\/uploads\/[a-f0-9]{32}\.webp$/;
+// Encrypted chat images. The server can't open them, so they're stored as-is.
+export const ENCRYPTED_URL_PATTERN = /^\/uploads\/[a-f0-9]{32}\.bin$/;
+export const MAX_ENCRYPTED_SIZE = 6 * 1024 * 1024; // images are resized in the browser first
 
 export function getUploadDir() {
   return path.resolve(process.env.UPLOAD_DIR || 'uploads');
@@ -41,7 +44,15 @@ export async function saveImage(buffer, { maxSize = 1600 } = {}) {
   return `/uploads/${fileName}`;
 }
 
+// Saves an end-to-end encrypted file exactly as the browser sent it
+export async function saveEncryptedFile(buffer) {
+  const fileName = `${crypto.randomBytes(16).toString('hex')}.bin`;
+  await fs.mkdir(getUploadDir(), { recursive: true });
+  await fs.writeFile(path.join(getUploadDir(), fileName), buffer);
+  return `/uploads/${fileName}`;
+}
+
 export async function deleteImage(url) {
-  if (!UPLOAD_URL_PATTERN.test(url)) return;
+  if (!UPLOAD_URL_PATTERN.test(url) && !ENCRYPTED_URL_PATTERN.test(url)) return;
   await fs.unlink(path.join(getUploadDir(), path.basename(url))).catch(() => {});
 }

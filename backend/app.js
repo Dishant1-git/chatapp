@@ -7,6 +7,8 @@ import userRoutes from './routes/users.js';
 import conversationRoutes from './routes/conversations.js';
 import messageRoutes from './routes/messages.js';
 import uploadRoutes from './routes/upload.js';
+import keyRoutes from './routes/keys.js';
+import callRoutes from './routes/calls.js';
 import healthRoutes from './routes/health.js';
 import { requireDatabase, notFound, errorHandler } from './middleware/errors.js';
 import { getUploadDir } from './utils/storage.js';
@@ -43,6 +45,8 @@ export function createApp(allowedOrigins) {
   app.use('/api/conversations', conversationRoutes);
   app.use('/api/messages', messageRoutes);
   app.use('/api/upload', uploadRoutes);
+  app.use('/api/keys', keyRoutes);
+  app.use('/api/calls', callRoutes);
 
   app.use(notFound);
   app.use(errorHandler);

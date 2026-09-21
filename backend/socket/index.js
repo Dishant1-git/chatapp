@@ -1,9 +1,11 @@
 import { Server } from 'socket.io';
+import mongoose from 'mongoose';
 import User from '../models/User.js';
 import Conversation from '../models/Conversation.js';
-import Message from '../models/Message.js';
+import Message, { REFRESH_TICKS } from '../models/Message.js';
 import { TOKEN_COOKIE, verifyToken } from '../utils/jwt.js';
 import { setIO, onlineUsers, userRoom, conversationRoom } from './io.js';
+import { registerCallHandlers, activeCallsIn } from './calls.js';
 
 function readCookie(cookieHeader = '', name) {
   const match = cookieHeader.split(';').find((part) => part.trim().startsWith(`${name}=`));
@@ -18,7 +20,7 @@ function getConversationRooms(socket) {
 export function setupSocket(httpServer, allowedOrigins) {
   const io = new Server(httpServer, {
     cors: { origin: allowedOrigins, credentials: true },
-    maxHttpBufferSize: 1e5, // clients only send small typing events
+    maxHttpBufferSize: 1e5, // clients only send typing events and call signals
   });
   setIO(io);
 
@@ -43,6 +45,8 @@ export function setupSocket(httpServer, allowedOrigins) {
 
     // Event handlers are attached right away (before the database work below
     // finishes) so no early events from the client are missed.
+
+    registerCallHandlers(io, socket);
 
     // Typing events are only relayed to rooms the socket has joined,
     // and it only joins rooms of conversations it is a participant of.
@@ -104,18 +108,25 @@ async function joinRoomsAndGoOnline(io, socket, isFirstConnection) {
   if (!socket.connected) return;
   socket.join(rooms);
 
+  // Calls going on in my chats (so the chat can offer "Join")
+  const calls = activeCallsIn(conversations.map((c) => c._id));
+  if (calls.length) socket.emit('call:active', { calls });
+
   if (!isFirstConnection) return;
 
   await User.findByIdAndUpdate(userId, { isOnline: true });
   if (rooms.length) io.to(rooms).emit('presence', { userId, isOnline: true });
 
   // Messages sent to this user while they were offline are now delivered
-  const conversationIds = await Message.distinct('conversationId', {
-    receiverId: userId,
-    isDelivered: false,
-  });
+  const me = new mongoose.Types.ObjectId(userId);
+  const undelivered = { recipients: me, deliveredTo: { $ne: me } };
+  const conversationIds = await Message.distinct('conversationId', undelivered);
   if (conversationIds.length) {
-    await Message.updateMany({ receiverId: userId, isDelivered: false }, { isDelivered: true });
+    await Message.updateMany(
+      undelivered,
+      [{ $set: { deliveredTo: { $setUnion: [{ $ifNull: ['$deliveredTo', []] }, [me]] } } }, ...REFRESH_TICKS],
+      { updatePipeline: true }
+    );
     conversationIds.forEach((conversationId) => {
       io.to(conversationRoom(conversationId)).emit('messages:delivered', {
         conversationId: String(conversationId),

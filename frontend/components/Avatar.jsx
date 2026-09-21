@@ -1,7 +1,9 @@
+import { Users } from 'lucide-react';
+
 // Profile picture with a fallback to the person's initials
 const COLORS = ['#0d8a74', '#2563eb', '#9333ea', '#db2777', '#ea580c', '#0891b2', '#4f46e5', '#65a30d'];
 
-function colorFor(name = '') {
+export function colorFor(name = '') {
   let total = 0;
   for (const char of name) total += char.charCodeAt(0);
   return COLORS[total % COLORS.length];
@@ -12,7 +14,7 @@ function initials(name = '') {
   return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '?';
 }
 
-export default function Avatar({ user, size = 44, showStatus = false }) {
+export default function Avatar({ user, size = 44, showStatus = false, isGroup = false }) {
   const name = user?.name || '';
 
   return (
@@ -29,7 +31,7 @@ export default function Avatar({ user, size = 44, showStatus = false }) {
           className="flex h-full w-full items-center justify-center rounded-full font-semibold text-white select-none"
           style={{ backgroundColor: colorFor(name), fontSize: size * 0.38 }}
         >
-          {initials(name)}
+          {isGroup ? <Users size={size * 0.46} /> : initials(name)}
         </div>
       )}
 
@@ -38,4 +40,12 @@ export default function Avatar({ user, size = 44, showStatus = false }) {
       )}
     </div>
   );
+}
+
+// The picture for a chat: the other person, or the group's photo
+export function ChatAvatar({ conversation, size = 44, showStatus = false }) {
+  if (conversation?.type === 'group') {
+    return <Avatar user={{ name: conversation.name, profileImage: conversation.image }} size={size} isGroup />;
+  }
+  return <Avatar user={conversation?.otherUser} size={size} showStatus={showStatus} />;
 }

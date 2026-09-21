@@ -2,7 +2,7 @@ import './globals.css';
 
 export const metadata = {
   title: 'Ghosted',
-  description: 'Simple real-time one-to-one messaging',
+  description: 'End-to-end encrypted messaging, group chats and calls',
 };
 
 export const viewport = {

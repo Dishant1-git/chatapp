@@ -26,3 +26,5 @@ export const registerLimiter = limiter(60, 20, 'Too many sign-up attempts. Pleas
 // Logged-in actions are counted per user
 export const messageLimiter = limiter(1, 60, 'You are sending messages too quickly. Slow down a little.', (req) => req.userId);
 export const uploadLimiter = limiter(10, 30, 'You are uploading too many images. Please wait a bit.', (req) => req.userId);
+export const keyLimiter = limiter(60, 10, 'Too many encryption key changes. Please try again later.', (req) => req.userId);
+export const groupLimiter = limiter(10, 60, 'Too many group changes. Please wait a bit.', (req) => req.userId);

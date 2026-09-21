@@ -10,12 +10,15 @@ import {
   ChevronDown,
   Clock3,
   Copy,
+  Lock,
   Reply,
   RotateCw,
   Trash2,
 } from 'lucide-react';
 import { REACTIONS } from '@/lib/reactions';
 import { formatTime, messagePreview } from '@/lib/format';
+import { colorFor } from './Avatar';
+import SecureImage, { useMessageImage } from './SecureImage';
 
 // ✓ sent · ✓✓ delivered · blue ✓✓ read
 export function MessageTicks({ message, className = '' }) {
@@ -51,7 +54,8 @@ function Message({
   isMine,
   isGrouped,
   myId,
-  otherUserName,
+  nameOf,
+  showSender,
   registerRef,
   onReply,
   onReact,
@@ -67,9 +71,10 @@ function Message({
   const menuRef = useRef(null);
   const longPressTimer = useRef(null);
 
-  const { replyTo, reactions = [], isDeleted } = message;
-  const hasImage = Boolean(message.image) && !isDeleted;
+  const { replyTo, reactions = [], isDeleted, undecryptable } = message;
+  const hasImage = Boolean(message.image) && !isDeleted && !undecryptable;
   const hasText = Boolean(message.text) && !isDeleted;
+  const imageView = useMessageImage(hasImage ? message : null);
   const imageOnly = hasImage && !hasText;
 
   function openMenu() {
@@ -149,6 +154,16 @@ function Message({
             message.pending ? 'opacity-80' : ''
           }`}
         >
+          {/* Group chats: who wrote it */}
+          {showSender && (
+            <p
+              className={`truncate text-[13px] font-semibold ${imageOnly ? 'px-1.5 pt-0.5 pb-1' : ''}`}
+              style={{ color: colorFor(nameOf(message.senderId)) }}
+            >
+              {nameOf(message.senderId)}
+            </p>
+          )}
+
           {/* Quoted message this one replies to */}
           {replyTo && !isDeleted && (
             <button
@@ -158,12 +173,12 @@ function Message({
             >
               <span className="min-w-0 flex-1 px-2.5 py-1.5">
                 <span className="block text-xs font-semibold text-brand">
-                  {String(replyTo.senderId) === myId ? 'You' : otherUserName}
+                  {nameOf(replyTo.senderId)}
                 </span>
-                <span className="line-clamp-2 text-[13px] text-muted">{messagePreview(replyTo)}</span>
+                <span className="line-clamp-2 text-[13px] text-muted">{messagePreview(replyTo, { nameOf, myId })}</span>
               </span>
-              {replyTo.image && !replyTo.isDeleted && (
-                <img src={replyTo.image} alt="" className="h-12 w-12 shrink-0 object-cover" />
+              {replyTo.image && !replyTo.isDeleted && !replyTo.undecryptable && (
+                <SecureImage message={replyTo} alt="" className="h-12 w-12 shrink-0 object-cover" />
               )}
             </button>
           )}
@@ -171,14 +186,12 @@ function Message({
           {hasImage && (
             <button
               type="button"
-              onClick={() => !message.pending && onOpenImage(message.image)}
+              onClick={() => !message.pending && imageView.src && onOpenImage(imageView.src)}
               className="relative block overflow-hidden rounded-xl"
             >
-              <img
-                src={message.image}
-                alt="Shared photo"
+              <SecureImage
+                message={message}
                 onLoad={onImageLoad}
-                loading="lazy"
                 className="max-h-80 w-full min-w-40 bg-black/5 object-cover sm:w-72"
               />
               {imageOnly && (
@@ -192,6 +205,15 @@ function Message({
           {isDeleted && (
             <p className="flex items-center gap-1.5 pr-14 text-[14px] text-muted italic">
               <Ban size={14} /> This message was deleted
+            </p>
+          )}
+
+          {undecryptable && !isDeleted && (
+            <p
+              className="flex items-center gap-1.5 pr-14 text-[14px] text-muted italic"
+              title="It was encrypted for an older key of yours, or before you joined."
+            >
+              <Lock size={14} /> This message can't be decrypted
             </p>
           )}
 
@@ -263,7 +285,7 @@ function Message({
               menuOpensUp ? 'bottom-full mb-1 origin-bottom' : 'top-full mt-1 origin-top'
             } ${isMine ? 'right-0' : 'left-0'}`}
           >
-            {!isDeleted && !message.failed && (
+            {!isDeleted && !undecryptable && !message.failed && (
               <div className="flex justify-between border-b border-line px-2 py-2">
                 {REACTIONS.map((emoji) => (
                   <button
@@ -282,7 +304,7 @@ function Message({
             )}
 
             <div className="py-1 text-sm">
-              {!isDeleted && !message.failed && (
+              {!isDeleted && !undecryptable && !message.failed && (
                 <MenuItem icon={Reply} label="Reply" onClick={() => runAndClose(() => onReply(message))} />
               )}
               {hasText && (

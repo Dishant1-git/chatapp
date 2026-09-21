@@ -3,14 +3,20 @@
 import { memo, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence } from 'framer-motion';
+<<<<<<< Updated upstream
 import { BellOff, Ghost, MessageCirclePlus, Search, WifiOff, X } from 'lucide-react';
+=======
+import { MessageCirclePlus, Search, Users, WifiOff, X } from 'lucide-react';
+>>>>>>> Stashed changes
 import { useChat } from './ChatProvider';
-import Avatar from './Avatar';
+import Avatar, { ChatAvatar } from './Avatar';
 import ThemeToggle from './ThemeToggle';
 import UserSearch from './UserSearch';
+import NewGroup from './NewGroup';
 import Profile from './Profile';
 import { MessageTicks } from './Message';
 import { formatListDate, messagePreview } from '@/lib/format';
+import { conversationTitle, isGroup, makeNameOf, typingText } from '@/lib/conversations';
 
 export default function ChatList() {
   const {
@@ -30,7 +36,8 @@ export default function ChatList() {
     if (!q) return conversations;
     return conversations.filter(
       (c) =>
-        c.otherUser.name.toLowerCase().includes(q) || c.otherUser.email?.toLowerCase().includes(q)
+        conversationTitle(c).toLowerCase().includes(q) ||
+        (!isGroup(c) && c.otherUser?.email?.toLowerCase().includes(q))
     );
   }, [conversations, query]);
 
@@ -42,6 +49,14 @@ export default function ChatList() {
           <span className="hidden md:inline">Chats</span>
         </h1>
         <div className="flex items-center">
+          <button
+            onClick={() => setSidebarPanel('newGroup')}
+            className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
+            aria-label="New group"
+            title="New group"
+          >
+            <Users size={20} />
+          </button>
           <button
             onClick={() => setSidebarPanel('newChat')}
             className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
@@ -95,7 +110,7 @@ export default function ChatList() {
             conversation={conversation}
             myId={user._id}
             isActive={conversation._id === activeConversationId}
-            isTyping={Boolean(typingIn[conversation._id])}
+            typingUsers={typingIn[conversation._id]}
           />
         ))}
 
@@ -130,6 +145,7 @@ export default function ChatList() {
         {sidebarPanel === 'newChat' && (
           <UserSearch key="search" initialQuery={query} onClose={() => setSidebarPanel(null)} />
         )}
+        {sidebarPanel === 'newGroup' && <NewGroup key="group" onClose={() => setSidebarPanel(null)} />}
         {sidebarPanel === 'profile' && <Profile key="profile" onClose={() => setSidebarPanel(null)} />}
       </AnimatePresence>
     </div>
@@ -137,10 +153,21 @@ export default function ChatList() {
 }
 
 // memo: a row only re-renders when its own conversation changes
+<<<<<<< Updated upstream
 const ConversationItem = memo(function ConversationItem({ conversation, myId, isActive, isTyping }) {
   const { otherUser, lastMessage, lastMessageAt, unreadCount, isMuted, ghost } = conversation;
   const isMine = lastMessage?.senderId === myId;
   const showUnread = unreadCount > 0 && !isMuted;
+=======
+const ConversationItem = memo(function ConversationItem({ conversation, myId, isActive, typingUsers }) {
+  const { lastMessage, lastMessageAt, unreadCount } = conversation;
+  const isMine = lastMessage?.senderId === myId;
+  const nameOf = makeNameOf(conversation, myId);
+  const typing = typingText(conversation, typingUsers);
+  // In groups, show who wrote the last message: "Ann: see you soon"
+  const showSender =
+    isGroup(conversation) && !isMine && lastMessage && !lastMessage.isDeleted && lastMessage.messageType !== 'event';
+>>>>>>> Stashed changes
 
   return (
     <li>
@@ -150,10 +177,11 @@ const ConversationItem = memo(function ConversationItem({ conversation, myId, is
           isActive ? 'bg-brand-soft' : 'hover:bg-hover active:bg-hover'
         }`}
       >
-        <Avatar user={otherUser} size={50} showStatus />
+        <ChatAvatar conversation={conversation} size={50} showStatus />
 
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">
+<<<<<<< Updated upstream
             <p className="flex min-w-0 items-center gap-1.5 font-medium">
               <span className="truncate">{otherUser.name}</span>
               {ghost && (
@@ -165,19 +193,28 @@ const ConversationItem = memo(function ConversationItem({ conversation, myId, is
               )}
             </p>
             <span className={`shrink-0 text-xs ${showUnread ? 'font-medium text-brand' : 'text-muted'}`}>
+=======
+            <p className="truncate font-medium">{conversationTitle(conversation)}</p>
+            <span className={`shrink-0 text-xs ${unreadCount > 0 ? 'font-medium text-brand' : 'text-muted'}`}>
+>>>>>>> Stashed changes
               {lastMessage ? formatListDate(lastMessageAt) : ''}
             </span>
           </div>
 
           <div className="mt-0.5 flex items-center justify-between gap-2">
             <p className="flex min-w-0 items-center gap-1 text-sm text-muted">
-              {isTyping ? (
-                <span className="truncate font-medium text-brand">typing…</span>
+              {typing ? (
+                <span className="truncate font-medium text-brand">{typing}</span>
               ) : (
                 <>
-                  {isMine && !lastMessage.isDeleted && <MessageTicks message={lastMessage} />}
-                  <span className={`truncate ${lastMessage?.isDeleted ? 'italic' : ''}`}>
-                    {lastMessage ? messagePreview(lastMessage) : 'Say hello 👋'}
+                  {isMine && !lastMessage.isDeleted && lastMessage.messageType !== 'event' && (
+                    <MessageTicks message={lastMessage} />
+                  )}
+                  <span
+                    className={`truncate ${lastMessage?.isDeleted || lastMessage?.undecryptable ? 'italic' : ''}`}
+                  >
+                    {showSender && `${nameOf(lastMessage.senderId)}: `}
+                    {lastMessage ? messagePreview(lastMessage, { nameOf, myId }) : 'Say hello 👋'}
                   </span>
                 </>
               )}
@@ -200,3 +237,4 @@ const ConversationItem = memo(function ConversationItem({ conversation, myId, is
     </li>
   );
 });
+
