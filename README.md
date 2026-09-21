@@ -1,4 +1,4 @@
-# Chatter
+# Ghosted
 
 A real-time one-to-one chat app. The **frontend** is Next.js and the **backend** is
 Express + Socket.IO + MongoDB, each in its own folder.

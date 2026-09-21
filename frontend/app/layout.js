@@ -1,7 +1,7 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Chatter',
+  title: 'Ghosted',
   description: 'Simple real-time one-to-one messaging',
 };
 

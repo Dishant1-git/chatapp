@@ -38,7 +38,7 @@ export default function ChatList() {
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
       <header className="flex h-16 shrink-0 items-center justify-between gap-2 px-4">
         <h1 className="text-xl font-semibold tracking-tight">
-          <span className="md:hidden">Chatter</span>
+          <span className="md:hidden">Ghosted</span>
           <span className="hidden md:inline">Chats</span>
         </h1>
         <div className="flex items-center">

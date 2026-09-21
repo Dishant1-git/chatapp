@@ -320,10 +320,10 @@ export default function ChatProvider({ children }) {
     };
   }, [socket, addConversation, updateConversation, showNotification, setTyping]);
 
-  // Show the unread count in the browser tab, e.g. "(3) Chatter"
+  // Show the unread count in the browser tab, e.g. "(3) Ghosted"
   const totalUnread = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
   useEffect(() => {
-    document.title = totalUnread > 0 ? `(${totalUnread}) Chatter` : 'Chatter';
+    document.title = totalUnread > 0 ? `(${totalUnread}) Ghosted` : 'Ghosted';
   }, [totalUnread]);
 
   const logout = useCallback(async () => {
