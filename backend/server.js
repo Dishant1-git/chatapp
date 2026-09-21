@@ -13,8 +13,12 @@ if (!process.env.JWT_SECRET) {
 }
 
 const PORT = parseInt(process.env.PORT || '5000', 10);
-// Comma-separated list, e.g. "http://localhost:3000,https://chat.example.com"
-const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:3000').split(',').map((o) => o.trim());
+// Comma-separated list, e.g. "http://localhost:3000,https://chat.example.com".
+// Trailing slashes are removed because browsers send the origin without one.
+const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:3000')
+  .split(',')
+  .map((origin) => origin.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
 
 const app = createApp(allowedOrigins);
 const server = http.createServer(app);
