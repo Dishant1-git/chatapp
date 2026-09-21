@@ -72,7 +72,7 @@ function SetupPin({ isReset = false, onCancel }) {
         <FormError message={error} />
 
         {isReset ? (
-          <div className="rounded-lg bg-amber-500/10 px-3 py-2.5 text-sm text-amber-800 dark:text-amber-300">
+          <div className="rounded-lg bg-danger/10 px-3 py-2.5 text-sm text-danger">
             Resetting creates new encryption keys. Messages sent to you before the reset
             <strong> can no longer be read</strong>, on any device.
           </div>

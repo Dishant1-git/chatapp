@@ -80,12 +80,12 @@ export default function Profile({ onClose }) {
         <div className="flex flex-col items-center px-6 pt-8 pb-6">
           <label className="group relative cursor-pointer rounded-full" title="Change profile picture">
             <Avatar user={user} size={128} />
-            <span className="absolute inset-0 flex flex-col items-center justify-center rounded-full bg-black/45 text-xs font-medium text-white opacity-0 transition group-hover:opacity-100">
+            <span className="absolute inset-0 flex flex-col items-center justify-center rounded-full bg-noir/50 text-xs font-medium text-cotton opacity-0 transition group-hover:opacity-100">
               {isUploading ? <Loader2 className="animate-spin" /> : <Camera size={24} />}
               <span className="mt-1">Change photo</span>
             </span>
             {/* Always visible on touch screens, where there is no hover */}
-            <span className="absolute right-1 bottom-1 flex h-9 w-9 items-center justify-center rounded-full bg-brand text-white shadow md:hidden">
+            <span className="absolute right-1 bottom-1 flex h-9 w-9 items-center justify-center rounded-full bg-accent text-on-accent shadow md:hidden">
               <Camera size={17} />
             </span>
             <input
@@ -101,7 +101,7 @@ export default function Profile({ onClose }) {
             <button
               onClick={handleRemoveImage}
               disabled={isUploading}
-              className="mt-3 flex items-center gap-1.5 text-sm text-muted hover:text-red-600"
+              className="mt-3 flex items-center gap-1.5 text-sm text-muted hover:text-danger"
             >
               <Trash2 size={14} /> Remove photo
             </button>
@@ -120,7 +120,7 @@ export default function Profile({ onClose }) {
             <button
               type="submit"
               disabled={isSaving || name.trim() === user.name || name.trim().length < 2}
-              className="rounded-xl bg-brand px-4 text-sm font-medium text-white hover:bg-brand-strong disabled:opacity-50"
+              className="rounded-xl bg-cta px-4 text-sm font-medium text-on-accent hover:bg-cta-strong disabled:opacity-50"
             >
               {isSaving ? 'Saving…' : 'Save'}
             </button>
@@ -129,7 +129,7 @@ export default function Profile({ onClose }) {
 
         {message.text && (
           <p
-            className={`mx-5 mt-3 text-sm ${message.type === 'error' ? 'text-red-600 dark:text-red-400' : 'text-brand'}`}
+            className={`mx-5 mt-3 text-sm ${message.type === 'error' ? 'text-danger' : 'text-brand'}`}
           >
             {message.text}
           </p>
@@ -147,7 +147,7 @@ export default function Profile({ onClose }) {
           </div>
           <button
             onClick={logout}
-            className="flex w-full items-center gap-3 px-5 py-4 text-left text-sm font-medium text-red-600 hover:bg-hover dark:text-red-400"
+            className="flex w-full items-center gap-3 px-5 py-4 text-left text-sm font-medium text-danger hover:bg-hover"
           >
             <LogOut size={18} /> Log out
           </button>

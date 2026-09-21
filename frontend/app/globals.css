@@ -3,45 +3,81 @@
 /* Dark mode is controlled by a "dark" class on <html> (see ThemeToggle) */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* The palette. Everything below is built from these four colours.
+     cotton  — the page ground
+     cherry  — structural accent: borders, focus rings, icon badges, links, the accent panel
+     maroon  — attention: primary buttons, destructive actions, errors
+     noir    — the ink: text, and every hairline and translucent tint mixes from it */
+:root {
+  --cotton: #edebd0;
+  --cherry: #810100;
+  --maroon: #630000;
+  --noir: #1b1717;
+  /* Cherry lifted toward cotton, for accents on noir backgrounds */
+  --cherry-light: color-mix(in srgb, var(--cherry) 50%, var(--cotton));
+}
+
 /* Colour tokens. Components use these (bg-panel, text-muted, ...) so
    light/dark switching happens here instead of in every component. */
 :root {
-  --app: #eef0f3;
-  --panel: #ffffff;
-  --panel-soft: #f5f6f8;
-  --hover: #f0f2f5;
-  --fg: #111827;
-  --muted: #6b7280;
-  --line: #e5e7eb;
-  --chat: #f1f3f5;
-  --bubble-out: #d5f2e9;
-  --bubble-in: #ffffff;
-  --brand: #0d8a74;
-  --brand-strong: #0a6f5e;
-  --brand-soft: #e3f5f0;
-  --tick-read: #2f8fdd;
+  --app: color-mix(in srgb, var(--noir) 5%, var(--cotton));
+  --panel: var(--cotton);
+  --panel-soft: color-mix(in srgb, var(--noir) 5%, var(--cotton));
+  --hover: color-mix(in srgb, var(--noir) 8%, var(--cotton));
+  --fg: var(--noir);
+  --muted: color-mix(in srgb, var(--noir) 68%, var(--cotton));
+  --line: color-mix(in srgb, var(--noir) 14%, var(--cotton));
+  --chat: color-mix(in srgb, var(--noir) 4%, var(--cotton));
+  --bubble-out: color-mix(in srgb, var(--cherry) 12%, var(--cotton));
+  --bubble-in: color-mix(in srgb, white 45%, var(--cotton));
+  /* Accent for text, borders and focus rings */
+  --brand: var(--cherry);
+  --brand-soft: color-mix(in srgb, var(--cherry) 10%, var(--cotton));
+  /* Filled accents (icon badges, unread counts) and primary buttons */
+  --accent: var(--cherry);
+  --cta: var(--maroon);
+  --cta-strong: color-mix(in srgb, var(--noir) 30%, var(--maroon));
+  --on-accent: var(--cotton);
+  --danger: var(--maroon);
+  --tick-read: var(--cherry);
   color-scheme: light;
 }
 
 .dark {
-  --app: #0a0e13;
-  --panel: #11171e;
-  --panel-soft: #161e27;
-  --hover: #1b2530;
-  --fg: #e6eaee;
-  --muted: #8a96a3;
-  --line: #222c37;
-  --chat: #0c1117;
-  --bubble-out: #11463d;
-  --bubble-in: #1b242e;
-  --brand: #19b394;
-  --brand-strong: #3fcbad;
-  --brand-soft: #123a33;
-  --tick-read: #53b6ff;
+  --app: var(--noir);
+  --panel: color-mix(in srgb, var(--cotton) 4%, var(--noir));
+  --panel-soft: color-mix(in srgb, var(--cotton) 8%, var(--noir));
+  --hover: color-mix(in srgb, var(--cotton) 11%, var(--noir));
+  --fg: var(--cotton);
+  --muted: color-mix(in srgb, var(--cotton) 62%, var(--noir));
+  --line: color-mix(in srgb, var(--cotton) 15%, var(--noir));
+  --chat: color-mix(in srgb, var(--cotton) 2%, var(--noir));
+  --bubble-out: color-mix(in srgb, var(--cherry) 45%, var(--noir));
+  --bubble-in: color-mix(in srgb, var(--cotton) 10%, var(--noir));
+  /* Cherry is too dark to read on noir, so text accents are lifted toward cotton */
+  --brand: color-mix(in srgb, var(--cherry) 50%, var(--cotton));
+  --brand-soft: color-mix(in srgb, var(--cherry) 30%, var(--noir));
+  --accent: var(--cherry);
+  /* Maroon disappears on noir; buttons use cherry here */
+  --cta: var(--cherry);
+  --cta-strong: color-mix(in srgb, var(--cherry) 80%, var(--cotton));
+  --on-accent: var(--cotton);
+  --danger: color-mix(in srgb, var(--cherry) 45%, var(--cotton));
+  --tick-read: color-mix(in srgb, var(--cherry) 50%, var(--cotton));
   color-scheme: dark;
 }
 
 @theme inline {
+  --color-cotton: var(--cotton);
+  --color-cherry: var(--cherry);
+  --color-cherry-light: var(--cherry-light);
+  --color-maroon: var(--maroon);
+  --color-noir: var(--noir);
+  --color-accent: var(--accent);
+  --color-cta: var(--cta);
+  --color-cta-strong: var(--cta-strong);
+  --color-on-accent: var(--on-accent);
+  --color-danger: var(--danger);
   --color-app: var(--app);
   --color-panel: var(--panel);
   --color-panel-soft: var(--panel-soft);
@@ -53,7 +89,6 @@
   --color-bubble-out: var(--bubble-out);
   --color-bubble-in: var(--bubble-in);
   --color-brand: var(--brand);
-  --color-brand-strong: var(--brand-strong);
   --color-brand-soft: var(--brand-soft);
   --color-tick-read: var(--tick-read);
 
@@ -69,9 +104,23 @@ body {
 body {
   background: var(--app);
   color: var(--fg);
+  accent-color: var(--cherry);
   -webkit-tap-highlight-color: transparent;
   /* Stop the whole page from bouncing on iOS; only lists scroll */
   overscroll-behavior: none;
+}
+
+/* In the base layer so components' own focus styles (outline-none + ring) still win */
+@layer base {
+  ::selection {
+    background: color-mix(in srgb, var(--cherry) 22%, transparent);
+  }
+
+  /* Keyboard focus: a cherry ring everywhere */
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+  }
 }
 
 /* Thin, quiet scrollbars */

@@ -42,7 +42,7 @@ export default function SecureImage({ message, className = '', onLoad, alt = 'Sh
   if (!src) {
     return (
       <div
-        className={`flex items-center justify-center bg-black/5 text-muted dark:bg-white/5 ${className}`}
+        className={`flex items-center justify-center bg-fg/5 text-muted ${className}`}
         style={{ aspectRatio: ratio || '4 / 3' }}
       >
         {failed ? <ImageOff size={22} /> : <Loader2 size={22} className="animate-spin" />}

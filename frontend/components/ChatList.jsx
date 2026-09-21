@@ -73,7 +73,7 @@ export default function ChatList() {
       </header>
 
       {!isConnected && (
-        <div className="mx-3 mb-2 flex items-center gap-2 rounded-xl bg-amber-500/10 px-3 py-2 text-xs text-amber-700 md:hidden dark:text-amber-400">
+        <div className="mx-3 mb-2 flex items-center gap-2 rounded-xl bg-brand-soft px-3 py-2 text-xs text-brand md:hidden">
           <WifiOff size={14} /> Connecting… messages will arrive once you're back online.
         </div>
       )}
@@ -116,7 +116,7 @@ export default function ChatList() {
             <p className="mt-1 text-sm text-muted">Find someone to start chatting with.</p>
             <button
               onClick={() => setSidebarPanel('newChat')}
-              className="mt-5 rounded-full bg-brand px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-strong"
+              className="mt-5 rounded-full bg-cta px-5 py-2.5 text-sm font-medium text-on-accent hover:bg-cta-strong"
             >
               Start a new chat
             </button>
@@ -208,8 +208,8 @@ const ConversationItem = memo(function ConversationItem({ conversation, myId, is
               {isMuted && <BellOff size={15} className="text-muted" aria-label="Muted" />}
               {unreadCount > 0 && (
                 <span
-                  className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold text-white ${
-                    isMuted ? 'bg-muted' : 'bg-brand'
+                  className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
+                    isMuted ? 'bg-line text-fg' : 'bg-accent text-on-accent'
                   }`}
                 >
                   {unreadCount > 99 ? '99+' : unreadCount}

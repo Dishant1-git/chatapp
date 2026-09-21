@@ -17,12 +17,11 @@ import {
 } from 'lucide-react';
 import { REACTIONS } from '@/lib/reactions';
 import { formatTime, messagePreview } from '@/lib/format';
-import { colorFor } from './Avatar';
 import SecureImage, { useMessageImage } from './SecureImage';
 
 // ✓ sent · ✓✓ delivered · blue ✓✓ read
 export function MessageTicks({ message, className = '' }) {
-  if (message.failed) return <AlertCircle size={15} className={`text-red-500 ${className}`} />;
+  if (message.failed) return <AlertCircle size={15} className={`text-danger ${className}`} />;
   if (message.pending) return <Clock3 size={13} className={className} />;
   if (message.isRead) return <CheckCheck size={16} className={`text-tick-read ${className}`} />;
   if (message.isDelivered) return <CheckCheck size={16} className={className} />;
@@ -157,8 +156,7 @@ function Message({
           {/* Group chats: who wrote it */}
           {showSender && (
             <p
-              className={`truncate text-[13px] font-semibold ${imageOnly ? 'px-1.5 pt-0.5 pb-1' : ''}`}
-              style={{ color: colorFor(nameOf(message.senderId)) }}
+              className={`truncate text-[13px] font-semibold text-brand ${imageOnly ? 'px-1.5 pt-0.5 pb-1' : ''}`}
             >
               {nameOf(message.senderId)}
             </p>
@@ -169,7 +167,7 @@ function Message({
             <button
               type="button"
               onClick={() => onJumpTo(replyTo._id)}
-              className={`mb-1 flex w-full min-w-40 items-center gap-2 overflow-hidden rounded-lg border-l-4 border-brand bg-black/5 text-left dark:bg-white/5 ${imageOnly ? '' : '-mx-0.5'}`}
+              className={`mb-1 flex w-full min-w-40 items-center gap-2 overflow-hidden rounded-lg border-l-4 border-brand bg-fg/5 text-left ${imageOnly ? '' : '-mx-0.5'}`}
             >
               <span className="min-w-0 flex-1 px-2.5 py-1.5">
                 <span className="block text-xs font-semibold text-brand">
@@ -192,10 +190,10 @@ function Message({
               <SecureImage
                 message={message}
                 onLoad={onImageLoad}
-                className="max-h-80 w-full min-w-40 bg-black/5 object-cover sm:w-72"
+                className="max-h-80 w-full min-w-40 bg-noir/5 object-cover sm:w-72"
               />
               {imageOnly && (
-                <span className="absolute right-1.5 bottom-1.5 flex items-center gap-1 rounded-full bg-black/45 px-2 py-0.5 text-[11px] text-white">
+                <span className="absolute right-1.5 bottom-1.5 flex items-center gap-1 rounded-full bg-noir/50 px-2 py-0.5 text-[11px] text-cotton">
                   {time}
                 </span>
               )}
@@ -248,7 +246,7 @@ function Message({
           <button
             type="button"
             onClick={() => onRetry(message)}
-            className="mt-1 flex items-center gap-1 text-xs text-red-600 dark:text-red-400"
+            className="mt-1 flex items-center gap-1 text-xs text-danger"
           >
             <RotateCw size={12} /> Not sent. Tap to retry
           </button>
@@ -337,7 +335,7 @@ function MenuItem({ icon: Icon, label, onClick, danger }) {
       type="button"
       onClick={onClick}
       className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-hover ${
-        danger ? 'text-red-600 dark:text-red-400' : ''
+        danger ? 'text-danger' : ''
       }`}
     >
       <Icon size={17} /> {label}

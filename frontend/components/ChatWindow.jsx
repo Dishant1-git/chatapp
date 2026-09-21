@@ -505,7 +505,7 @@ export default function ChatWindow({ conversationId }) {
         <MessageSquareOff size={40} className="text-muted" />
         <p className="font-medium">Conversation not found</p>
         <p className="text-sm text-muted">It may have been removed, or you don't have access to it.</p>
-        <Link href="/chat" className="mt-2 rounded-full bg-brand px-5 py-2 text-sm font-medium text-white">
+        <Link href="/chat" className="mt-2 rounded-full bg-cta px-5 py-2 text-sm font-medium text-on-accent">
           Back to chats
         </Link>
       </div>
@@ -550,7 +550,7 @@ export default function ChatWindow({ conversationId }) {
           (canJoinCall ? (
             <button
               onClick={() => handleCall(activeCall.video)}
-              className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-emerald-600 px-3.5 text-sm font-medium text-white hover:bg-emerald-700"
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-emerald-700 px-3.5 text-sm font-medium text-cotton hover:bg-emerald-800"
             >
               <PhoneCall size={16} /> Join
             </button>
@@ -595,7 +595,7 @@ export default function ChatWindow({ conversationId }) {
             <p className="text-sm text-muted">{errorText}</p>
             <button
               onClick={() => setReloadKey((k) => k + 1)}
-              className="rounded-full bg-brand px-4 py-2 text-sm font-medium text-white"
+              className="rounded-full bg-cta px-4 py-2 text-sm font-medium text-on-accent"
             >
               Try again
             </button>
@@ -614,8 +614,8 @@ export default function ChatWindow({ conversationId }) {
             )}
 
             {!hasMore && conversation && (
-              <p className="mx-auto mb-3 flex max-w-sm items-start gap-2 rounded-xl bg-amber-100/80 px-3 py-2 text-left text-xs text-amber-900 shadow-sm dark:bg-amber-400/10 dark:text-amber-200">
-                <Lock size={13} className="mt-0.5 shrink-0" />
+              <p className="mx-auto mb-3 flex max-w-sm items-start gap-2 rounded-xl border border-brand/25 bg-brand-soft px-3 py-2 text-left text-xs text-fg shadow-sm">
+                <Lock size={13} className="mt-0.5 shrink-0 text-brand" />
                 <span>
                   Messages and calls are end-to-end encrypted. No one outside this chat, not even Ghosted, can read or
                   listen to them.
@@ -772,7 +772,7 @@ function EventNote({ message, nameOf, myId }) {
     <div className="my-2 flex justify-center">
       <span
         className={`flex max-w-[85%] items-center gap-1.5 rounded-lg bg-panel/95 px-3 py-1 text-center text-xs shadow-sm ${
-          isMissed ? 'text-red-600 dark:text-red-400' : 'text-muted'
+          isMissed ? 'text-danger' : 'text-muted'
         }`}
       >
         {isCall && <Icon size={13} className="shrink-0" />}

@@ -12,7 +12,7 @@ export default function DeleteDialog({ canDeleteForEveryone, onDeleteForMe, onDe
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-noir/40 sm:items-center"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -40,11 +40,11 @@ export default function DeleteDialog({ canDeleteForEveryone, onDeleteForMe, onDe
 
         <div className="flex flex-col gap-1">
           {canDeleteForEveryone && (
-            <button onClick={onDeleteForEveryone} className={`${buttonClass} text-red-600 dark:text-red-400`}>
+            <button onClick={onDeleteForEveryone} className={`${buttonClass} text-danger`}>
               Delete for everyone
             </button>
           )}
-          <button onClick={onDeleteForMe} className={`${buttonClass} text-red-600 dark:text-red-400`}>
+          <button onClick={onDeleteForMe} className={`${buttonClass} text-danger`}>
             Delete for me
           </button>
           <button onClick={onClose} className={`${buttonClass} text-brand`}>

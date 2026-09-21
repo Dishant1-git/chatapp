@@ -214,7 +214,7 @@ export default function MessageInput({
           onPointerDown={(e) => e.preventDefault()} // don't close the mobile keyboard
           onClick={send}
           disabled={!canSend}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-white transition hover:bg-brand-strong disabled:opacity-40"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-cta text-on-accent transition hover:bg-cta-strong disabled:opacity-40"
           aria-label="Send message"
         >
           <SendHorizontal size={20} />
