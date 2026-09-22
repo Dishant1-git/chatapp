@@ -28,11 +28,15 @@ export async function publishMessage(conversation, fields, clientId = null) {
   return message;
 }
 
-// Group changes and call logs, shown as small notes in the chat.
-// Only calls count as unread (a missed call should stand out; "Ann added Bob" shouldn't).
+// Events that should stand out like a message: unread badge and a notification.
+// Group changes ("Ann added Bob") don't.
+const UNREAD_EVENTS = ['call', 'missYou'];
+
+// Group changes, call logs and "miss you" nudges, shown as small notes in the chat.
 export async function publishEvent(conversation, actorId, event) {
-  const recipients =
-    event.type === 'call' ? conversation.participants.filter((p) => String(p) !== String(actorId)) : [];
+  const recipients = UNREAD_EVENTS.includes(event.type)
+    ? conversation.participants.filter((p) => String(p) !== String(actorId))
+    : [];
 
   const people = await User.find({ _id: { $in: [actorId, ...(event.targets || [])] } }).select('name');
   const names = Object.fromEntries(people.map((p) => [String(p._id), p.name]));

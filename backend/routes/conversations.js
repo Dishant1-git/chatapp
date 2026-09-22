@@ -409,6 +409,33 @@ router.post('/:id/mute', async (req, res) => {
   res.json({ isMuted });
 });
 
+const MISS_YOU_COOLDOWN_MS = 60 * 1000;
+
+// POST /api/conversations/:id/miss-you — tell the other person you miss them.
+// It's a small note in the chat (no text), so it doesn't need encrypting.
+// Their app shows floating hearts and suggests a sweet reply when they open the chat.
+router.post('/:id/miss-you', async (req, res) => {
+  const conversation = await findMyConversation(req, res);
+  if (!conversation) return;
+  if (conversation.type === 'group') return badRequest(res, 'You can only send this in a one-to-one chat.');
+
+  // Ghosting limits what you can send; this mustn't be a way around it
+  if (conversation.ghost?.by && String(conversation.ghost.by) !== req.userId) {
+    return res.status(403).json({ error: "You can't send this while they're ghosting you." });
+  }
+
+  const recent = await Message.exists({
+    conversationId: conversation._id,
+    senderId: req.userId,
+    'event.type': 'missYou',
+    createdAt: { $gt: new Date(Date.now() - MISS_YOU_COOLDOWN_MS) },
+  });
+  if (recent) return res.status(429).json({ error: 'You just told them. Give it a minute 💕' });
+
+  const message = await publishEvent(conversation, req.userId, { type: 'missYou' });
+  res.status(201).json({ message });
+});
+
 // Both users see the ghost banner change straight away
 function emitGhost(conversation) {
   emitToConversation(conversation._id, 'conversation:ghost', {

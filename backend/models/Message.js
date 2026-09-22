@@ -25,7 +25,7 @@ const eventSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ['created', 'added', 'removed', 'left', 'renamed', 'photo', 'call'],
+      enum: ['created', 'added', 'removed', 'left', 'renamed', 'photo', 'call', 'missYou'],
       required: true,
     },
     targets: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],

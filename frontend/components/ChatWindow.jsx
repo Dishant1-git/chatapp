@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ChevronsDown, Loader2, Lock, MessageSquareOff, Phone, PhoneCall, Video } from 'lucide-react';
+import { ArrowLeft, ChevronsDown, Heart, Loader2, Lock, MessageSquareOff, Phone, PhoneCall, Video } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import { useCalls } from './CallProvider';
 import { ChatAvatar } from './Avatar';
@@ -13,6 +13,7 @@ import DeleteDialog from './DeleteDialog';
 import ChatMenu from './ChatMenu';
 import GhostBanner from './GhostBanner';
 import GroupInfo from './GroupInfo';
+import MissYouHearts from './MissYouHearts';
 import { ImageLightbox, ImageSendPreview } from './ImagePreview';
 import { api } from '@/lib/client';
 import { ghostStage } from '@/lib/ghost';
@@ -46,6 +47,16 @@ function addOrReplace(list, message, clientId, { keepExisting = false } = {}) {
   return [...list, message];
 }
 
+// A "miss you" from the other person that I haven't seen yet
+function isNewMissYou(message, myId) {
+  return (
+    message.messageType === 'event' &&
+    message.event?.type === 'missYou' &&
+    String(message.senderId) !== myId &&
+    !(message.readBy || []).some((id) => String(id) === myId)
+  );
+}
+
 // After a reconnect: merge the newest page from the server into what we have.
 // MongoDB ids sort by creation time, and "temp-…" ids sort last (they are the newest).
 function mergeLatest(list, latest) {
@@ -71,6 +82,12 @@ export default function ChatWindow({ conversationId }) {
     () => makeNameOf({ participants: JSON.parse(memberNames).map(([_id, name]) => ({ _id, name })) }, myId),
     [memberNames, myId]
   );
+  // For effects and socket handlers; falls back to the name saved with the note
+  // in case the chat's members haven't loaded yet
+  const nameOfRef = useRef(nameOf);
+  useEffect(() => {
+    nameOfRef.current = (id, message) => nameOf(id, message?.event?.names?.[String(id)]);
+  });
   const activeCall = activeCalls[conversationId];
   const canJoinCall = activeCall && currentCall?.callId !== activeCall.callId;
 
@@ -88,6 +105,9 @@ export default function ChatWindow({ conversationId }) {
   const [showInfo, setShowInfo] = useState(false);
   const [notice, setNotice] = useState('');
   const [isUnghosting, setIsUnghosting] = useState(false);
+  const [missYouFrom, setMissYouFrom] = useState(null); // name to show in the hearts overlay
+  const [isSendingMissYou, setIsSendingMissYou] = useState(false);
+  const rootRef = useRef(null);
 
   // Ghosting only exists in one-to-one chats. A ghosted person gets one normal
   // message, then can only send emojis until they're unghosted.
@@ -150,18 +170,23 @@ export default function ChatWindow({ conversationId }) {
         setMessages(opened);
         setHasMore(data.hasMore);
         setStatus('ready');
+
+        // They said they miss me while I was away: hearts!
+        const missYou = opened.findLast((m) => isNewMissYou(m, myId));
+        if (missYou) setMissYouFrom(nameOfRef.current(missYou.senderId, missYou));
       })
       .catch((err) => {
         if (cancelled) return;
         setStatus(err.status === 404 ? 'notfound' : 'error');
         setErrorText(err.message);
-      });
+      })
+      // Marked as read only after loading, so an unseen "miss you" is still recognisable
+      .finally(() => !cancelled && markAsRead(conversationId));
 
-    markAsRead(conversationId);
     return () => {
       cancelled = true;
     };
-  }, [conversationId, markAsRead, reloadKey]);
+  }, [conversationId, markAsRead, reloadKey, myId]);
 
   // Keep the scroll position right after messages change:
   // - after loading older messages, stay where the user was
@@ -230,7 +255,10 @@ export default function ChatWindow({ conversationId }) {
           const opened = await openMessage(message, conversationId);
           if (opened.senderId === myId) stickToBottom.current = true;
           setMessages((prev) => addOrReplace(prev, opened, clientId));
-          if (opened.senderId !== myId && document.visibilityState === 'visible') markAsRead(conversationId);
+          if (opened.senderId !== myId && document.visibilityState === 'visible') {
+            if (isNewMissYou(opened, myId)) setMissYouFrom(nameOfRef.current(opened.senderId, opened));
+            markAsRead(conversationId);
+          }
         })
         .catch(() => {});
     }
@@ -488,6 +516,31 @@ export default function ChatWindow({ conversationId }) {
   const closeImagePicker = useCallback(() => setPickedImage(null), []);
   const closeDeleteDialog = useCallback(() => setDeleting(null), []);
 
+  async function sendMissYou() {
+    setIsSendingMissYou(true);
+    try {
+      const { message } = await api(`/api/conversations/${conversationId}/miss-you`, { method: 'POST' });
+      stickToBottom.current = true;
+      setMessages((prev) => addOrReplace(prev, message));
+      showNotice(`${otherUser?.name?.split(' ')[0] || 'They'} will know you miss them 💕`);
+    } catch (err) {
+      showNotice(err.message);
+    } finally {
+      setIsSendingMissYou(false);
+    }
+  }
+
+  // A sweet reply from the hearts overlay
+  function replyToMissYou(text) {
+    setMissYouFrom(null);
+    sendMessage(text);
+  }
+
+  function writeOwnReply() {
+    setMissYouFrom(null);
+    rootRef.current?.querySelector('textarea')?.focus();
+  }
+
   async function handleCall(video) {
     try {
       if (canJoinCall) await joinCall(activeCall);
@@ -524,7 +577,7 @@ export default function ChatWindow({ conversationId }) {
   const statusIsHighlighted = Boolean(typing) || (!isGroupChat && otherUser?.isOnline);
 
   return (
-    <div className="mobile-slide-in relative flex h-full min-h-0 flex-1 flex-col bg-panel">
+    <div ref={rootRef} className="mobile-slide-in relative flex h-full min-h-0 flex-1 flex-col bg-panel">
       <header className="flex h-16 shrink-0 items-center gap-2 border-b border-line bg-panel px-2 md:px-4">
         <button
           onClick={goBackToList}
@@ -545,6 +598,18 @@ export default function ChatWindow({ conversationId }) {
             <p className={`truncate text-xs ${statusIsHighlighted ? 'text-brand' : 'text-muted'}`}>{statusText}</p>
           </div>
         </button>
+
+        {conversation && !isGroupChat && (
+          <button
+            onClick={sendMissYou}
+            disabled={isSendingMissYou}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-rose-500 transition hover:bg-rose-500/10 disabled:opacity-40"
+            aria-label="Tell them you miss them"
+            title="Miss you"
+          >
+            <Heart size={20} />
+          </button>
+        )}
 
         {conversation &&
           (canJoinCall ? (
@@ -725,6 +790,15 @@ export default function ChatWindow({ conversationId }) {
         {showInfo && isGroupChat && (
           <GroupInfo key="info" conversation={conversation} onClose={() => setShowInfo(false)} />
         )}
+        {missYouFrom && (
+          <MissYouHearts
+            key="miss-you"
+            name={missYouFrom}
+            onReply={replyToMissYou}
+            onWriteOwn={writeOwnReply}
+            onClose={() => setMissYouFrom(null)}
+          />
+        )}
         {pickedImage && (
           <ImageSendPreview
             key="send-preview"
@@ -761,10 +835,11 @@ function DayDivider({ date }) {
   );
 }
 
-// Group changes and call logs: a small note in the middle of the chat
+// Group changes, call logs and "miss you" nudges: a small note in the middle of the chat
 function EventNote({ message, nameOf, myId }) {
   const event = message.event || {};
   const isCall = event.type === 'call';
+  const isMissYou = event.type === 'missYou';
   const isMissed = isCall && !event.duration && String(message.senderId) !== myId;
   const Icon = event.video ? Video : Phone;
 
@@ -772,12 +847,13 @@ function EventNote({ message, nameOf, myId }) {
     <div className="my-2 flex justify-center">
       <span
         className={`flex max-w-[85%] items-center gap-1.5 rounded-lg bg-panel/95 px-3 py-1 text-center text-xs shadow-sm ${
-          isMissed ? 'text-red-600 dark:text-red-400' : 'text-muted'
+          isMissed ? 'text-red-600 dark:text-red-400' : isMissYou ? 'text-rose-600 dark:text-rose-400' : 'text-muted'
         }`}
       >
         {isCall && <Icon size={13} className="shrink-0" />}
+        {isMissYou && <Heart size={13} className="shrink-0" fill="currentColor" strokeWidth={0} />}
         {describeEvent(message, nameOf, myId)}
-        {isCall && <span className="opacity-70">· {formatTime(message.createdAt)}</span>}
+        {(isCall || isMissYou) && <span className="opacity-70">· {formatTime(message.createdAt)}</span>}
       </span>
     </div>
   );

@@ -89,6 +89,8 @@ export function describeEvent(message, nameOf, myId) {
       return `${actor} changed the group name to “${event.name}”`;
     case 'photo':
       return `${actor} changed the group photo`;
+    case 'missYou':
+      return String(message.senderId) === myId ? 'You said you miss them 💕' : `${actor} is missing you 💕`;
     case 'call': {
       const kind = event.video ? 'video call' : 'voice call';
       if (event.duration) return `${event.video ? 'Video' : 'Voice'} call · ${formatDuration(event.duration)}`;
