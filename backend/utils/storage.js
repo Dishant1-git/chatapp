@@ -14,7 +14,9 @@ export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 export const UPLOAD_URL_PATTERN = /^\/uploads\/[a-f0-9]{32}\.webp$/;
 // Encrypted chat images. The server can't open them, so they're stored as-is.
 export const ENCRYPTED_URL_PATTERN = /^\/uploads\/[a-f0-9]{32}\.bin$/;
-export const MAX_ENCRYPTED_SIZE = 6 * 1024 * 1024; // images are resized in the browser first
+// Images are resized in the browser first; video notes are capped at 60s of
+// low-bitrate video (about 8 MB), voice messages at 5 minutes (about 1.5 MB)
+export const MAX_ENCRYPTED_SIZE = 16 * 1024 * 1024;
 
 export function getUploadDir() {
   return path.resolve(process.env.UPLOAD_DIR || 'uploads');

@@ -235,7 +235,8 @@ async function wrappingKeyFor(publicKey) {
 }
 
 // members: everyone in the chat, including me: [{ _id, publicKey, keyId }]
-// payload: { text, image?: { type, width, height } }
+// payload: { text, image?: { type, width, height },
+//            media?: { kind: 'audio' | 'video', type, duration, waveform?, mirrored? } }
 export async function encryptMessage({ conversationId, members, payload }) {
   if (!session) throw new Error('Encryption is locked. Please reload the page.');
 
@@ -321,6 +322,7 @@ export async function openMessage(message, conversationId = message?.conversatio
           imageType: result.payload.image?.type || '',
           imageWidth: result.payload.image?.width || 0,
           imageHeight: result.payload.image?.height || 0,
+          ...(result.payload.media && openMediaDetails(result.payload.media)),
           contentKey: result.contentKey,
         }
       : { ...full, text: '', undecryptable: true };
@@ -330,6 +332,17 @@ export async function openMessage(message, conversationId = message?.conversatio
     opened = { ...opened, replyTo: await openMessage(opened.replyTo, conversationId) };
   }
   return opened;
+}
+
+// Details of a voice message or video note, checked since they come from the sender
+function openMediaDetails(media) {
+  const waveform = Array.isArray(media.waveform) ? media.waveform.slice(0, 64) : [];
+  return {
+    mediaType: typeof media.type === 'string' ? media.type : '',
+    mediaDuration: Math.max(0, Number(media.duration) || 0),
+    mediaWaveform: waveform.map((v) => Math.min(31, Math.max(0, Number(v) || 0))),
+    mediaMirrored: media.mirrored === true,
+  };
 }
 
 export function openMessages(messages, conversationId) {
@@ -361,11 +374,13 @@ export async function prepareImage(file, maxSize = 1600) {
   return { blob, width, height, type: blob.type };
 }
 
-// Encrypted file = 12-byte IV followed by the AES-GCM ciphertext
-export async function encryptFile(contentKey, blob) {
+// Encrypted file = 12-byte IV followed by the AES-GCM ciphertext.
+// context is 'image' for photos and 'media' for voice messages and video notes,
+// so one kind of file can't be passed off as the other.
+export async function encryptFile(contentKey, blob, context = 'image') {
   const iv = randomBytes(12);
   const data = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv, additionalData: encoder.encode('image') },
+    { name: 'AES-GCM', iv, additionalData: encoder.encode(context) },
     contentKey,
     await blob.arrayBuffer()
   );
@@ -373,14 +388,14 @@ export async function encryptFile(contentKey, blob) {
 }
 
 // Downloads and decrypts an image; resolves to an object URL for <img src>
-export function decryptImage(url, contentKey, type = 'image/webp') {
+export function decryptImage(url, contentKey, type = 'image/webp', context = 'image') {
   if (!imageUrls.has(url)) {
     const promise = (async () => {
       const response = await fetch(url, { credentials: 'same-origin' });
-      if (!response.ok) throw new Error('Image not found');
+      if (!response.ok) throw new Error('File not found');
       const bytes = new Uint8Array(await response.arrayBuffer());
       const plain = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv: bytes.subarray(0, 12), additionalData: encoder.encode('image') },
+        { name: 'AES-GCM', iv: bytes.subarray(0, 12), additionalData: encoder.encode(context) },
         contentKey,
         bytes.subarray(12)
       );
@@ -390,6 +405,11 @@ export function decryptImage(url, contentKey, type = 'image/webp') {
     imageUrls.set(url, promise);
   }
   return imageUrls.get(url);
+}
+
+// Same for a voice message or video note; resolves to an object URL for <audio>/<video>
+export function decryptMedia(url, contentKey, type) {
+  return decryptImage(url, contentKey, type, 'media');
 }
 
 // Lets the sender show their own image straight away, without downloading it again

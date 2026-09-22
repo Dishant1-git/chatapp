@@ -128,5 +128,9 @@ export function messagePreview(message, { nameOf = () => 'Someone', myId = null 
   if (message.ghostClick) return '👻 Ghost Click';
   if (message.undecryptable) return "🔒 This message can't be decrypted";
   if (message.messageType === 'image') return message.text ? `📷 ${message.text}` : '📷 Photo';
+  if (message.messageType === 'audio' || message.messageType === 'video') {
+    const label = message.messageType === 'audio' ? '🎤 Voice message' : '📹 Video message';
+    return message.mediaDuration ? `${label} (${formatDuration(message.mediaDuration)})` : label;
+  }
   return message.text;
 }

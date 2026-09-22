@@ -29,7 +29,8 @@ async function findMyMessage(req, res) {
   return message;
 }
 
-// POST /api/messages { conversationId, ciphertext, iv, senderKey, keys, image?, replyTo?, clientId? }
+// POST /api/messages { conversationId, ciphertext, iv, senderKey, keys, image?, media?, mediaKind?, replyTo?, clientId? }
+// media + mediaKind ('audio' | 'video'): an encrypted voice message or video note
 // The browser encrypts the message and locks its key once for every member
 // (including the sender). The server only checks the shape and that nobody
 // was left out, then stores and forwards it — it can't read the content.
@@ -45,6 +46,8 @@ router.post('/', messageLimiter, async (req, res) => {
   const senderKey = String(body.senderKey || '');
   const text = String(body.text || '').trim();
   const image = String(body.image || '');
+  const media = String(body.media || '');
+  const mediaKind = ['audio', 'video'].includes(body.mediaKind) ? body.mediaKind : null;
   const replyTo = body.replyTo ? String(body.replyTo) : null;
   // Temporary id of the optimistic message in the sender's browser.
   // Echoed back so the sender can swap it for the saved message.
@@ -53,6 +56,9 @@ router.post('/', messageLimiter, async (req, res) => {
   if (!isValidObjectId(conversationId)) return res.status(404).json({ error: 'Conversation not found.' });
   // Only accept encrypted files uploaded through /api/upload/encrypted
   if (image && !ENCRYPTED_URL_PATTERN.test(image)) return res.status(400).json({ error: 'Invalid image.' });
+  if (media && (!ENCRYPTED_URL_PATTERN.test(media) || !mediaKind || image)) {
+    return res.status(400).json({ error: 'Invalid recording.' });
+  }
 
   // The sender must be a participant; everyone else in the chat receives it
   const conversation = await Conversation.findOne({ _id: conversationId, participants: req.userId });
@@ -85,12 +91,12 @@ router.post('/', messageLimiter, async (req, res) => {
     if (!level) return res.status(400).json({ error: "You're not being ghosted here." });
     if (level === 'permanent') return res.status(403).json({ error: 'This chat is locked. You can’t ask for forgiveness.' });
     if (level === 'deep') return res.status(403).json({ error: "In deep ghost mode it's emojis and reactions only." });
-    if (image) return res.status(400).json({ error: 'A forgiveness request is text only.' });
+    if (image || media) return res.status(400).json({ error: 'A forgiveness request is text only.' });
   } else if (level === 'permanent') {
     return res.status(403).json({ error: "You've been permanently ghosted. This chat is locked." });
   } else if (level === 'ghosted' || level === 'deep') {
     // Emojis only — sent unencrypted so the server can check it really is only emojis
-    if (image || ciphertext || !text || text.length > 200 || !isOnlyEmoji(text)) {
+    if (image || media || ciphertext || !text || text.length > 200 || !isOnlyEmoji(text)) {
       const error =
         level === 'deep'
           ? "You're in deep ghost mode. Only emojis and reactions."
@@ -176,12 +182,13 @@ router.post('/', messageLimiter, async (req, res) => {
     {
       senderId: req.userId,
       recipients,
-      messageType: image ? 'image' : 'text',
+      messageType: image ? 'image' : media ? mediaKind : 'text',
       ciphertext,
       iv,
       senderKey,
       keys: members.map((m) => ({ userId: m._id, keyId: m.keyId, key: keyFor.get(String(m._id)).key })),
       image,
+      media,
       replyTo,
       forgiveness: isForgivenessRequest ? { status: 'pending' } : null,
       // 👻 Ghost Click: only for photos; the sender picks view-once or keep
@@ -227,19 +234,22 @@ router.delete('/:id', async (req, res) => {
   }
 
   const imageUrl = message.image;
+  const mediaUrl = message.media;
   message.isDeleted = true;
   message.text = '';
   message.ciphertext = '';
   message.iv = '';
   message.keys = [];
   message.image = '';
+  message.media = '';
   message.reactions = [];
   await message.save();
 
-  // Remove the image file too — nobody can see it anymore
+  // Remove the image or recording too — nobody can see it anymore
   if (imageUrl && (UPLOAD_URL_PATTERN.test(imageUrl) || ENCRYPTED_URL_PATTERN.test(imageUrl))) {
     deleteImage(imageUrl);
   }
+  if (mediaUrl) deleteImage(mediaUrl);
 
   emitToConversation(message.conversationId, 'message:deleted', {
     messageId: String(message._id),

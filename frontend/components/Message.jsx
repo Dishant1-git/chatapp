@@ -21,6 +21,7 @@ import { REACTIONS } from '@/lib/reactions';
 import { formatTime, messagePreview } from '@/lib/format';
 import { colorFor } from './Avatar';
 import SecureImage, { useMessageImage } from './SecureImage';
+import { VideoNote, VoiceNote } from './MediaNote';
 
 // ✓ sent · ✓✓ delivered · blue ✓✓ read
 export function MessageTicks({ message, className = '' }) {
@@ -94,6 +95,11 @@ function Message({
   const hasText = Boolean(message.text) && !isDeleted && !isViewOnce;
   const imageView = useMessageImage(hasImage ? message : null);
   const imageOnly = hasImage && !hasText;
+  // 🎤 Voice message or 📹 video note
+  const hasMedia = Boolean(message.media) && !isDeleted && !undecryptable;
+  const isVoiceNote = hasMedia && message.messageType === 'audio';
+  // A video note is a circle on its own, without a bubble around it
+  const isVideoNote = hasMedia && message.messageType === 'video';
 
   // ✨ When a new reaction shows up (mine or someone else's), its emoji bursts up
   useEffect(() => {
@@ -204,9 +210,9 @@ function Message({
           onTouchStart={handleTouchStart}
           onTouchEnd={cancelLongPress}
           onTouchMove={cancelLongPress}
-          className={`relative rounded-2xl shadow-[0_1px_1px_rgba(0,0,0,0.08)] select-none [-webkit-touch-callout:none] md:select-text ${
-            isMine ? 'bg-bubble-out' : 'bg-bubble-in'
-          } ${isGrouped ? '' : isMine ? 'rounded-tr-md' : 'rounded-tl-md'} ${imageOnly ? 'p-1' : 'px-2.5 py-1.5'} ${
+          className={`relative rounded-2xl select-none [-webkit-touch-callout:none] md:select-text ${
+            isVideoNote ? '' : `shadow-[0_1px_1px_rgba(0,0,0,0.08)] ${isMine ? 'bg-bubble-out' : 'bg-bubble-in'}`
+          } ${isGrouped ? '' : isMine ? 'rounded-tr-md' : 'rounded-tl-md'} ${isVideoNote ? '' : imageOnly ? 'p-1' : 'px-2.5 py-1.5'} ${
             message.pending ? 'opacity-80' : ''
           } ${request ? 'border border-sky-400/40' : ''}`}
         >
@@ -273,6 +279,9 @@ function Message({
             </button>
           )}
 
+          {isVoiceNote && <VoiceNote message={message} isMine={isMine} />}
+          {isVideoNote && <VideoNote message={message} time={time} />}
+
           {/* 👻 View-once Ghost Click: tap to open it, one time */}
           {isViewOnce && !isDeleted && (
             <GhostClickCard message={message} isMine={isMine} myId={myId} onOpen={() => onOpenGhostClick(message)} />
@@ -301,7 +310,7 @@ function Message({
             </p>
           )}
 
-          {!imageOnly && (
+          {!imageOnly && !isVideoNote && (
             <span className="absolute right-2.5 bottom-1 flex items-center gap-1 text-[11px] text-muted">
               {time}
             </span>

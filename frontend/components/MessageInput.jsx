@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Camera, ImagePlus, SendHorizontal, Smile, X } from 'lucide-react';
+import { Camera, ImagePlus, Mic, SendHorizontal, Smile, Video, X } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import { checkImageFile } from './ImagePreview';
+import VoiceRecorder from './VoiceRecorder';
 import { messagePreview } from '@/lib/format';
 import { isOnlyEmoji } from '@/lib/ghost';
+import { canRecord } from '@/lib/recording';
 
 const EMOJIS = [
   '😀', '😂', '🤣', '😊', '😍', '🥰', '😘', '😎', '🤔', '😅', '😉', '🙂',
@@ -29,11 +31,16 @@ export default function MessageInput({
   onSendText,
   onPickImage,
   onGhostClick, // 👻 opens the Ghost Click camera
+  onSendVoice, // 🎤 ({ blob, duration, waveform }) a recorded voice message
+  onVideoNote, // 📹 opens the video note recorder
   onError,
 }) {
   const { socket } = useChat();
   const [text, setText] = useState('');
   const [showEmojis, setShowEmojis] = useState(emojiOnly);
+  const [isRecording, setIsRecording] = useState(false);
+  // Checked after mounting, since the server render has no MediaRecorder
+  const [recordingSupported, setRecordingSupported] = useState(false);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
   const typing = useRef({ active: false, lastSent: 0, timer: null });
@@ -43,6 +50,8 @@ export default function MessageInput({
   useEffect(() => {
     socketRef.current = socket;
   }, [socket]);
+
+  useEffect(() => setRecordingSupported(canRecord()), []);
 
   function stopTyping() {
     const t = typing.current;
@@ -89,6 +98,10 @@ export default function MessageInput({
 
   const trimmed = text.trim();
   const canSend = Boolean(trimmed) && (!emojiOnly || isOnlyEmoji(trimmed));
+  // With nothing typed, the send button becomes a mic (like WhatsApp)
+  const canRecordVoice = recordingSupported && !emojiOnly && Boolean(onSendVoice);
+  const showMic = canRecordVoice && !trimmed;
+  const showVideoNote = recordingSupported && !emojiOnly && Boolean(onVideoNote) && !trimmed;
 
   function handleChange(event) {
     const value = event.target.value;
@@ -187,71 +200,109 @@ export default function MessageInput({
         </div>
       )}
 
-      <div className="flex items-end gap-1 px-2 py-2 md:px-3">
-        <button
-          type="button"
-          onClick={() => setShowEmojis(!showEmojis)}
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition hover:bg-hover ${showEmojis ? 'text-brand' : 'text-muted'}`}
-          aria-label="Emoji"
-        >
-          <Smile size={23} />
-        </button>
-
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          onBlur={stopTyping}
-          rows={1}
-          maxLength={4000}
-          placeholder={emojiOnly ? 'Emojis only' : 'Type a message'}
-          // text-base (16px) stops iOS from zooming into the field
-          className="scroll-thin max-h-32 min-w-0 flex-1 resize-none rounded-3xl bg-panel-soft px-4 py-2.5 text-base leading-6 outline-none placeholder:text-muted md:text-[15px]"
+      {isRecording && canRecordVoice ? (
+        <VoiceRecorder
+          onCancel={() => setIsRecording(false)}
+          onError={onError}
+          onSend={(recording) => {
+            setIsRecording(false);
+            onSendVoice(recording);
+          }}
         />
+      ) : (
+        <div className="flex items-end gap-1 px-2 py-2 md:px-3">
+          <button
+            type="button"
+            onClick={() => setShowEmojis(!showEmojis)}
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition hover:bg-hover ${showEmojis ? 'text-brand' : 'text-muted'}`}
+            aria-label="Emoji"
+          >
+            <Smile size={23} />
+          </button>
 
-        {!emojiOnly && (
-          <>
-            {onGhostClick && (
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onBlur={stopTyping}
+            rows={1}
+            maxLength={4000}
+            placeholder={emojiOnly ? 'Emojis only' : 'Type a message'}
+            // text-base (16px) stops iOS from zooming into the field
+            className="scroll-thin max-h-32 min-w-0 flex-1 resize-none rounded-3xl bg-panel-soft px-4 py-2.5 text-base leading-6 outline-none placeholder:text-muted md:text-[15px]"
+          />
+
+          {!emojiOnly && (
+            <>
+              {onGhostClick && (
+                <button
+                  type="button"
+                  onClick={onGhostClick}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
+                  aria-label="Ghost Click"
+                  title="👻 Ghost Click — take a photo"
+                >
+                  <Camera size={22} />
+                </button>
+              )}
               <button
                 type="button"
-                onClick={onGhostClick}
+                onClick={() => fileInputRef.current?.click()}
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
-                aria-label="Ghost Click"
-                title="👻 Ghost Click — take a photo"
+                aria-label="Send a photo"
               >
-                <Camera size={22} />
+                <ImagePlus size={22} />
               </button>
-            )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleFile}
+                className="hidden"
+              />
+              {showVideoNote && (
+                <button
+                  type="button"
+                  onClick={onVideoNote}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
+                  aria-label="Record a video message"
+                  title="📹 Video message"
+                >
+                  <Video size={22} />
+                </button>
+              )}
+            </>
+          )}
+
+          {showMic ? (
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
-              aria-label="Send a photo"
+              onClick={() => {
+                stopTyping();
+                setShowEmojis(false);
+                setIsRecording(true);
+              }}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-white transition hover:bg-brand-strong"
+              aria-label="Record a voice message"
+              title="🎤 Voice message"
             >
-              <ImagePlus size={22} />
+              <Mic size={21} />
             </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={handleFile}
-              className="hidden"
-            />
-          </>
-        )}
-
-        <button
-          type="button"
-          onPointerDown={(e) => e.preventDefault()} // don't close the mobile keyboard
-          onClick={send}
-          disabled={!canSend}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-white transition hover:bg-brand-strong disabled:opacity-40"
-          aria-label="Send message"
-        >
-          <SendHorizontal size={20} />
-        </button>
-      </div>
+          ) : (
+            <button
+              type="button"
+              onPointerDown={(e) => e.preventDefault()} // don't close the mobile keyboard
+              onClick={send}
+              disabled={!canSend}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-white transition hover:bg-brand-strong disabled:opacity-40"
+              aria-label="Send message"
+            >
+              <SendHorizontal size={20} />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

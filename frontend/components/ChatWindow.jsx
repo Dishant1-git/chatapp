@@ -15,6 +15,7 @@ import GhostBanner from './GhostBanner';
 import GroupInfo from './GroupInfo';
 import MissYouHearts from './MissYouHearts';
 import { GhostClickCamera, GhostClickViewer } from './GhostClick';
+import VideoNoteRecorder from './VideoNoteRecorder';
 import { loadAccessibility, speak } from '@/lib/accessibility';
 import Celebration from './Celebration';
 import { BadgeDialog, GhostDialog, LeaveDialog, VibePanel } from './ChatDialogs';
@@ -111,6 +112,7 @@ export default function ChatWindow({ conversationId }) {
   const [pickedImage, setPickedImage] = useState(null);
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [ghostCamera, setGhostCamera] = useState(false); // 👻 Ghost Click camera open
+  const [videoNoteOpen, setVideoNoteOpen] = useState(false); // 📹 video note recorder open
   const [ghostView, setGhostView] = useState(null); // { src, mode, caption, senderName }
   const [deleting, setDeleting] = useState(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
@@ -332,7 +334,7 @@ export default function ChatWindow({ conversationId }) {
 
     function onDeleted({ messageId, conversationId: id }) {
       if (id !== conversationId) return;
-      const wiped = { isDeleted: true, text: '', image: '', ciphertext: '', undecryptable: false };
+      const wiped = { isDeleted: true, text: '', image: '', media: '', ciphertext: '', undecryptable: false };
       setMessages((prev) =>
         prev.map((m) => {
           if (m._id === messageId) return { ...m, ...wiped, reactions: [] };
@@ -431,6 +433,15 @@ export default function ChatWindow({ conversationId }) {
           prepared = await prepareImage(temp.file);
           payload.image = { type: prepared.type, width: prepared.width, height: prepared.height };
         }
+        if (temp.mediaBlob) {
+          payload.media = {
+            kind: temp.messageType,
+            type: temp.mediaBlob.type,
+            duration: temp.mediaDuration,
+            waveform: temp.mediaWaveform,
+            mirrored: temp.mediaMirrored,
+          };
+        }
 
         const { encrypted, contentKey } = await encryptMessage({ conversationId, members, payload });
 
@@ -441,6 +452,12 @@ export default function ChatWindow({ conversationId }) {
           // Show our own copy without downloading and decrypting it again
           rememberImage(image, temp.localImage);
         }
+        let media = '';
+        if (temp.mediaBlob) {
+          const file = await encryptFile(contentKey, temp.mediaBlob, 'media');
+          media = (await api('/api/upload/encrypted', { method: 'POST', file })).url;
+          rememberImage(media, temp.localMedia);
+        }
 
         return api('/api/messages', {
           method: 'POST',
@@ -448,6 +465,7 @@ export default function ChatWindow({ conversationId }) {
             conversationId,
             ...encrypted,
             image,
+            ...(media && { media, mediaKind: temp.messageType }),
             replyTo: temp.replyTo?._id,
             clientId: temp._id,
             ...(temp.forgiveness && { forgive: true }),
@@ -508,6 +526,39 @@ export default function ChatWindow({ conversationId }) {
       };
 
       // Writing again means I'm fine with them seeing I read their messages
+      suppressRead.current = false;
+      stickToBottom.current = true;
+      setMessages((prev) => [...prev, temp]);
+      setReplyingTo(null);
+      deliver(temp);
+    },
+    [conversationId, myId, replyingTo, deliver]
+  );
+
+  // 🎤 / 📹 A recorded voice message (kind 'audio') or video note (kind 'video'),
+  // shown straight away from the local recording while it uploads
+  const sendMedia = useCallback(
+    (kind, { blob, duration, waveform = [], mirrored = false }) => {
+      const localMedia = URL.createObjectURL(blob);
+      const temp = {
+        _id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        conversationId,
+        senderId: myId,
+        text: '',
+        media: localMedia,
+        localMedia,
+        mediaBlob: blob,
+        mediaType: blob.type,
+        mediaDuration: duration,
+        mediaWaveform: waveform,
+        mediaMirrored: mirrored,
+        messageType: kind,
+        replyTo: replyingTo,
+        reactions: [],
+        createdAt: new Date().toISOString(),
+        pending: true,
+      };
+
       suppressRead.current = false;
       stickToBottom.current = true;
       setMessages((prev) => [...prev, temp]);
@@ -599,6 +650,7 @@ export default function ChatWindow({ conversationId }) {
     // A message that never reached the server is simply removed
     if (message.failed) {
       if (message.localImage) URL.revokeObjectURL(message.localImage);
+      if (message.localMedia) URL.revokeObjectURL(message.localMedia);
       setMessages((prev) => prev.filter((m) => m._id !== message._id));
       return;
     }
@@ -618,7 +670,7 @@ export default function ChatWindow({ conversationId }) {
       } else {
         setMessages((prev) =>
           prev.map((m) =>
-            m._id === message._id ? { ...m, isDeleted: true, text: '', image: '', reactions: [] } : m
+            m._id === message._id ? { ...m, isDeleted: true, text: '', image: '', media: '', reactions: [] } : m
           )
         );
       }
@@ -1173,6 +1225,8 @@ export default function ChatWindow({ conversationId }) {
           onSendText={sendMessage}
           onPickImage={setPickedImage}
           onGhostClick={() => setGhostCamera(true)}
+          onSendVoice={(recording) => sendMedia('audio', recording)}
+          onVideoNote={() => setVideoNoteOpen(true)}
           onError={showNotice}
         />
       )}
@@ -1216,6 +1270,17 @@ export default function ChatWindow({ conversationId }) {
             onSend={(file, caption, mode) => {
               setGhostCamera(false);
               sendMessage(caption, file, { ghostClick: mode });
+            }}
+          />
+        )}
+        {videoNoteOpen && (
+          <VideoNoteRecorder
+            key="video-note"
+            onCancel={() => setVideoNoteOpen(false)}
+            onError={showNotice}
+            onSend={(recording) => {
+              setVideoNoteOpen(false);
+              sendMedia('video', recording);
             }}
           />
         )}

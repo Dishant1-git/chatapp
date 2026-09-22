@@ -15,7 +15,8 @@ router.post('/', requireAuth, uploadLimiter, imageUpload.single('image'), async 
   res.status(201).json({ url });
 });
 
-// POST /api/upload/encrypted — raw bytes of an image encrypted in the browser.
+// POST /api/upload/encrypted — raw bytes of an image, voice message or video
+// note encrypted in the browser.
 // The URL is then sent with POST /api/messages; the key to open it travels
 // inside the encrypted message.
 router.post(
@@ -25,7 +26,7 @@ router.post(
   express.raw({ type: 'application/octet-stream', limit: MAX_ENCRYPTED_SIZE }),
   async (req, res) => {
     if (!Buffer.isBuffer(req.body) || req.body.length < 29) {
-      return res.status(400).json({ error: 'Please choose an image.' });
+      return res.status(400).json({ error: 'Nothing to upload.' });
     }
     const url = await saveEncryptedFile(req.body);
     res.status(201).json({ url });
