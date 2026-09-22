@@ -63,7 +63,7 @@ export function bumpStat(userId, stat) {
 
 // Events that should stand out like a message: unread badge and a notification.
 // Group changes ("Ann added Bob") don't.
-const UNREAD_EVENTS = ['call', 'missYou', 'forgiven', 'stillGhosted', 'paused', 'returned', 'revive'];
+const UNREAD_EVENTS = ['call', 'missYou', 'buzz','forgiven', 'stillGhosted', 'paused', 'returned', 'revive'];
 
 // Group changes, call logs and "miss you" nudges, shown as small notes in the chat.
 export async function publishEvent(conversation, actorId, event) {

@@ -48,3 +48,22 @@ export function timezoneOffset() {
   const abs = Math.abs(minutes);
   return `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
 }
+
+// 📳 Buzz: vibrate this phone. Works in Android browsers; iPhones and most
+// computers don't let websites vibrate, so the chat also shakes on screen.
+export function buzzPhone() {
+  try {
+    navigator.vibrate?.([250, 120, 250, 120, 500]);
+  } catch {
+    // Not allowed (e.g. the page hasn't been tapped yet) — the shake still shows
+  }
+}
+
+// Shakes an element, like a phone buzzing on a table
+export function shakeElement(element) {
+  if (!element?.animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  element.animate(
+    [0, -10, 10, -8, 8, -5, 5, -2, 0].map((x) => ({ transform: `translateX(${x}px)` })),
+    { duration: 600, easing: 'ease-in-out' }
+  );
+}

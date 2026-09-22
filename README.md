@@ -172,6 +172,9 @@ Routes live in `backend/routes/social.js`; labels in `frontend/lib/ghost.js` and
   message or call. Opening the chat again resumes it.
 - **🪦 Dead chats**: after 30 quiet days, either person can ask "Should we revive this?" (❤️ / 😂 / 👻).
 - **🧩 Inside jokes**: up to 5 badges shown at the top of a chat.
+- **📳 Buzz** (header button, one-to-one chats): vibrates the other person's phone and shakes their
+  chat if it's open. One buzz every 15 seconds. Muted and soft-ghosted chats don't vibrate. Browsers only
+  allow vibration on Android phones; on iPhones and computers there's just the shake and notification.
 - Not end-to-end encrypted (plain data): inside-joke names, moods, ghost/pause state, and the
   answers to requests. Message text — including forgiveness requests — stays encrypted.
 
@@ -266,6 +269,7 @@ frontend/
 | POST   | `/api/conversations/:id/unread`            | Undo seen (3 a day)                           |
 | GET    | `/api/conversations/:id/insights?tz=`      | Vibe stats + connection streak                |
 | POST   | `/api/conversations/:id/miss-you`          | Tell them you miss them                       |
+| POST   | `/api/conversations/:id/buzz`              | Buzz (vibrate) their phone                    |
 | POST   | `/api/messages/:id/reveal`                 | Reveal anonymous reactions (3 a day)          |
 | POST   | `/api/messages/:id/opened`                 | Open a view-once Ghost Click (once per person) |
 | PUT    | `/api/users/me/trusted/:userId`            | Add a Trusted Ghost (DELETE to remove)        |

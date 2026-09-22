@@ -7,6 +7,7 @@ import { messagePreview } from '@/lib/format';
 import { clearDeviceKeys, getSessionKeyId, openMessage, restoreSession } from '@/lib/e2ee';
 import { makeNameOf, markDeliveredTo, markReadBy, openConversation } from '@/lib/conversations';
 import { playNotificationSound, unlockAudio } from '@/lib/sounds';
+import { buzzPhone } from '@/lib/social';
 import { useSocket } from '@/hooks/useSocket';
 
 // Holds everything the chat list and chat window share: the logged-in user,
@@ -238,6 +239,7 @@ export default function ChatProvider({ children }) {
           const opened = await openConversation(conversation);
           setConversations((prev) => (prev.some((c) => c._id === opened._id) ? prev : [opened, ...prev]));
           if (isForMe && !isViewing && !opened.isMuted) showNotification(message, opened);
+          if (isForMe && message.event?.type === 'buzz' && !opened.isMuted) buzzPhone();
         } catch {
           // Not a member (anymore) — ignore
         }
@@ -262,6 +264,8 @@ export default function ChatProvider({ children }) {
         // Soft ghost: their messages still arrive, just without a notification
         const softGhosted = existing.ghost?.by === myId && existing.ghost.level === 'soft';
         if (isForMe && !isViewing && !existing.isMuted && !softGhosted) showNotification(message, existing);
+        // 📳 Buzz: vibrate my phone (not for muted or soft-ghosted chats)
+        if (isForMe && message.event?.type === 'buzz' && !existing.isMuted && !softGhosted) buzzPhone();
       }
     }
 

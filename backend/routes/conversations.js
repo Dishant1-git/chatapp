@@ -433,11 +433,11 @@ router.post('/:id/mute', async (req, res) => {
 });
 
 const MISS_YOU_COOLDOWN_MS = 60 * 1000;
+const BUZZ_COOLDOWN_MS = 15 * 1000;
 
-// POST /api/conversations/:id/miss-you — tell the other person you miss them.
-// It's a small note in the chat (no text), so it doesn't need encrypting.
-// Their app shows floating hearts and suggests a sweet reply when they open the chat.
-router.post('/:id/miss-you', async (req, res) => {
+// "Miss you" and "buzz" are small notes in a one-to-one chat (no text, so no
+// encryption needed). Sends one unless ghosting, a pause or the cooldown says no.
+async function sendNudge(req, res, type, cooldownMs, cooldownError) {
   const conversation = await findMyConversation(req, res);
   if (!conversation) return;
   if (conversation.type === 'group') return badRequest(res, 'You can only send this in a one-to-one chat.');
@@ -454,13 +454,25 @@ router.post('/:id/miss-you', async (req, res) => {
   const recent = await Message.exists({
     conversationId: conversation._id,
     senderId: req.userId,
-    'event.type': 'missYou',
-    createdAt: { $gt: new Date(Date.now() - MISS_YOU_COOLDOWN_MS) },
+    'event.type': type,
+    createdAt: { $gt: new Date(Date.now() - cooldownMs) },
   });
-  if (recent) return res.status(429).json({ error: 'You just told them. Give it a minute 💕' });
+  if (recent) return res.status(429).json({ error: cooldownError });
 
-  const message = await publishEvent(conversation, req.userId, { type: 'missYou' });
+  const message = await publishEvent(conversation, req.userId, { type });
   res.status(201).json({ message });
-});
+}
+
+// POST /api/conversations/:id/miss-you — tell the other person you miss them.
+// Their app shows floating hearts and suggests a sweet reply when they open the chat.
+router.post('/:id/miss-you', (req, res) =>
+  sendNudge(req, res, 'missYou', MISS_YOU_COOLDOWN_MS, 'You just told them. Give it a minute 💕')
+);
+
+// POST /api/conversations/:id/buzz — 📳 vibrate the other person's phone
+// (and shake their chat if it's open)
+router.post('/:id/buzz', (req, res) =>
+  sendNudge(req, res, 'buzz', BUZZ_COOLDOWN_MS, 'You just buzzed them. Wait a few seconds 📳')
+);
 
 export default router;

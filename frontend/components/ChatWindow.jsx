@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, ChevronsDown, X, Heart, Loader2, Lock, MessageSquareOff, Phone, PhoneCall, Video } from 'lucide-react';
+import { ArrowLeft, ChevronsDown, X, Heart, Loader2, Lock, MessageSquareOff, Phone, PhoneCall, Vibrate, Video } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import { useCalls } from './CallProvider';
 import { ChatAvatar } from './Avatar';
@@ -20,7 +20,7 @@ import Celebration from './Celebration';
 import { BadgeDialog, GhostDialog, LeaveDialog, VibePanel } from './ChatDialogs';
 import { ImageLightbox, ImageSendPreview } from './ImagePreview';
 import { api } from '@/lib/client';
-import { MOODS, PAUSE_REASONS, REVIVE_ANSWERS, isDeadChat, timezoneOffset } from '@/lib/social';
+import { MOODS, PAUSE_REASONS, REVIVE_ANSWERS, isDeadChat, shakeElement, timezoneOffset } from '@/lib/social';
 import { describeEvent, formatDayDivider, formatLastSeen, formatTime, isDifferentDay } from '@/lib/format';
 import { decryptImage, encryptFile, encryptMessage, openMessage, openMessages, prepareImage, rememberImage } from '@/lib/e2ee';
 import {
@@ -55,7 +55,7 @@ function addOrReplace(list, message, clientId, { keepExisting = false } = {}) {
 }
 
 // Notes that get a little moment on screen the first time I see them
-const MOMENT_EVENTS = ['missYou', 'forgiven', 'stillGhosted'];
+const MOMENT_EVENTS = ['missYou', 'buzz', 'forgiven', 'stillGhosted'];
 
 // One of those notes from the other person that I haven't seen yet
 function isNewMoment(message, myId) {
@@ -119,6 +119,7 @@ export default function ChatWindow({ conversationId }) {
   const [isUnghosting, setIsUnghosting] = useState(false);
   const [missYouFrom, setMissYouFrom] = useState(null); // name to show in the hearts overlay
   const [isSendingMissYou, setIsSendingMissYou] = useState(false);
+  const [isSendingBuzz, setIsSendingBuzz] = useState(false);
   const [celebration, setCelebration] = useState(null); // { emojis, title, subtitle }
   const [dialog, setDialog] = useState(null); // ghost | vibe | badge | leave
   const [streak, setStreak] = useState(0);
@@ -179,6 +180,7 @@ export default function ChatWindow({ conversationId }) {
     const name = nameOfRef.current(message.senderId, message);
     const type = message.event?.type;
     if (type === 'missYou') setMissYouFrom(name);
+    if (type === 'buzz') shakeElement(rootRef.current); // 📳 the phone vibrates too (ChatProvider)
     if (type === 'forgiven') setCelebration({ emojis: ['🕊️', '✨', '🤍'], title: "✨ You're unghosted", subtitle: `${name} forgave you` });
     if (type === 'stillGhosted') setCelebration({ emojis: ['👻'], title: '👻 Still ghosted', subtitle: `${name} isn't ready yet` });
   }, []);
@@ -758,6 +760,21 @@ export default function ChatWindow({ conversationId }) {
     }
   }
 
+  // 📳 Vibrate their phone
+  async function sendBuzz() {
+    setIsSendingBuzz(true);
+    try {
+      const { message } = await api(`/api/conversations/${conversationId}/buzz`, { method: 'POST' });
+      stickToBottom.current = true;
+      setMessages((prev) => addOrReplace(prev, message));
+      showNotice(`📳 Buzzed ${otherUser?.name?.split(' ')[0] || 'them'}`);
+    } catch (err) {
+      showNotice(err.message);
+    } finally {
+      setIsSendingBuzz(false);
+    }
+  }
+
   // A sweet reply from the hearts overlay
   function replyToMissYou(text) {
     setMissYouFrom(null);
@@ -809,10 +826,10 @@ export default function ChatWindow({ conversationId }) {
 
   return (
     <div ref={rootRef} className="mobile-slide-in relative flex h-full min-h-0 flex-1 flex-col bg-panel">
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-line bg-panel px-2 md:px-4">
+      <header className="flex h-16 shrink-0 items-center gap-1 md:gap-2 border-b border-line bg-panel px-2 md:px-4">
         <button
           onClick={goBackToList}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full hover:bg-hover md:hidden"
+          className="flex h-10 w-9 md:w-10 shrink-0 items-center justify-center rounded-full hover:bg-hover md:hidden"
           aria-label="Back to chats"
         >
           <ArrowLeft size={22} />
@@ -841,11 +858,22 @@ export default function ChatWindow({ conversationId }) {
           <button
             onClick={sendMissYou}
             disabled={isSendingMissYou}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-rose-500 transition hover:bg-rose-500/10 disabled:opacity-40"
+            className="flex h-10 w-9 md:w-10 shrink-0 items-center justify-center rounded-full text-rose-500 transition hover:bg-rose-500/10 disabled:opacity-40"
             aria-label="Tell them you miss them"
             title="Miss you"
           >
             <Heart size={20} />
+          </button>
+        )}
+        {conversation && !isGroupChat && (
+          <button
+            onClick={sendBuzz}
+            disabled={isSendingBuzz}
+            className="flex h-10 w-9 md:w-10 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg active:rotate-12 disabled:opacity-40"
+            aria-label="Buzz their phone"
+            title="Buzz"
+          >
+            <Vibrate size={20} />
           </button>
         )}
 
@@ -862,7 +890,7 @@ export default function ChatWindow({ conversationId }) {
               <button
                 onClick={() => handleCall(true)}
                 disabled={Boolean(currentCall)}
-                className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg disabled:opacity-40"
+                className="flex h-10 w-9 md:w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg disabled:opacity-40"
                 aria-label="Video call"
                 title="Video call"
               >
@@ -871,7 +899,7 @@ export default function ChatWindow({ conversationId }) {
               <button
                 onClick={() => handleCall(false)}
                 disabled={Boolean(currentCall)}
-                className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg disabled:opacity-40"
+                className="flex h-10 w-9 md:w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg disabled:opacity-40"
                 aria-label="Voice call"
                 title="Voice call"
               >
@@ -1248,7 +1276,7 @@ function EventNote({ message, nameOf, myId, onReviveAnswer }) {
         {isCall && <Icon size={13} className="shrink-0" />}
         {isMissYou && <Heart size={13} className="shrink-0" fill="currentColor" strokeWidth={0} />}
         {describeEvent(message, nameOf, myId)}
-        {(isCall || isMissYou) && <span className="opacity-70">· {formatTime(message.createdAt)}</span>}
+        {(isCall || isMissYou || event.type === 'buzz') &&<span className="opacity-70">· {formatTime(message.createdAt)}</span>}
       </span>
       {canAnswerRevive && (
         <div className="flex flex-wrap justify-center gap-1.5">

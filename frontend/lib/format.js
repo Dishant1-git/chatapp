@@ -92,6 +92,8 @@ export function describeEvent(message, nameOf, myId) {
       return `${actor} changed the group photo`;
     case 'missYou':
       return String(message.senderId) === myId ? 'You said you miss them 💕' : `${actor} is missing you 💕`;
+    case 'buzz':
+      return String(message.senderId) === myId ? '📳 You buzzed them' : `📳 ${actor} buzzed you`;
     case 'forgiven':
       return String(message.senderId) === myId ? '🕊️ You unghosted them' : `✨ ${actor} forgave you. You're unghosted.`;
     case 'stillGhosted':

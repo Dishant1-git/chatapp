@@ -61,6 +61,7 @@ const eventSchema = new mongoose.Schema(
         'photo',
         'call',
         'missYou',
+        'buzz', // 📳 vibrates the other person's phone
         'forgiven', // a forgiveness request was accepted
         'stillGhosted', // … or turned down
         'paused', // someone left a one-to-one chat ("exit without drama")
