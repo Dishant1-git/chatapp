@@ -175,6 +175,20 @@ Routes live in `backend/routes/social.js`; labels in `frontend/lib/ghost.js` and
 - Not end-to-end encrypted (plain data): inside-joke names, moods, ghost/pause state, and the
   answers to requests. Message text — including forgiveness requests — stays encrypted.
 
+### Ghost Click, accessibility and Trusted Ghosts
+
+- **👻 Ghost Click** (camera button next to the message box): take a photo in the app and choose
+  *👻 View once* or *💾 Can be saved*. The photo is encrypted like any chat photo. A view-once photo
+  opens one time per person (`POST /api/messages/:id/opened`). After that, the server stops sending
+  its link, and once everyone has opened it the file is deleted. Saved photos have a Save button.
+  No website can stop screenshots or a second camera.
+- **♿ Accessibility** (Profile): text size (4 steps), text colour (including high contrast),
+  "Read new messages aloud", and *Read aloud* in every message's menu. The settings are stored on
+  this device (`frontend/lib/accessibility.js`) and applied before the page is drawn.
+- **⭐ Trusted Ghosts**: favourite contacts from the chat menu, pinned at the top of the chat list.
+  The list is private and only returned by `/api/auth/me`.
+- **✨ Reactions** burst and pop when added. This is off when the system asks for reduced motion.
+
 ## Project structure
 
 ```
@@ -236,7 +250,7 @@ frontend/
 | GET    | `/api/conversations/:id`                   | One conversation                              |
 | GET    | `/api/conversations/:id/messages?before=`  | 30 messages per page, older with `before`     |
 | POST   | `/api/conversations/:id/read`              | Mark messages as read                         |
-| POST   | `/api/messages`                            | Send `{ conversationId, ciphertext, iv, senderKey, keys, image?, replyTo? }` |
+| POST   | `/api/messages`                            | Send `{ conversationId, ciphertext, iv, senderKey, keys, image?, replyTo?, ghostClick? }` |
 | DELETE | `/api/messages/:id?for=me\|everyone`       | Delete a message                              |
 | POST   | `/api/messages/:id/reaction`               | Toggle a reaction `{ emoji }`                 |
 | POST   | `/api/upload`                              | Upload an unencrypted image, returns its URL  |
@@ -253,6 +267,8 @@ frontend/
 | GET    | `/api/conversations/:id/insights?tz=`      | Vibe stats + connection streak                |
 | POST   | `/api/conversations/:id/miss-you`          | Tell them you miss them                       |
 | POST   | `/api/messages/:id/reveal`                 | Reveal anonymous reactions (3 a day)          |
+| POST   | `/api/messages/:id/opened`                 | Open a view-once Ghost Click (once per person) |
+| PUT    | `/api/users/me/trusted/:userId`            | Add a Trusted Ghost (DELETE to remove)        |
 | GET    | `/api/health`                              | Health check: server uptime + database status. 200 when healthy, 503 when the database is down |
 
 ### Socket events (server → browser)

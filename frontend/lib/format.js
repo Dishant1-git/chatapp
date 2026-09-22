@@ -123,6 +123,7 @@ export function messagePreview(message, { nameOf = () => 'Someone', myId = null 
   if (message.isDeleted) return 'This message was deleted';
   if (message.messageType === 'event') return describeEvent(message, nameOf, myId);
   if (message.forgiveness) return '🕊️ Forgiveness request';
+  if (message.ghostClick) return '👻 Ghost Click';
   if (message.undecryptable) return "🔒 This message can't be decrypted";
   if (message.messageType === 'image') return message.text ? `📷 ${message.text}` : '📷 Photo';
   return message.text;

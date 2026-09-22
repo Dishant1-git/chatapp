@@ -12,6 +12,16 @@ const reactionSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// A view-once Ghost Click can't be opened again by its sender or by anyone who
+// already opened it, so the image link isn't handed out to them
+export function maskGhostClick(message, viewerId) {
+  const gc = message.ghostClick;
+  if (!gc || gc.mode !== 'once') return message;
+  const seen =
+    String(message.senderId) === String(viewerId) || (gc.openedBy || []).some((id) => String(id) === String(viewerId));
+  return seen ? { ...message, image: '' } : message;
+}
+
 // Hides the emoji of anonymous reactions from everyone except the reactor
 // and people who revealed it. viewerId null = hide from everyone.
 export function maskReactions(reactions = [], viewerId = null) {
@@ -107,6 +117,19 @@ const messageSchema = new mongoose.Schema(
     },
     // "growth" = 🕊️ Character development (sender later forgave the other person)
     badge: { type: String, default: '' },
+    // 👻 Ghost Click: a photo taken with the in-app camera. "once" photos can be
+    // opened one time by each recipient; the file is deleted once everyone has.
+    ghostClick: {
+      type: new mongoose.Schema(
+        {
+          mode: { type: String, enum: ['once', 'keep'], required: true },
+          openedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+          expired: { type: Boolean, default: false },
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
     replyTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Message', default: null },
     reactions: { type: [reactionSchema], default: [] },
     deliveredTo: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],

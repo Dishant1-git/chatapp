@@ -184,6 +184,8 @@ router.post('/', messageLimiter, async (req, res) => {
       image,
       replyTo,
       forgiveness: isForgivenessRequest ? { status: 'pending' } : null,
+      // 👻 Ghost Click: only for photos; the sender picks view-once or keep
+      ghostClick: image && ['once', 'keep'].includes(body.ghostClick) ? { mode: body.ghostClick, openedBy: [] } : null,
       // Recipients with the app open get the message right away
       deliveredTo: recipients.filter((id) => isUserOnline(id)),
     },
@@ -294,6 +296,39 @@ router.post('/:id/reaction', async (req, res) => {
 
   emitReactions(message, req.userId);
   res.json({ reactions: maskReactions(message.reactions, req.userId) });
+});
+
+// POST /api/messages/:id/opened — a recipient opened a view-once Ghost Click.
+// They can't open it again, and once everyone has, the encrypted file is deleted.
+router.post('/:id/opened', async (req, res) => {
+  const message = await findMyMessage(req, res);
+  if (!message) return;
+  if (message.ghostClick?.mode !== 'once') return res.status(400).json({ error: 'This is not a view-once Ghost Click.' });
+  if (String(message.senderId) === req.userId) return res.status(400).json({ error: "You can't open your own Ghost Click." });
+
+  const updated = await Message.findOneAndUpdate(
+    { _id: message._id, 'ghostClick.openedBy': { $ne: req.userId } },
+    { $addToSet: { 'ghostClick.openedBy': req.userId } },
+    { returnDocument: 'after' }
+  );
+  if (!updated) return res.status(409).json({ error: 'You already opened this Ghost Click.' });
+
+  const everyoneOpened = updated.recipients.every((id) => updated.ghostClick.openedBy.some((o) => String(o) === String(id)));
+  if (everyoneOpened) {
+    const imageUrl = updated.image;
+    updated.image = '';
+    updated.ghostClick.expired = true;
+    await updated.save();
+    if (imageUrl) deleteImage(imageUrl);
+  }
+
+  // Everyone sees "Opened"; the image link is only sent where it's still needed
+  emitToConversation(updated.conversationId, 'message:updated', {
+    conversationId: String(updated.conversationId),
+    messageId: String(updated._id),
+    changes: { ghostClick: updated.ghostClick.toJSON() },
+  });
+  res.json({ ghostClick: updated.ghostClick });
 });
 
 // POST /api/messages/:id/reveal — see which emoji the anonymous reactions are (3 a day)

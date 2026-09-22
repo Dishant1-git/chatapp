@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ImagePlus, SendHorizontal, Smile, X } from 'lucide-react';
+import { Camera, ImagePlus, SendHorizontal, Smile, X } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import { checkImageFile } from './ImagePreview';
 import { messagePreview } from '@/lib/format';
@@ -28,6 +28,7 @@ export default function MessageInput({
   onCancelReply,
   onSendText,
   onPickImage,
+  onGhostClick, // 👻 opens the Ghost Click camera
   onError,
 }) {
   const { socket } = useChat();
@@ -211,6 +212,17 @@ export default function MessageInput({
 
         {!emojiOnly && (
           <>
+            {onGhostClick && (
+              <button
+                type="button"
+                onClick={onGhostClick}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
+                aria-label="Ghost Click"
+                title="👻 Ghost Click — take a photo"
+              >
+                <Camera size={22} />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}

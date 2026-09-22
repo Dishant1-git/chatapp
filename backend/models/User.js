@@ -37,6 +37,9 @@ const userSchema = new mongoose.Schema(
     keyBackup: { type: keyBackupSchema, default: null, select: false },
     // Shown next to the name instead of a plain "online"
     mood: { type: String, enum: MOODS, default: '' },
+    // ⭐ Trusted Ghosts: favourite contacts, pinned at the top of the chat list.
+    // Private: only returned to the owner (GET /api/auth/me).
+    trusted: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     // Private: only the owner ever sees these (GET /api/auth/me)
     stats: {
       ghosted: { type: Number, default: 0 },

@@ -403,6 +403,14 @@ export default function ChatProvider({ children }) {
     document.title = totalUnread > 0 ? `(${totalUnread}) Ghosted` : 'Ghosted';
   }, [totalUnread]);
 
+  // ⭐ Trusted Ghosts: favourite contacts, pinned at the top of the chat list
+  const toggleTrusted = useCallback(async (userId) => {
+    const isTrusted = (userRef.current?.trusted || []).includes(userId);
+    const { trusted } = await api(`/api/users/me/trusted/${userId}`, { method: isTrusted ? 'DELETE' : 'PUT' });
+    setUser((u) => ({ ...u, trusted }));
+    return !isTrusted;
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await clearDeviceKeys();
@@ -435,6 +443,7 @@ export default function ChatProvider({ children }) {
       markAsRead,
       openChatWith,
       createGroup,
+      toggleTrusted,
       goBackToList,
       logout,
     }),
@@ -457,6 +466,7 @@ export default function ChatProvider({ children }) {
       markAsRead,
       openChatWith,
       createGroup,
+      toggleTrusted,
       goBackToList,
       logout,
     ]

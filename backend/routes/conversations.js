@@ -2,7 +2,7 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import mongoose, { isValidObjectId } from 'mongoose';
 import Conversation, { MAX_GROUP_MEMBERS, conversationKey, formatConversation } from '../models/Conversation.js';
-import Message, { REPLY_FIELDS, REFRESH_TICKS, maskReactions } from '../models/Message.js';
+import Message, { REPLY_FIELDS, REFRESH_TICKS, maskGhostClick, maskReactions } from '../models/Message.js';
 import User from '../models/User.js';
 import { requireAuth } from '../middleware/auth.js';
 import { imageUpload } from '../middleware/upload.js';
@@ -377,7 +377,7 @@ router.get('/:id/messages', async (req, res) => {
   const page = messages
     .slice(0, PAGE_SIZE)
     .reverse()
-    .map((m) => ({ ...m.toJSON(), reactions: maskReactions(m.reactions, req.userId) }));
+    .map((m) => maskGhostClick({ ...m.toJSON(), reactions: maskReactions(m.reactions, req.userId) }, req.userId));
   res.json({ messages: page, hasMore });
 });
 

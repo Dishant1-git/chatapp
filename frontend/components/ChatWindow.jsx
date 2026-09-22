@@ -14,13 +14,15 @@ import ChatMenu from './ChatMenu';
 import GhostBanner from './GhostBanner';
 import GroupInfo from './GroupInfo';
 import MissYouHearts from './MissYouHearts';
+import { GhostClickCamera, GhostClickViewer } from './GhostClick';
+import { loadAccessibility, speak } from '@/lib/accessibility';
 import Celebration from './Celebration';
 import { BadgeDialog, GhostDialog, LeaveDialog, VibePanel } from './ChatDialogs';
 import { ImageLightbox, ImageSendPreview } from './ImagePreview';
 import { api } from '@/lib/client';
 import { MOODS, PAUSE_REASONS, REVIVE_ANSWERS, isDeadChat, timezoneOffset } from '@/lib/social';
 import { describeEvent, formatDayDivider, formatLastSeen, formatTime, isDifferentDay } from '@/lib/format';
-import { encryptFile, encryptMessage, openMessage, openMessages, prepareImage, rememberImage } from '@/lib/e2ee';
+import { decryptImage, encryptFile, encryptMessage, openMessage, openMessages, prepareImage, rememberImage } from '@/lib/e2ee';
 import {
   conversationTitle,
   isGroup,
@@ -106,6 +108,8 @@ export default function ChatWindow({ conversationId }) {
   const [replyingTo, setReplyingTo] = useState(null);
   const [pickedImage, setPickedImage] = useState(null);
   const [lightboxSrc, setLightboxSrc] = useState(null);
+  const [ghostCamera, setGhostCamera] = useState(false); // 👻 Ghost Click camera open
+  const [ghostView, setGhostView] = useState(null); // { src, mode, caption, senderName }
   const [deleting, setDeleting] = useState(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
@@ -312,6 +316,10 @@ export default function ChatWindow({ conversationId }) {
           setMessages((prev) => addOrReplace(prev, opened, clientId));
           if (opened.senderId !== myId && document.visibilityState === 'visible') {
             if (isNewMoment(opened, myId)) showMoment(opened);
+            // 🔊 Accessibility: read new messages aloud
+            if (loadAccessibility().readAloud && opened.text && opened.messageType !== 'event') {
+              speak(`${nameOfRef.current(opened.senderId, opened)} says: ${opened.text}`);
+            }
             readNow();
           }
         })
@@ -439,6 +447,7 @@ export default function ChatWindow({ conversationId }) {
             replyTo: temp.replyTo?._id,
             clientId: temp._id,
             ...(temp.forgiveness && { forgive: true }),
+            ...(temp.ghostClick && { ghostClick: temp.ghostClick.mode }),
           },
         });
       }
@@ -474,7 +483,8 @@ export default function ChatWindow({ conversationId }) {
   // The message shows up immediately with a clock icon, then gets its ticks once saved
   // forgive: send it as a 🕊️ forgiveness request (when I'm being ghosted)
   const sendMessage = useCallback(
-    (text, file = null, { forgive = false } = {}) => {
+    // ghostClick: 'once' | 'keep' for a 👻 Ghost Click photo
+    (text, file = null, { forgive = false, ghostClick = null } = {}) => {
       const localImage = file ? URL.createObjectURL(file) : '';
       const temp = {
         _id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -490,6 +500,7 @@ export default function ChatWindow({ conversationId }) {
         createdAt: new Date().toISOString(),
         pending: true,
         ...(forgive && { forgiveness: { status: 'pending' } }),
+        ...(ghostClick && file && { ghostClick: { mode: ghostClick, openedBy: [] } }),
       };
 
       // Writing again means I'm fine with them seeing I read their messages
@@ -696,6 +707,34 @@ export default function ChatWindow({ conversationId }) {
       showNotice(err.message);
     }
   }
+
+  // 👻 Open a Ghost Click. A view-once photo is marked as opened on the server
+  // straight away, so it can't be opened again (not even after a reload).
+  const openGhostClick = useCallback(
+    async (message) => {
+      const mode = message.ghostClick?.mode;
+      if (!message.image || !message.contentKey) return showNotice('This Ghost Click is no longer available.');
+      setGhostView({ src: '', mode, caption: message.text, senderName: nameOfRef.current(message.senderId, message) });
+      try {
+        const src = await decryptImage(message.image, message.contentKey, message.imageType || 'image/webp');
+        if (mode === 'once') {
+          await api(`/api/messages/${message._id}/opened`, { method: 'POST' });
+          setMessages((prev) =>
+            prev.map((m) =>
+              m._id === message._id
+                ? { ...m, image: '', ghostClick: { ...m.ghostClick, openedBy: [...(m.ghostClick.openedBy || []), myId] } }
+                : m
+            )
+          );
+        }
+        setGhostView((view) => view && { ...view, src });
+      } catch (err) {
+        setGhostView(null);
+        showNotice(err.message || 'This Ghost Click is no longer available.');
+      }
+    },
+    [myId, showNotice]
+  );
 
   const closeLightbox = useCallback(() => setLightboxSrc(null), []);
   const closeCelebration = useCallback(() => setCelebration(null), []);
@@ -950,6 +989,7 @@ export default function ChatWindow({ conversationId }) {
                     onRetry={retry}
                     onJumpTo={jumpTo}
                     onOpenImage={setLightboxSrc}
+                    onOpenGhostClick={openGhostClick}
                     onImageLoad={handleImageLoad}
                     ghostedView={ghostedView}
                     canAnswerForgiveness={
@@ -1063,6 +1103,7 @@ export default function ChatWindow({ conversationId }) {
           onCancelReply={() => setReplyingTo(null)}
           onSendText={sendMessage}
           onPickImage={setPickedImage}
+          onGhostClick={() => setGhostCamera(true)}
           onError={showNotice}
         />
       )}
@@ -1098,6 +1139,18 @@ export default function ChatWindow({ conversationId }) {
           <BadgeDialog key="badge-dialog" conversation={conversation} onClose={closeDialog} onError={showNotice} />
         )}
         {dialog === 'vibe' && conversation && <VibePanel key="vibe" conversation={conversation} onClose={closeDialog} />}
+        {ghostCamera && (
+          <GhostClickCamera
+            key="ghost-camera"
+            onCancel={() => setGhostCamera(false)}
+            onError={showNotice}
+            onSend={(file, caption, mode) => {
+              setGhostCamera(false);
+              sendMessage(caption, file, { ghostClick: mode });
+            }}
+          />
+        )}
+        {ghostView && <GhostClickViewer key="ghost-view" {...ghostView} onClose={() => setGhostView(null)} />}
         {pickedImage && (
           <ImageSendPreview
             key="send-preview"

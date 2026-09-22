@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, BellOff, Brain, DoorOpen, EllipsisVertical, Ghost, Puzzle } from 'lucide-react';
+import { Bell, BellOff, Brain, DoorOpen, EllipsisVertical, Ghost, Puzzle, Star } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import { api } from '@/lib/client';
 import { GHOST_LEVEL_INFO } from '@/lib/ghost';
@@ -10,7 +10,7 @@ import { GHOST_LEVEL_INFO } from '@/lib/ghost';
 // The ⋮ menu in the chat header. Mute works here; the rest opens a dialog
 // owned by ChatWindow (onOpen('ghost' | 'vibe' | 'badge' | 'leave')).
 export default function ChatMenu({ conversation, myId, onError, onOpen }) {
-  const { updateConversation } = useChat();
+  const { updateConversation, user, toggleTrusted } = useChat();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -18,6 +18,7 @@ export default function ChatMenu({ conversation, myId, onError, onOpen }) {
   const isDirect = conversation.type !== 'group';
   const ghostedByMe = ghost?.by === myId;
   const ghostedByThem = Boolean(ghost) && !ghostedByMe;
+  const isTrusted = Boolean(otherUser && (user?.trusted || []).includes(otherUser._id));
 
   // Close the menu when tapping anywhere else
   useEffect(() => {
@@ -41,6 +42,15 @@ export default function ChatMenu({ conversation, myId, onError, onOpen }) {
     try {
       const data = await api(`/api/conversations/${conversationId}/mute`, { method: 'POST', body: { muted } });
       updateConversation(conversationId, { isMuted: data.isMuted });
+    } catch (err) {
+      onError(err.message);
+    }
+  }
+
+  async function toggleTrustedGhost() {
+    setIsOpen(false);
+    try {
+      await toggleTrusted(otherUser._id);
     } catch (err) {
       onError(err.message);
     }
@@ -81,6 +91,14 @@ export default function ChatMenu({ conversation, myId, onError, onOpen }) {
               hint={ghostedByThem ? `${otherUser.name} is ghosting you` : ''}
               disabled={ghostedByThem}
               onClick={() => open('ghost')}
+            />
+          )}
+          {isDirect && otherUser && (
+            <MenuItem
+              icon={Star}
+              label={isTrusted ? 'Remove from Trusted Ghosts' : '⭐ Add to Trusted Ghosts'}
+              hint={isTrusted ? '' : 'Pinned at the top of your chats'}
+              onClick={toggleTrustedGhost}
             />
           )}
           <MenuItem icon={Brain} label="Read the vibe" onClick={() => open('vibe')} />

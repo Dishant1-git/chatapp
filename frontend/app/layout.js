@@ -1,4 +1,5 @@
 import './globals.css';
+import { ACCESSIBILITY_SCRIPT } from '@/lib/accessibility';
 
 export const metadata = {
   title: 'Ghosted',
@@ -32,7 +33,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script dangerouslySetInnerHTML={{ __html: themeScript + ACCESSIBILITY_SCRIPT }} />
       </head>
       <body className="font-sans antialiased">{children}</body>
     </html>

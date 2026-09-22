@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { isValidObjectId } from 'mongoose';
 import User, { MOODS } from '../models/User.js';
 import Conversation from '../models/Conversation.js';
 import { getIO, conversationRoom } from '../socket/io.js';
@@ -29,6 +30,31 @@ router.get('/search', async (req, res) => {
     .limit(20);
 
   res.json({ users });
+});
+
+const MAX_TRUSTED = 50;
+
+// PUT /api/users/me/trusted/:userId — add someone to my ⭐ Trusted Ghosts
+router.put('/me/trusted/:userId', async (req, res) => {
+  const { userId } = req.params;
+  if (!isValidObjectId(userId) || userId === req.userId) return res.status(400).json({ error: 'Invalid user.' });
+  if (!(await User.exists({ _id: userId }))) return res.status(404).json({ error: 'User not found.' });
+
+  const user = await User.findOneAndUpdate(
+    { _id: req.userId, [`trusted.${MAX_TRUSTED - 1}`]: { $exists: false } },
+    { $addToSet: { trusted: userId } },
+    { returnDocument: 'after' }
+  );
+  if (!user) return res.status(400).json({ error: `You can have up to ${MAX_TRUSTED} Trusted Ghosts.` });
+  res.json({ trusted: user.trusted.map(String) });
+});
+
+// DELETE /api/users/me/trusted/:userId
+router.delete('/me/trusted/:userId', async (req, res) => {
+  const { userId } = req.params;
+  if (!isValidObjectId(userId)) return res.status(400).json({ error: 'Invalid user.' });
+  const user = await User.findByIdAndUpdate(req.userId, { $pull: { trusted: userId } }, { returnDocument: 'after' });
+  res.json({ trusted: (user?.trusted || []).map(String) });
 });
 
 // PATCH /api/users/me — update your own name, profile picture and/or mood.

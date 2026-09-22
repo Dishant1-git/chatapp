@@ -9,6 +9,7 @@ import { SidePanel } from './UserSearch';
 import { checkImageFile } from './ImagePreview';
 import { api } from '@/lib/client';
 import { MOODS } from '@/lib/social';
+import { FONT_SIZES, TEXT_COLORS, loadAccessibility, saveAccessibility, speak } from '@/lib/accessibility';
 
 export default function Profile({ onClose }) {
   const { user, setUser, logout } = useChat();
@@ -143,6 +144,7 @@ export default function Profile({ onClose }) {
 
         <MoodPicker />
         <SocialStats />
+        <AccessibilitySettings />
 
         <div className="mt-6 border-t border-line">
           <div className="flex items-center justify-between px-5 py-3">
@@ -236,6 +238,82 @@ function SocialStats() {
         ))}
       </div>
       <p className="mt-1.5 text-xs text-muted">🔒 Only you can see this.</p>
+    </div>
+  );
+}
+
+// ♿ Accessibility: text size, text colour and reading messages aloud (saved on this device)
+function AccessibilitySettings() {
+  const [settings, setSettings] = useState(loadAccessibility);
+
+  function update(changes) {
+    const next = { ...settings, ...changes };
+    setSettings(next);
+    saveAccessibility(next);
+  }
+
+  return (
+    <div className="mt-6 px-5">
+      <p className="mb-1.5 text-sm font-medium text-brand">Accessibility</p>
+
+      <p className="mb-1 text-xs text-muted">Text size</p>
+      <div className="grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Text size">
+        {FONT_SIZES.map((size) => (
+          <button
+            key={size.value}
+            role="radio"
+            aria-checked={settings.fontScale === size.value}
+            aria-label={size.label}
+            title={size.label}
+            onClick={() => update({ fontScale: size.value })}
+            className={`rounded-xl border py-2 font-semibold transition ${
+              settings.fontScale === size.value ? 'border-brand bg-brand-soft text-brand' : 'border-line hover:bg-hover'
+            }`}
+            style={{ fontSize: `${14 * size.value}px` }}
+          >
+            A
+          </button>
+        ))}
+      </div>
+
+      <p className="mt-3 mb-1 text-xs text-muted">Text colour</p>
+      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Text colour">
+        {TEXT_COLORS.map((color) => (
+          <button
+            key={color.value}
+            role="radio"
+            aria-checked={settings.textColor === color.value}
+            aria-label={color.label}
+            title={color.label}
+            onClick={() => update({ textColor: color.value })}
+            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition ${
+              settings.textColor === color.value ? 'border-brand bg-brand-soft' : 'border-line hover:bg-hover'
+            }`}
+          >
+            <span className="h-3.5 w-3.5 rounded-full border border-line" style={{ backgroundColor: color.swatch }} />
+            {color.label}
+          </button>
+        ))}
+      </div>
+
+      <label className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-panel-soft px-3.5 py-2.5 text-sm">
+        <span>
+          🔊 Read new messages aloud
+          <span className="block text-xs text-muted">Or long-press any message → Read aloud</span>
+        </span>
+        <input
+          type="checkbox"
+          checked={settings.readAloud}
+          onChange={(e) => update({ readAloud: e.target.checked })}
+          className="h-5 w-5 shrink-0 accent-[var(--brand)]"
+        />
+      </label>
+      <button
+        onClick={() => speak('This is how messages will sound when they are read aloud.')}
+        className="mt-2 text-sm font-medium text-brand hover:underline"
+      >
+        ▶ Test the voice
+      </button>
     </div>
   );
 }

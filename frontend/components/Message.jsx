@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   AlertCircle,
   Ban,
@@ -14,7 +14,9 @@ import {
   Reply,
   RotateCw,
   Trash2,
+  Volume2,
 } from 'lucide-react';
+import { speak } from '@/lib/accessibility';
 import { REACTIONS } from '@/lib/reactions';
 import { formatTime, messagePreview } from '@/lib/format';
 import { colorFor } from './Avatar';
@@ -70,21 +72,40 @@ function Message({
   canAnswerForgiveness = false,
   onForgivenessAnswer,
   onReveal,
+  onOpenGhostClick,
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [menuOpensUp, setMenuOpensUp] = useState(false);
   const [peek, setPeek] = useState(false);
   const [anonymousMode, setAnonymousMode] = useState(false);
   const [askLater, setAskLater] = useState(false);
+  const [bursts, setBursts] = useState([]); // ✨ emojis flying up after a new reaction
   const bubbleRef = useRef(null);
   const menuRef = useRef(null);
   const longPressTimer = useRef(null);
+  const previousReactions = useRef(null);
+  const reduceMotion = useReducedMotion();
 
   const { replyTo, reactions = [], isDeleted, undecryptable } = message;
-  const hasImage = Boolean(message.image) && !isDeleted && !undecryptable;
-  const hasText = Boolean(message.text) && !isDeleted;
+  // 👻 Ghost Click: a view-once photo (and its caption) is only shown in the viewer
+  const ghostClick = message.ghostClick;
+  const isViewOnce = ghostClick?.mode === 'once';
+  const hasImage = Boolean(message.image) && !isDeleted && !undecryptable && !isViewOnce;
+  const hasText = Boolean(message.text) && !isDeleted && !isViewOnce;
   const imageView = useMessageImage(hasImage ? message : null);
   const imageOnly = hasImage && !hasText;
+
+  // ✨ When a new reaction shows up (mine or someone else's), its emoji bursts up
+  useEffect(() => {
+    const key = (r) => `${r.userId}:${r.emoji}`;
+    const before = previousReactions.current;
+    previousReactions.current = new Set(reactions.map(key));
+    if (!before || reduceMotion) return; // not on first render
+    const added = reactions.filter((r) => r.emoji && !before.has(key(r)));
+    if (added.length) {
+      setBursts((prev) => [...prev, ...added.map((r) => ({ id: `${key(r)}:${Date.now()}`, emoji: r.emoji }))]);
+    }
+  }, [reactions, reduceMotion]);
 
   function openMenu() {
     if (message.pending) return;
@@ -226,7 +247,12 @@ function Message({
           {hasImage && (
             <button
               type="button"
-              onClick={() => !message.pending && imageView.src && onOpenImage(imageView.src)}
+              onClick={() => {
+                if (message.pending || !imageView.src) return;
+                // A savable Ghost Click opens in the Ghost Click viewer, with a Save button
+                if (ghostClick) onOpenGhostClick(message);
+                else onOpenImage(imageView.src);
+              }}
               className="relative block overflow-hidden rounded-xl"
             >
               <SecureImage
@@ -234,12 +260,22 @@ function Message({
                 onLoad={onImageLoad}
                 className="max-h-80 w-full min-w-40 bg-black/5 object-cover sm:w-72"
               />
+              {ghostClick && (
+                <span className="absolute top-1.5 left-1.5 rounded-full bg-black/45 px-2 py-0.5 text-[11px] text-white">
+                  👻 Ghost Click
+                </span>
+              )}
               {imageOnly && (
                 <span className="absolute right-1.5 bottom-1.5 flex items-center gap-1 rounded-full bg-black/45 px-2 py-0.5 text-[11px] text-white">
                   {time}
                 </span>
               )}
             </button>
+          )}
+
+          {/* 👻 View-once Ghost Click: tap to open it, one time */}
+          {isViewOnce && !isDeleted && (
+            <GhostClickCard message={message} isMine={isMine} myId={myId} onOpen={() => onOpenGhostClick(message)} />
           )}
 
           {isDeleted && (
@@ -340,14 +376,36 @@ function Message({
           </p>
         )}
 
+        {/* ✨ A new reaction's emoji floats up from the bubble */}
+        <AnimatePresence>
+          {bursts.map((burst, i) => (
+            <motion.span
+              key={burst.id}
+              aria-hidden
+              className={`pointer-events-none absolute bottom-0 z-20 text-2xl ${isMine ? 'right-6' : 'left-6'}`}
+              initial={{ y: 0, scale: 0.4, opacity: 0 }}
+              animate={{ y: -70, x: (i % 2 ? 1 : -1) * 14, scale: [0.4, 1.6, 1.2], opacity: [0, 1, 0] }}
+              transition={{ duration: 0.9, ease: 'easeOut' }}
+              onAnimationComplete={() => setBursts((prev) => prev.filter((b) => b.id !== burst.id))}
+            >
+              {burst.emoji}
+            </motion.span>
+          ))}
+        </AnimatePresence>
+
         {hasReactions && (
           <div className={`absolute -bottom-4 flex gap-1 ${isMine ? 'right-2' : 'left-2'}`}>
             {Object.entries(reactionCounts).map(([emoji, count]) => (
-              <button
+              <motion.button
                 key={emoji}
                 type="button"
+                layout
+                // Pops in when it first appears…
+                initial={reduceMotion ? false : { scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 18 }}
                 onClick={() => clickReaction(emoji)}
-                className={`flex h-6 items-center gap-0.5 rounded-full border px-1.5 text-xs shadow-sm transition ${
+                className={`flex h-6 items-center gap-0.5 rounded-full border px-1.5 text-xs shadow-sm transition-colors ${
                   myReaction === emoji
                     ? 'border-brand/40 bg-brand-soft'
                     : 'border-line bg-panel hover:bg-hover'
@@ -362,9 +420,17 @@ function Message({
                       : 'React'
                 }
               >
-                <span>{emoji}</span>
+                {/* …and bounces whenever its count changes */}
+                <motion.span
+                  key={count}
+                  initial={reduceMotion ? false : { scale: 1.5 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 600, damping: 15 }}
+                >
+                  {emoji}
+                </motion.span>
                 {count > 1 && <span className="text-muted">{count}</span>}
-              </button>
+              </motion.button>
             ))}
           </div>
         )}
@@ -411,7 +477,8 @@ function Message({
             )}
 
             <div className="py-1 text-sm">
-              {!isDeleted && !undecryptable && !message.failed && (
+              {/* A view-once Ghost Click can't be quoted (the quote would show the photo) */}
+              {!isDeleted && !undecryptable && !message.failed && !isViewOnce && (
                 <MenuItem icon={Reply} label="Reply" onClick={() => runAndClose(() => onReply(message))} />
               )}
               {hasText && (
@@ -419,6 +486,14 @@ function Message({
                   icon={Copy}
                   label="Copy text"
                   onClick={() => runAndClose(() => navigator.clipboard?.writeText(message.text))}
+                />
+              )}
+              {/* ♿ Read the message out loud with the browser's voice */}
+              {hasText && (
+                <MenuItem
+                  icon={Volume2}
+                  label="Read aloud"
+                  onClick={() => runAndClose(() => speak(`${nameOf(message.senderId)} said: ${message.text}`))}
                 />
               )}
               {message.failed && (
@@ -435,6 +510,45 @@ function Message({
         )}
       </div>
     </div>
+  );
+}
+
+// 👻 The bubble for a view-once Ghost Click
+function GhostClickCard({ message, isMine, myId, onOpen }) {
+  const { openedBy = [], expired } = message.ghostClick;
+  const openedByMe = openedBy.some((id) => String(id) === myId);
+  const openedByAll = (message.recipients || []).length > 0 && message.recipients.every((id) => openedBy.some((o) => String(o) === String(id)));
+
+  if (isMine) {
+    return (
+      <p className="flex items-center gap-2 pr-16 text-[14px]">
+        <span className="text-lg">👻</span>
+        <span>
+          <span className="font-medium">Ghost Click</span>
+          <span className="block text-[12px] text-muted">
+            {message.pending ? 'Sending…' : openedByAll || expired ? 'Opened' : 'View once · not opened yet'}
+          </span>
+        </span>
+      </p>
+    );
+  }
+
+  if (openedByMe || expired || !message.image) {
+    return (
+      <p className="flex items-center gap-2 pr-12 text-[14px] text-muted italic">
+        <span className="text-lg not-italic opacity-60">👻</span> Opened
+      </p>
+    );
+  }
+
+  return (
+    <button type="button" onClick={onOpen} className="flex items-center gap-2 pr-12 text-left text-[14px]">
+      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-lg text-white">👻</span>
+      <span>
+        <span className="block font-semibold text-brand">Tap to view</span>
+        <span className="block text-[12px] text-muted">Ghost Click · view once</span>
+      </span>
+    </button>
   );
 }
 

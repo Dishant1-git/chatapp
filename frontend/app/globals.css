@@ -61,6 +61,31 @@
     'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
 }
 
+/* ♿ Accessibility (see lib/accessibility.js) */
+
+/* Text size: everything sized in rem grows with this… */
+html {
+  font-size: calc(100% * var(--font-scale, 1));
+}
+/* …and so do the few places that use exact pixel sizes */
+.text-\[11px\] { font-size: calc(11px * var(--font-scale, 1)); }
+.text-\[12px\] { font-size: calc(12px * var(--font-scale, 1)); }
+.text-\[13px\] { font-size: calc(13px * var(--font-scale, 1)); }
+.text-\[14px\] { font-size: calc(14px * var(--font-scale, 1)); }
+.text-\[15px\] { font-size: calc(15px * var(--font-scale, 1)); }
+
+/* Text colour */
+html[data-text-color='contrast'] { --fg: #000000; --muted: #2d2d2d; }
+html.dark[data-text-color='contrast'] { --fg: #ffffff; --muted: #e2e2e2; }
+html[data-text-color='blue'] { --fg: #1e3a8a; }
+html.dark[data-text-color='blue'] { --fg: #bfdbfe; }
+html[data-text-color='green'] { --fg: #14532d; }
+html.dark[data-text-color='green'] { --fg: #bbf7d0; }
+html[data-text-color='purple'] { --fg: #4c1d95; }
+html.dark[data-text-color='purple'] { --fg: #ddd6fe; }
+html[data-text-color='brown'] { --fg: #5b3a1a; }
+html.dark[data-text-color='brown'] { --fg: #f5deb3; }
+
 html,
 body {
   height: 100%;

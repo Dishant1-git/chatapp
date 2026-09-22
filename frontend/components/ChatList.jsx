@@ -38,6 +38,12 @@ export default function ChatList() {
     );
   }, [conversations, query]);
 
+  // ⭐ Trusted Ghosts are pinned in their own section at the top
+  const trustedIds = user?.trusted || [];
+  const isTrustedChat = (c) => !isGroup(c) && trustedIds.includes(c.otherUser?._id);
+  const trustedChats = filtered.filter(isTrustedChat);
+  const otherChats = trustedChats.length ? filtered.filter((c) => !isTrustedChat(c)) : filtered;
+
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
       <header className="flex h-16 shrink-0 items-center justify-between gap-2 px-4">
@@ -101,7 +107,23 @@ export default function ChatList() {
       </div>
 
       <ul className="scroll-thin min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]">
-        {filtered.map((conversation) => (
+        {trustedChats.length > 0 && (
+          <li className="px-5 pt-1 pb-1 text-xs font-semibold tracking-wide text-muted uppercase">⭐ Trusted Ghosts</li>
+        )}
+        {trustedChats.map((conversation) => (
+          <ConversationItem
+            key={conversation._id}
+            conversation={conversation}
+            myId={user._id}
+            isActive={conversation._id === activeConversationId}
+            typingUsers={typingIn[conversation._id]}
+            isTrusted
+          />
+        ))}
+        {trustedChats.length > 0 && otherChats.length > 0 && (
+          <li className="px-5 pt-3 pb-1 text-xs font-semibold tracking-wide text-muted uppercase">All chats</li>
+        )}
+        {otherChats.map((conversation) => (
           <ConversationItem
             key={conversation._id}
             conversation={conversation}
@@ -150,7 +172,7 @@ export default function ChatList() {
 }
 
 // memo: a row only re-renders when its own conversation changes
-const ConversationItem = memo(function ConversationItem({ conversation, myId, isActive, typingUsers }) {
+const ConversationItem = memo(function ConversationItem({ conversation, myId, isActive, typingUsers, isTrusted = false }) {
   const { lastMessage, lastMessageAt, unreadCount, isMuted, ghost } = conversation;
   const isMine = lastMessage?.senderId === myId;
   const showUnread = unreadCount > 0 && !isMuted;
@@ -183,6 +205,11 @@ const ConversationItem = memo(function ConversationItem({ conversation, myId, is
           <div className="flex items-baseline justify-between gap-2">
             <p className="flex min-w-0 items-center gap-1.5 font-medium">
               <span className="truncate">{conversationTitle(conversation)}</span>
+              {isTrusted && (
+                <span className="shrink-0 text-xs" title="Trusted Ghost">
+                  ⭐
+                </span>
+              )}
               {ghost && (
                 <Ghost
                   size={14}
