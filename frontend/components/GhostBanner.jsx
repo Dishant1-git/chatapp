@@ -17,18 +17,19 @@ export default function GhostBanner({ ghost, myId, otherName, isUnghosting, onUn
   const info = GHOST_LEVEL_INFO[ghost.level] || GHOST_LEVEL_INFO.ghosted;
   const byMe = ghost.by === myId;
   const waitUntil = nextRequestAt(ghost);
-  const canRequest = !byMe && ghost.level !== 'permanent' && !ghost.requestId && !waitUntil;
+  // Soft and regular ghosts can ask for forgiveness; deep and permanent can't
+  const canRequest = !byMe && ['soft', 'ghosted'].includes(ghost.level) && !ghost.requestId && !waitUntil;
 
   const description = byMe
     ? {
         soft: `You soft-ghosted ${otherName}. Their messages come in quietly.`,
-        ghosted: `You ghosted ${otherName}. They can only send you a forgiveness request.`,
+        ghosted: `You ghosted ${otherName}. They can send emojis, and one forgiveness request.`,
         deep: `You deep-ghosted ${otherName}. Emojis and reactions only.`,
         permanent: `You permanently ghosted ${otherName}. The chat is locked for them.`,
       }[ghost.level]
     : {
         soft: `${otherName} soft-ghosted you. Your messages still go through — quietly.`,
-        ghosted: `${otherName} ghosted you. You can send one forgiveness request.`,
+        ghosted: `${otherName} ghosted you. Emojis only — and you get one forgiveness request.`,
         deep: `${otherName} deep-ghosted you. Emojis and reactions only.`,
         permanent: `${otherName} permanently ghosted you. This chat is locked.`,
       }[ghost.level];

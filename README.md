@@ -151,8 +151,8 @@ Browser ──► Next.js (frontend) ──/api, /socket.io, /uploads──► E
 Routes live in `backend/routes/social.js`; labels in `frontend/lib/ghost.js` and `frontend/lib/social.js`.
 
 - **👻 Ghost levels** (one-to-one chats): *Soft* (they can message, you get no notifications),
-  *Ghosted* (they can only send a forgiveness request), *Deep* (emojis and reactions only — sent
-  unencrypted so the server can check), *Permanent* (locked). Their messages show as "👻 Ghosted"
+  *Ghosted* (emojis only, plus one forgiveness request), *Deep* (emojis and reactions only, no
+  request), *Permanent* (locked). Emoji-only messages are sent unencrypted so the server can check them. Their messages show as "👻 Ghosted"
   until you peek. Ghosted people can't call you (except in soft mode).
 - **🕊️ Forgiveness request**: one encrypted request at a time, 24 hours between requests. The
   ghoster answers 🕊️ Forgive / 👻 Keep ghosting / ⏳ Ask me later. Forgiving (or unghosting) gives

@@ -127,10 +127,11 @@ export default function ChatWindow({ conversationId }) {
   const ghost = isGroupChat ? null : conversation?.ghost || null;
   const ghostedByMe = ghost?.by === myId;
   const iAmGhosted = Boolean(ghost) && !ghostedByMe;
-  const emojiOnly = iAmGhosted && ghost.level === 'deep';
+  // Ghosted or deep-ghosted: emojis only (until they're unghosted)
+  const emojiOnly = iAmGhosted && ['ghosted', 'deep'].includes(ghost.level);
   // "Exit without drama": one of us stepped away from the chat
   const pausedBy = isGroupChat ? null : conversation?.pausedBy || null;
-  const canType = !pausedBy && !(iAmGhosted && ['ghosted', 'permanent'].includes(ghost.level));
+  const canType = !pausedBy && !(iAmGhosted && ghost.level === 'permanent');
   const isDead = status === 'ready' && isDeadChat(conversation);
   // Read by deliver(), which is a stable callback
   const emojiOnlyRef = useRef(emojiOnly);

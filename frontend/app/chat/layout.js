@@ -5,6 +5,7 @@ import ChatProvider, { useChat } from '@/components/ChatProvider';
 import ChatList from '@/components/ChatList';
 import Navbar from '@/components/Navbar';
 import Notifications from '@/components/Notifications';
+import Tour from '@/components/Tour';
 import EncryptionGate from '@/components/EncryptionGate';
 import CallProvider from '@/components/CallProvider';
 import { useViewportHeight } from '@/hooks/useViewportHeight';
@@ -75,6 +76,8 @@ function ChatShell({ children }) {
         </div>
 
         <Notifications />
+        {/* First-time guided tour of the features */}
+        <Tour />
       </div>
     </CallProvider>
   );

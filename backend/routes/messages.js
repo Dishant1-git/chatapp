@@ -34,7 +34,7 @@ async function findMyMessage(req, res) {
 // (including the sender). The server only checks the shape and that nobody
 // was left out, then stores and forwards it — it can't read the content.
 //
-// One exception: someone in deep ghost mode (emojis only) sends
+// One exception: someone ghosted at the "ghosted" or "deep" level (emojis only) sends
 // { conversationId, text } unencrypted, so the server can check it really
 // is only emojis (it can't look inside an encrypted message).
 router.post('/', messageLimiter, async (req, res) => {
@@ -84,15 +84,18 @@ router.post('/', messageLimiter, async (req, res) => {
   if (isForgivenessRequest) {
     if (!level) return res.status(400).json({ error: "You're not being ghosted here." });
     if (level === 'permanent') return res.status(403).json({ error: 'This chat is locked. You can’t ask for forgiveness.' });
+    if (level === 'deep') return res.status(403).json({ error: "In deep ghost mode it's emojis and reactions only." });
     if (image) return res.status(400).json({ error: 'A forgiveness request is text only.' });
-  } else if (level === 'ghosted') {
-    return res.status(403).json({ error: "You've been ghosted. You can only send a forgiveness request." });
   } else if (level === 'permanent') {
     return res.status(403).json({ error: "You've been permanently ghosted. This chat is locked." });
-  } else if (level === 'deep') {
+  } else if (level === 'ghosted' || level === 'deep') {
     // Emojis only — sent unencrypted so the server can check it really is only emojis
     if (image || ciphertext || !text || text.length > 200 || !isOnlyEmoji(text)) {
-      return res.status(403).json({ error: "You're in deep ghost mode. Only emojis and reactions." });
+      const error =
+        level === 'deep'
+          ? "You're in deep ghost mode. Only emojis and reactions."
+          : "You've been ghosted. You can send emojis, and one forgiveness request.";
+      return res.status(403).json({ error });
     }
     const message = await publishMessage(
       conversation,
@@ -272,10 +275,10 @@ router.post('/:id/reaction', async (req, res) => {
   if (!message) return;
   if (message.isDeleted || message.messageType === 'event') return res.status(404).json({ error: 'Message not found.' });
 
-  // Ghosted (not soft or deep) or paused chats: no reactions either
+  // Permanently ghosted or paused chats: no reactions either (emoji reactions are fine otherwise)
   const conversation = await Conversation.findById(message.conversationId).select('ghost pausedBy');
   const ghostedByOther = conversation?.ghost?.by && String(conversation.ghost.by) !== req.userId;
-  if (ghostedByOther && ['ghosted', 'permanent'].includes(ghostLevel(conversation.ghost))) {
+  if (ghostedByOther && ghostLevel(conversation.ghost) === 'permanent') {
     return res.status(403).json({ error: "You've been ghosted. You can't react here." });
   }
   if (conversation?.pausedBy?.by && String(conversation.pausedBy.by) !== req.userId) {

@@ -2,8 +2,8 @@
 //
 // When A ghosts B (one-to-one chats only), A picks a level:
 //   soft      — B can message normally; A just doesn't get notified
-//   ghosted   — B can only send a forgiveness request
-//   deep      — B can only send emojis and reactions (and a forgiveness request)
+//   ghosted   — B can send emojis, plus one forgiveness request (their one chance)
+//   deep      — B can only send emojis and reactions (no forgiveness request)
 //   permanent — the chat is locked for B: nothing, not even a request
 // A can change the level or unghost B at any time. Forgiving B's request unghosts them.
 // B can send one request at a time, and must wait 24 hours before asking again.
