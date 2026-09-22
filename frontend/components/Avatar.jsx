@@ -1,4 +1,5 @@
 import { Users } from 'lucide-react';
+import { MOODS } from '@/lib/social';
 
 // Profile picture with a fallback to the person's initials
 const COLORS = ['#0d8a74', '#2563eb', '#9333ea', '#db2777', '#ea580c', '#0891b2', '#4f46e5', '#65a30d'];
@@ -37,6 +38,16 @@ export default function Avatar({ user, size = 44, showStatus = false, isGroup = 
 
       {showStatus && user?.isOnline && (
         <span className="absolute right-0 bottom-0 h-3 w-3 rounded-full border-2 border-panel bg-emerald-500" />
+      )}
+
+      {/* 🎭 Their mood, next to the picture */}
+      {showStatus && MOODS[user?.mood] && (
+        <span
+          className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border border-line bg-panel text-[11px] shadow-sm"
+          title={MOODS[user.mood].label}
+        >
+          {MOODS[user.mood].emoji}
+        </span>
       )}
     </div>
   );

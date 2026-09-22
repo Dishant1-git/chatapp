@@ -273,7 +273,9 @@ export default function ChatProvider({ children }) {
 
       if (!isMine) {
         setTyping(conversationId, message.senderId, false);
-        if (isForMe && !isViewing && !existing.isMuted) showNotification(message, existing);
+        // Soft ghost: their messages still arrive, just without a notification
+        const softGhosted = existing.ghost?.by === myId && existing.ghost.level === 'soft';
+        if (isForMe && !isViewing && !existing.isMuted && !softGhosted) showNotification(message, existing);
       }
     }
 
@@ -283,6 +285,22 @@ export default function ChatProvider({ children }) {
 
     function handleMute({ conversationId, isMuted }) {
       updateConversation(conversationId, { isMuted });
+    }
+
+    // Someone's mood changed (maybe mine, from another tab)
+    function handleMood({ userId, mood }) {
+      updateMember(userId, { mood });
+      if (userId === userRef.current?._id) setUser((u) => ({ ...u, mood }));
+    }
+
+    // "Exit without drama": if I stepped away (maybe in another tab), the chat leaves my list
+    function handlePause({ conversationId, pausedBy }) {
+      if (pausedBy?.by === userRef.current?._id) {
+        setConversations((prev) => prev.filter((c) => c._id !== conversationId));
+        if (activeIdRef.current === conversationId) router.replace('/chat');
+        return;
+      }
+      updateConversation(conversationId, { pausedBy });
     }
 
     function handleGhost({ conversationId, ghost }) {
@@ -372,6 +390,8 @@ export default function ChatProvider({ children }) {
     socket.on('messages:delivered', handleDelivered);
     socket.on('conversation:mute', handleMute);
     socket.on('conversation:ghost', handleGhost);
+    socket.on('conversation:pause', handlePause);
+    socket.on('user:mood', handleMood);
     socket.on('conversation:updated', handleConversationUpdated);
     socket.on('conversation:removed', handleConversationRemoved);
 
@@ -387,6 +407,8 @@ export default function ChatProvider({ children }) {
       socket.off('messages:delivered', handleDelivered);
       socket.off('conversation:mute', handleMute);
       socket.off('conversation:ghost', handleGhost);
+      socket.off('conversation:pause', handlePause);
+      socket.off('user:mood', handleMood);
       socket.off('conversation:updated', handleConversationUpdated);
       socket.off('conversation:removed', handleConversationRemoved);
     };

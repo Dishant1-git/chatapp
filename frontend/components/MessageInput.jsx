@@ -16,12 +16,15 @@ const EMOJIS = [
 
 const TYPING_REPEAT_MS = 3000; // re-send "typing" at most every 3s while typing
 const TYPING_IDLE_MS = 2000; // send "stopTyping" after 2s without a keystroke
+// "Almost said": a draft typed for at least 8s and 10 characters, then deleted
+const ALMOST_SAID_MS = 8000;
+const ALMOST_SAID_CHARS = 10;
 
 export default function MessageInput({
   conversationId,
   replyingTo,
   replyName,
-  emojiOnly = false, // ghosted: only emojis can be sent, no photos
+  emojiOnly = false, // deep ghost: only emojis can be sent, no photos
   onCancelReply,
   onSendText,
   onPickImage,
@@ -33,6 +36,7 @@ export default function MessageInput({
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
   const typing = useRef({ active: false, lastSent: 0, timer: null });
+  const draftRef = useRef({ startedAt: 0, longest: 0 });
   const socketRef = useRef(socket);
 
   useEffect(() => {
@@ -86,9 +90,24 @@ export default function MessageInput({
   const canSend = Boolean(trimmed) && (!emojiOnly || isOnlyEmoji(trimmed));
 
   function handleChange(event) {
-    setText(event.target.value);
-    if (event.target.value.trim()) notifyTyping();
-    else stopTyping();
+    const value = event.target.value;
+    setText(value);
+    if (value.trim()) {
+      notifyTyping();
+      // 🫥 Remember when this draft started and how long it got
+      const draft = draftRef.current;
+      if (!draft.startedAt) draft.startedAt = Date.now();
+      draft.longest = Math.max(draft.longest, value.trim().length);
+    } else {
+      stopTyping();
+      // Typed for a while, then deleted it all: "They typed something... then disappeared."
+      // Only that fact is shared, never the text.
+      const draft = draftRef.current;
+      if (draft.startedAt && Date.now() - draft.startedAt >= ALMOST_SAID_MS && draft.longest >= ALMOST_SAID_CHARS) {
+        socketRef.current?.emit('almostSaid', { conversationId });
+      }
+      draftRef.current = { startedAt: 0, longest: 0 };
+    }
   }
 
   function send() {
@@ -98,6 +117,7 @@ export default function MessageInput({
     setText('');
     setShowEmojis(emojiOnly);
     stopTyping();
+    draftRef.current = { startedAt: 0, longest: 0 }; // it was sent, not abandoned
   }
 
   function handleKeyDown(event) {

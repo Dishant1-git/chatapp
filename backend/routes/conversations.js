@@ -2,29 +2,29 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import mongoose, { isValidObjectId } from 'mongoose';
 import Conversation, { MAX_GROUP_MEMBERS, conversationKey, formatConversation } from '../models/Conversation.js';
-import Message, { REPLY_FIELDS, REFRESH_TICKS } from '../models/Message.js';
+import Message, { REPLY_FIELDS, REFRESH_TICKS, maskReactions } from '../models/Message.js';
 import User from '../models/User.js';
 import { requireAuth } from '../middleware/auth.js';
 import { imageUpload } from '../middleware/upload.js';
 import { groupLimiter } from '../middleware/rateLimits.js';
 import { saveImage } from '../utils/storage.js';
 import { publishEvent } from '../utils/publish.js';
-import { formatGhost } from '../utils/ghost.js';
+import { ghostLevel } from '../utils/ghost.js';
 import { getIO, userRoom, conversationRoom, emitToConversation } from '../socket/io.js';
 import { leaveCallsFor } from '../socket/calls.js';
 
 const router = Router();
 router.use(requireAuth);
 
-export const PARTICIPANT_FIELDS = 'name email profileImage isOnline lastSeen publicKey keyId';
+export const PARTICIPANT_FIELDS = 'name email profileImage isOnline lastSeen publicKey keyId mood';
 const PAGE_SIZE = 30;
 
-function badRequest(res, error) {
+export function badRequest(res, error) {
   res.status(400).json({ error });
 }
 
 // Loads a conversation only if the logged-in user is part of it
-async function findMyConversation(req, res) {
+export async function findMyConversation(req, res) {
   const { id } = req.params;
   const conversation = isValidObjectId(id)
     ? await Conversation.findOne({ _id: id, participants: req.userId })
@@ -98,10 +98,12 @@ async function broadcastGroup(conversation) {
 
 // GET /api/conversations — my conversations, newest first, with unread counts
 router.get('/', async (req, res) => {
-  // Empty conversations (opened but no message sent yet) are not listed
+  // Empty conversations (opened but no message sent yet) are not listed,
+  // nor chats I stepped away from ("exit without drama")
   const conversations = await Conversation.find({
     participants: req.userId,
     lastMessage: { $ne: null },
+    'pausedBy.by': { $ne: new mongoose.Types.ObjectId(req.userId) },
   })
     .sort({ lastMessageAt: -1 })
     .populate('participants', PARTICIPANT_FIELDS)
@@ -153,6 +155,9 @@ router.post('/', async (req, res) => {
 
   joinRoom([req.userId, otherUserId], conversation._id);
 
+  // Opening a chat I stepped away from means I'm back
+  if (String(conversation.pausedBy?.by) === req.userId) await resumeConversation(conversation, req.userId);
+
   await conversation.populate([
     { path: 'participants', select: PARTICIPANT_FIELDS },
     { path: 'lastMessage' },
@@ -160,6 +165,20 @@ router.post('/', async (req, res) => {
 
   res.json({ conversation: formatConversation(conversation, req.userId) });
 });
+
+// Ends a pause: the chat is back in the list for the one who left,
+// and the other person can message again
+export async function resumeConversation(conversation, userId) {
+  const updated = await Conversation.findOneAndUpdate(
+    { _id: conversation._id, 'pausedBy.by': userId },
+    { pausedBy: null },
+    { returnDocument: 'after' }
+  );
+  if (!updated) return;
+  conversation.pausedBy = null;
+  emitToConversation(conversation._id, 'conversation:pause', { conversationId: String(conversation._id), pausedBy: null });
+  await publishEvent(updated, userId, { type: 'returned' });
+}
 
 // POST /api/conversations/groups — multipart: name, members (JSON array of user ids), image?
 router.post('/groups', groupLimiter, imageUpload.single('image'), async (req, res) => {
@@ -355,7 +374,11 @@ router.get('/:id/messages', async (req, res) => {
     .populate('replyTo', REPLY_FIELDS);
 
   const hasMore = messages.length > PAGE_SIZE;
-  res.json({ messages: messages.slice(0, PAGE_SIZE).reverse(), hasMore });
+  const page = messages
+    .slice(0, PAGE_SIZE)
+    .reverse()
+    .map((m) => ({ ...m.toJSON(), reactions: maskReactions(m.reactions, req.userId) }));
+  res.json({ messages: page, hasMore });
 });
 
 // POST /api/conversations/:id/read — mark messages sent to me as read,
@@ -420,8 +443,12 @@ router.post('/:id/miss-you', async (req, res) => {
   if (conversation.type === 'group') return badRequest(res, 'You can only send this in a one-to-one chat.');
 
   // Ghosting limits what you can send; this mustn't be a way around it
-  if (conversation.ghost?.by && String(conversation.ghost.by) !== req.userId) {
+  const ghostedByThem = conversation.ghost?.by && String(conversation.ghost.by) !== req.userId;
+  if (ghostedByThem && ghostLevel(conversation.ghost) !== 'soft') {
     return res.status(403).json({ error: "You can't send this while they're ghosting you." });
+  }
+  if (conversation.pausedBy?.by && String(conversation.pausedBy.by) !== req.userId) {
+    return res.status(403).json({ error: "They're taking some space right now." });
   }
 
   const recent = await Message.exists({
@@ -434,58 +461,6 @@ router.post('/:id/miss-you', async (req, res) => {
 
   const message = await publishEvent(conversation, req.userId, { type: 'missYou' });
   res.status(201).json({ message });
-});
-
-// Both users see the ghost banner change straight away
-function emitGhost(conversation) {
-  emitToConversation(conversation._id, 'conversation:ghost', {
-    conversationId: String(conversation._id),
-    ghost: formatGhost(conversation.ghost),
-  });
-}
-
-// POST /api/conversations/:id/ghost — ghost the other person.
-// They get one normal message, then only emojis until I unghost them
-// (enforced in POST /api/messages).
-router.post('/:id/ghost', async (req, res) => {
-  const conversation = await findMyConversation(req, res);
-  if (!conversation) return;
-  if (conversation.type === 'group') return badRequest(res, 'You can only ghost someone in a one-to-one chat.');
-
-  if (conversation.ghost?.by) {
-    const error =
-      String(conversation.ghost.by) === req.userId
-        ? "You're already ghosting them."
-        : "You can't ghost someone who is ghosting you.";
-    return res.status(409).json({ error });
-  }
-
-  // "ghost: null" also matches old conversations without the field
-  const updated = await Conversation.findOneAndUpdate(
-    { _id: conversation._id, ghost: null },
-    { ghost: { by: req.userId, stage: 'pending' } },
-    { returnDocument: 'after' }
-  );
-  if (!updated) return res.status(409).json({ error: 'This chat just changed. Please try again.' });
-
-  emitGhost(updated);
-  res.json({ ghost: formatGhost(updated.ghost) });
-});
-
-// DELETE /api/conversations/:id/ghost — stop ghosting (only the one who ghosted can)
-router.delete('/:id/ghost', async (req, res) => {
-  const conversation = await findMyConversation(req, res);
-  if (!conversation) return;
-
-  const updated = await Conversation.findOneAndUpdate(
-    { _id: conversation._id, 'ghost.by': req.userId },
-    { ghost: null },
-    { returnDocument: 'after' }
-  );
-  if (!updated) return res.status(404).json({ error: "You aren't ghosting anyone in this chat." });
-
-  emitGhost(updated);
-  res.json({ ghost: null });
 });
 
 export default router;

@@ -64,9 +64,18 @@ function Message({
   onJumpTo,
   onOpenImage,
   onImageLoad,
+  // Sent to me by someone I'm ghosting: shown as "👻 Ghosted" until I peek
+  ghostedView = false,
+  // I'm the one who can answer this forgiveness request
+  canAnswerForgiveness = false,
+  onForgivenessAnswer,
+  onReveal,
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [menuOpensUp, setMenuOpensUp] = useState(false);
+  const [peek, setPeek] = useState(false);
+  const [anonymousMode, setAnonymousMode] = useState(false);
+  const [askLater, setAskLater] = useState(false);
   const bubbleRef = useRef(null);
   const menuRef = useRef(null);
   const longPressTimer = useRef(null);
@@ -118,13 +127,39 @@ function Message({
     action();
   }
 
-  // Group reactions: { '❤️': 2, '👍': 1 }
+  // Group reactions: { '❤️': 2, '👍': 1 }. Anonymous ones I can't see are grouped as 👀.
   const reactionCounts = {};
   reactions.forEach((r) => {
-    reactionCounts[r.emoji] = (reactionCounts[r.emoji] || 0) + 1;
+    const key = r.emoji || '👀';
+    reactionCounts[key] = (reactionCounts[key] || 0) + 1;
   });
-  const myReaction = reactions.find((r) => String(r.userId) === myId)?.emoji;
+  const mine = reactions.find((r) => String(r.userId) === myId);
+  const myReaction = mine?.emoji;
   const hasReactions = reactions.length > 0;
+
+  function clickReaction(emoji) {
+    if (emoji === '👀') return onReveal(message);
+    // Tapping my own reaction removes it (it has to match, anonymous or not)
+    onReact(message, emoji, emoji === myReaction ? Boolean(mine?.anonymous) : false);
+  }
+
+  // 👻 Ghosted: collapsed until I choose to peek
+  if (ghostedView && !peek) {
+    return (
+      <div ref={(el) => registerRef(message._id, el)} className={`flex justify-start ${isGrouped ? 'mt-0.5' : 'mt-2.5'}`}>
+        <button
+          type="button"
+          onClick={() => setPeek(true)}
+          className="rounded-2xl rounded-tl-md border border-dashed border-line bg-bubble-in/70 px-3 py-1.5 text-[14px] text-muted italic"
+          title="Tap to peek"
+        >
+          👻 Ghosted <span className="text-[11px] not-italic opacity-70">· {formatTime(message.createdAt)} · tap to peek</span>
+        </button>
+      </div>
+    );
+  }
+
+  const request = message.forgiveness;
 
   const time = (
     <>
@@ -152,8 +187,13 @@ function Message({
             isMine ? 'bg-bubble-out' : 'bg-bubble-in'
           } ${isGrouped ? '' : isMine ? 'rounded-tr-md' : 'rounded-tl-md'} ${imageOnly ? 'p-1' : 'px-2.5 py-1.5'} ${
             message.pending ? 'opacity-80' : ''
-          }`}
+          } ${request ? 'border border-sky-400/40' : ''}`}
         >
+          {request && (
+            <p className="mb-0.5 text-[12px] font-semibold tracking-wide text-sky-600 uppercase dark:text-sky-400">
+              🕊️ Forgiveness request
+            </p>
+          )}
           {/* Group chats: who wrote it */}
           {showSender && (
             <p
@@ -254,19 +294,73 @@ function Message({
           </button>
         )}
 
+        {/* The answer to a forgiveness request, or the buttons to give one */}
+        {request && !message.pending && (
+          <div className={`mt-1 flex flex-wrap items-center gap-1.5 text-xs ${isMine ? 'justify-end' : ''}`}>
+            {request.status === 'forgiven' && <span className="font-medium text-sky-600 dark:text-sky-400">🕊️ Forgiven</span>}
+            {request.status === 'declined' && <span className="text-muted">👻 Still ghosted</span>}
+            {request.status === 'pending' && !canAnswerForgiveness && <span className="text-muted">Waiting for an answer…</span>}
+            {request.status === 'pending' && canAnswerForgiveness && askLater && (
+              <button type="button" onClick={() => setAskLater(false)} className="text-muted hover:underline">
+                ⏳ Asked to wait · answer now
+              </button>
+            )}
+            {request.status === 'pending' && canAnswerForgiveness && !askLater && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onForgivenessAnswer(message, 'forgive')}
+                  className="rounded-full bg-sky-500 px-3 py-1 font-medium text-white hover:bg-sky-600"
+                >
+                  🕊️ Forgive
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onForgivenessAnswer(message, 'keep')}
+                  className="rounded-full border border-line bg-panel px-3 py-1 font-medium hover:bg-hover"
+                >
+                  👻 Keep ghosting
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAskLater(true)}
+                  className="rounded-full border border-line bg-panel px-3 py-1 font-medium hover:bg-hover"
+                >
+                  ⏳ Ask me later
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* 🪄 Message evolution: the sender later forgave the other person */}
+        {message.badge === 'growth' && (
+          <p className={`mt-1 text-[11px] font-medium text-sky-600 dark:text-sky-400 ${isMine ? 'text-right' : ''}`}>
+            🕊️ Character development
+          </p>
+        )}
+
         {hasReactions && (
           <div className={`absolute -bottom-4 flex gap-1 ${isMine ? 'right-2' : 'left-2'}`}>
             {Object.entries(reactionCounts).map(([emoji, count]) => (
               <button
                 key={emoji}
                 type="button"
-                onClick={() => onReact(message, emoji)}
+                onClick={() => clickReaction(emoji)}
                 className={`flex h-6 items-center gap-0.5 rounded-full border px-1.5 text-xs shadow-sm transition ${
                   myReaction === emoji
                     ? 'border-brand/40 bg-brand-soft'
                     : 'border-line bg-panel hover:bg-hover'
                 }`}
-                title={myReaction === emoji ? 'Remove your reaction' : 'React'}
+                title={
+                  emoji === '👀'
+                    ? 'Someone reacted anonymously — tap to reveal'
+                    : myReaction === emoji
+                      ? mine?.anonymous
+                        ? 'Your anonymous reaction (only you see the emoji) — tap to remove'
+                        : 'Remove your reaction'
+                      : 'React'
+                }
               >
                 <span>{emoji}</span>
                 {count > 1 && <span className="text-muted">{count}</span>}
@@ -286,20 +380,33 @@ function Message({
             } ${isMine ? 'right-0' : 'left-0'}`}
           >
             {!isDeleted && !undecryptable && !message.failed && (
-              <div className="flex justify-between border-b border-line px-2 py-2">
-                {REACTIONS.map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={() => runAndClose(() => onReact(message, emoji))}
-                    className={`flex h-9 w-9 items-center justify-center rounded-full text-xl transition hover:scale-110 hover:bg-hover ${
-                      myReaction === emoji ? 'bg-brand-soft' : ''
-                    }`}
-                    aria-label={`React with ${emoji}`}
-                  >
-                    {emoji}
-                  </button>
-                ))}
+              <div className="border-b border-line px-2 py-2">
+                <div className="flex justify-between">
+                  {REACTIONS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => runAndClose(() => onReact(message, emoji, anonymousMode))}
+                      className={`flex h-9 w-9 items-center justify-center rounded-full text-xl transition hover:scale-110 hover:bg-hover ${
+                        myReaction === emoji ? 'bg-brand-soft' : ''
+                      }`}
+                      aria-label={`React with ${emoji}${anonymousMode ? ' anonymously' : ''}`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+                {/* 🫣 Anonymous: they'll see 👀 and have to reveal which emoji it was */}
+                <button
+                  type="button"
+                  onClick={() => setAnonymousMode(!anonymousMode)}
+                  aria-pressed={anonymousMode}
+                  className={`mt-1.5 w-full rounded-full px-2 py-1 text-xs transition ${
+                    anonymousMode ? 'bg-brand-soft font-medium text-brand' : 'text-muted hover:bg-hover'
+                  }`}
+                >
+                  🫣 {anonymousMode ? 'Anonymous reaction on' : 'React anonymously'}
+                </button>
               </div>
             )}
 

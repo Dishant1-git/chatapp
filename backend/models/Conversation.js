@@ -1,17 +1,40 @@
 import mongoose from 'mongoose';
-import { formatGhost } from '../utils/ghost.js';
+import { GHOST_LEVELS, formatGhost } from '../utils/ghost.js';
+import { maskReactions } from './Message.js';
 
-// One person ghosting the other — see utils/ghost.js for the stages
+// One person ghosting the other — see utils/ghost.js for the levels
 const ghostSchema = new mongoose.Schema(
   {
     by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    // "awaiting" is only found in chats ghosted by an older version (treated as emojiOnly)
-    stage: { type: String, enum: ['pending', 'emojiOnly', 'awaiting'], required: true },
-    // The one message the ghosted person sent
-    messageId: { type: mongoose.Schema.Types.ObjectId, ref: 'Message', default: null },
+    level: { type: String, enum: GHOST_LEVELS },
+    since: { type: Date, default: Date.now },
+    // The forgiveness request waiting for an answer, and when the last one was sent
+    requestId: { type: mongoose.Schema.Types.ObjectId, ref: 'Message', default: null },
+    lastRequestAt: { type: Date, default: null },
+    // Older versions stored a stage instead of a level
+    stage: { type: String },
   },
   { _id: false }
 );
+
+// "Exit without drama": one person stepped away from a one-to-one chat
+export const PAUSE_REASONS = ['space', 'quiet', 'break', 'noContact'];
+const pauseSchema = new mongoose.Schema(
+  {
+    by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    reason: { type: String, enum: PAUSE_REASONS, required: true },
+    at: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
+// Inside-joke badges shown at the top of a chat, e.g. "🐸 Frog Era"
+export const MAX_BADGES = 5;
+const badgeSchema = new mongoose.Schema({
+  emoji: { type: String, required: true, maxlength: 16 },
+  label: { type: String, required: true, trim: true, maxlength: 30 },
+  by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+});
 
 export const MAX_GROUP_MEMBERS = 50;
 
@@ -34,9 +57,19 @@ const conversationSchema = new mongoose.Schema(
     // Users who muted this chat (no notifications for them)
     mutedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     ghost: { type: ghostSchema, default: null },
+    pausedBy: { type: pauseSchema, default: null },
+    badges: { type: [badgeSchema], default: [] },
   },
   { timestamps: true }
 );
+
+export function formatBadges(badges = []) {
+  return badges.map((b) => ({ _id: String(b._id), emoji: b.emoji, label: b.label, by: String(b.by) }));
+}
+
+export function formatPause(pause) {
+  return pause?.by ? { by: String(pause.by), reason: pause.reason, at: pause.at } : null;
+}
 
 // Fast "my conversations, newest first" query
 conversationSchema.index({ participants: 1, lastMessageAt: -1 });
@@ -55,7 +88,7 @@ export function formatConversation(conversation, userId, unreadCount = 0) {
   if (lastMessage) {
     const hiddenForMe = (lastMessage.deletedFor || []).some((id) => String(id) === String(userId));
     const { deletedFor, __v, ...rest } = lastMessage;
-    lastMessage = hiddenForMe ? null : rest;
+    lastMessage = hiddenForMe ? null : { ...rest, reactions: maskReactions(rest.reactions, userId) };
   }
 
   const result = {
@@ -67,6 +100,8 @@ export function formatConversation(conversation, userId, unreadCount = 0) {
     unreadCount,
     isMuted: (conv.mutedBy || []).some((id) => String(id) === String(userId)),
     ghost: formatGhost(conv.ghost),
+    pausedBy: formatPause(conv.pausedBy),
+    badges: formatBadges(conv.badges),
   };
 
   if (result.type === 'group') {

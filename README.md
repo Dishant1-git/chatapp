@@ -146,6 +146,32 @@ Browser ──► Next.js (frontend) ──/api, /socket.io, /uploads──► E
 - Without a TURN server, calls fail on some networks (often mobile data or company Wi-Fi). Set
   `TURN_URL` in production.
 
+### Social features
+
+Routes live in `backend/routes/social.js`; labels in `frontend/lib/ghost.js` and `frontend/lib/social.js`.
+
+- **👻 Ghost levels** (one-to-one chats): *Soft* (they can message, you get no notifications),
+  *Ghosted* (they can only send a forgiveness request), *Deep* (emojis and reactions only — sent
+  unencrypted so the server can check), *Permanent* (locked). Their messages show as "👻 Ghosted"
+  until you peek. Ghosted people can't call you (except in soft mode).
+- **🕊️ Forgiveness request**: one encrypted request at a time, 24 hours between requests. The
+  ghoster answers 🕊️ Forgive / 👻 Keep ghosting / ⏳ Ask me later. Forgiving (or unghosting) gives
+  the ghoster's last message before ghosting a "🕊️ Character development" badge.
+- **🫥 Almost said**: typing for 8+ seconds and then deleting everything tells the other person
+  "They typed something... then disappeared." Only that fact is sent — never the text.
+- **🔥 Connection streak**: consecutive days where you both wrote and there were 5+ messages, or a
+  call, or a "miss you". **🧠 Read the vibe**: message/reaction/photo/call counts, average reply
+  time and a playful label — worked out from counts only, never from message content.
+- **🎭 Mood**: six moods shown next to your name. **📊 Your social life**: private counters in your
+  profile (ghosted, forgave, apologies, revived) that only you can see.
+- **👀 Undo seen** (3 a day) and **🫣 anonymous reactions** with reveal (3 a day).
+- **🚪 Leave conversation**: the chat is paused and hidden for you; they see a short note and can't
+  message or call. Opening the chat again resumes it.
+- **🪦 Dead chats**: after 30 quiet days, either person can ask "Should we revive this?" (❤️ / 😂 / 👻).
+- **🧩 Inside jokes**: up to 5 badges shown at the top of a chat.
+- Not end-to-end encrypted (plain data): inside-joke names, moods, ghost/pause state, and the
+  answers to requests. Message text — including forgiveness requests — stays encrypted.
+
 ## Project structure
 
 ```
@@ -216,6 +242,15 @@ frontend/
 | GET    | `/api/keys/backup`                         | My PIN-locked private key                     |
 | PUT    | `/api/keys`                                | Save my public key + locked private key (`reset: true` to replace) |
 | GET    | `/api/calls/config`                        | STUN/TURN servers for calls                   |
+| POST   | `/api/conversations/:id/ghost`             | Ghost / change level `{ level }` (DELETE to unghost) |
+| POST   | `/api/conversations/:id/ghost/answer`      | Answer a forgiveness request `{ answer: forgive \| keep }` |
+| POST   | `/api/conversations/:id/pause`             | Leave without drama `{ reason }` (DELETE to come back) |
+| POST   | `/api/conversations/:id/revive`            | "Should we revive this?"; answer at `/revive/:messageId` |
+| POST   | `/api/conversations/:id/badges`            | Add an inside joke `{ emoji, label }` (DELETE `/badges/:badgeId`) |
+| POST   | `/api/conversations/:id/unread`            | Undo seen (3 a day)                           |
+| GET    | `/api/conversations/:id/insights?tz=`      | Vibe stats + connection streak                |
+| POST   | `/api/conversations/:id/miss-you`          | Tell them you miss them                       |
+| POST   | `/api/messages/:id/reveal`                 | Reveal anonymous reactions (3 a day)          |
 | GET    | `/api/health`                              | Health check: server uptime + database status. 200 when healthy, 503 when the database is down |
 
 ### Socket events (server → browser)

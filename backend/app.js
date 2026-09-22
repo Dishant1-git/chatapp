@@ -9,6 +9,7 @@ import messageRoutes from './routes/messages.js';
 import uploadRoutes from './routes/upload.js';
 import keyRoutes from './routes/keys.js';
 import callRoutes from './routes/calls.js';
+import socialRoutes from './routes/social.js';
 import healthRoutes from './routes/health.js';
 import { requireDatabase, notFound, errorHandler } from './middleware/errors.js';
 import { getUploadDir } from './utils/storage.js';
@@ -43,6 +44,8 @@ export function createApp(allowedOrigins) {
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);
   app.use('/api/conversations', conversationRoutes);
+  // Ghost levels, forgiveness, pause, revive, inside jokes, undo seen, vibe stats
+  app.use('/api/conversations', socialRoutes);
   app.use('/api/messages', messageRoutes);
   app.use('/api/upload', uploadRoutes);
   app.use('/api/keys', keyRoutes);

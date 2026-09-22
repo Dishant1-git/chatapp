@@ -66,6 +66,13 @@ export function markDeliveredTo(message, userId) {
   return { ...message, deliveredTo, isDelivered: allIn(message.recipients, deliveredTo) };
 }
 
+// "Undo seen": the reader is taken back out of readBy
+export function markUnreadBy(message, userId) {
+  if (!includesId(message.readBy, userId)) return message;
+  const readBy = message.readBy.filter((id) => String(id) !== String(userId));
+  return { ...message, readBy, isRead: allIn(message.recipients, readBy) };
+}
+
 export function markReadBy(message, userId) {
   if (!includesId(message.recipients, userId) || includesId(message.readBy, userId)) return message;
   const readBy = [...(message.readBy || []), userId];

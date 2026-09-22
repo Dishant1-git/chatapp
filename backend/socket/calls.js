@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { isValidObjectId } from 'mongoose';
 import Conversation from '../models/Conversation.js';
 import { publishEvent } from '../utils/publish.js';
+import { ghostLevel } from '../utils/ghost.js';
 import { getIO, userRoom, conversationRoom } from './io.js';
 
 // Voice and video calls use WebRTC: audio and video go directly between the
@@ -139,8 +140,19 @@ export function registerCallHandlers(io, socket) {
     if (!isValidObjectId(conversationId)) return reply({ error: 'Conversation not found.' });
     if (userCalls.has(userId)) return reply({ error: "You're already in a call." });
 
-    const conversation = await Conversation.findOne({ _id: conversationId, participants: userId }).select('participants');
+    const conversation = await Conversation.findOne({ _id: conversationId, participants: userId }).select(
+      'participants ghost pausedBy'
+    );
     if (!conversation) return reply({ error: 'Conversation not found.' });
+
+    // Ghosted (anything but soft) or they stepped away: no calls
+    const ghostedByOther = conversation.ghost?.by && String(conversation.ghost.by) !== userId;
+    if (ghostedByOther && ghostLevel(conversation.ghost) !== 'soft') {
+      return reply({ error: "You've been ghosted. You can't call them." });
+    }
+    if (conversation.pausedBy?.by) {
+      return reply({ error: String(conversation.pausedBy.by) === userId ? 'You stepped away from this chat.' : "They're taking some space right now." });
+    }
 
     const existing = activeCallFor(conversationId);
     if (existing) return reply({ existing: publicCall(existing) });

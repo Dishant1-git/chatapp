@@ -2,17 +2,20 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, BellOff, EllipsisVertical, Ghost } from 'lucide-react';
+import { Bell, BellOff, Brain, DoorOpen, EllipsisVertical, Ghost, Puzzle } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import { api } from '@/lib/client';
+import { GHOST_LEVEL_INFO } from '@/lib/ghost';
 
-// The ⋮ menu in the chat header: Mute / Unmute and Ghost / Unghost
-export default function ChatMenu({ conversation, myId, onError }) {
+// The ⋮ menu in the chat header. Mute works here; the rest opens a dialog
+// owned by ChatWindow (onOpen('ghost' | 'vibe' | 'badge' | 'leave')).
+export default function ChatMenu({ conversation, myId, onError, onOpen }) {
   const { updateConversation } = useChat();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
 
   const { _id: conversationId, isMuted, ghost, otherUser } = conversation;
+  const isDirect = conversation.type !== 'group';
   const ghostedByMe = ghost?.by === myId;
   const ghostedByThem = Boolean(ghost) && !ghostedByMe;
 
@@ -33,28 +36,19 @@ export default function ChatMenu({ conversation, myId, onError }) {
     };
   }, [isOpen]);
 
-  async function run(request, changes) {
+  async function setMuted(muted) {
     setIsOpen(false);
     try {
-      const data = await request();
-      updateConversation(conversationId, changes(data));
+      const data = await api(`/api/conversations/${conversationId}/mute`, { method: 'POST', body: { muted } });
+      updateConversation(conversationId, { isMuted: data.isMuted });
     } catch (err) {
       onError(err.message);
     }
   }
 
-  function setMuted(muted) {
-    run(
-      () => api(`/api/conversations/${conversationId}/mute`, { method: 'POST', body: { muted } }),
-      (data) => ({ isMuted: data.isMuted })
-    );
-  }
-
-  function toggleGhost() {
-    run(
-      () => api(`/api/conversations/${conversationId}/ghost`, { method: ghostedByMe ? 'DELETE' : 'POST' }),
-      (data) => ({ ghost: data.ghost })
-    );
+  function open(dialog) {
+    setIsOpen(false);
+    onOpen(dialog);
   }
 
   return (
@@ -73,23 +67,25 @@ export default function ChatMenu({ conversation, myId, onError }) {
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.12 }}
-          className="absolute top-full right-0 z-30 mt-1 w-60 origin-top-right overflow-hidden rounded-2xl border border-line bg-panel py-1 text-sm shadow-xl"
+          className="absolute top-full right-0 z-30 mt-1 w-64 origin-top-right overflow-hidden rounded-2xl border border-line bg-panel py-1 text-sm shadow-xl"
         >
           {isMuted ? (
             <MenuItem icon={Bell} label="Unmute" onClick={() => setMuted(false)} />
           ) : (
             <MenuItem icon={BellOff} label="Mute" onClick={() => setMuted(true)} />
           )}
-          {/* Ghosting is for one-to-one chats only */}
-          {otherUser && (
+          {isDirect && otherUser && (
             <MenuItem
               icon={Ghost}
-              label={ghostedByMe ? `Unghost ${otherUser.name}` : 'Ghosted'}
+              label={ghostedByMe ? `${GHOST_LEVEL_INFO[ghost.level]?.emoji} Ghost settings` : 'Ghost mode'}
               hint={ghostedByThem ? `${otherUser.name} is ghosting you` : ''}
               disabled={ghostedByThem}
-              onClick={toggleGhost}
+              onClick={() => open('ghost')}
             />
           )}
+          <MenuItem icon={Brain} label="Read the vibe" onClick={() => open('vibe')} />
+          <MenuItem icon={Puzzle} label="Add inside joke" onClick={() => open('badge')} />
+          {isDirect && <MenuItem icon={DoorOpen} label="Leave conversation" onClick={() => open('leave')} />}
         </motion.div>
       )}
     </div>

@@ -1,4 +1,5 @@
 // Date/time helpers for the UI
+import { PAUSE_REASONS, REVIVE_ANSWERS } from './social';
 
 function isSameDay(a, b) {
   return (
@@ -91,6 +92,21 @@ export function describeEvent(message, nameOf, myId) {
       return `${actor} changed the group photo`;
     case 'missYou':
       return String(message.senderId) === myId ? 'You said you miss them 💕' : `${actor} is missing you 💕`;
+    case 'forgiven':
+      return String(message.senderId) === myId ? '🕊️ You unghosted them' : `✨ ${actor} forgave you. You're unghosted.`;
+    case 'stillGhosted':
+      return String(message.senderId) === myId ? '👻 You kept ghosting them' : '👻 Still ghosted';
+    case 'paused': {
+      const reason = PAUSE_REASONS[event.reason] || PAUSE_REASONS.space;
+      return String(message.senderId) === myId
+        ? `${reason.emoji} You stepped away (${reason.label.toLowerCase()})`
+        : `${reason.emoji} ${actor} ${reason.note}`;
+    }
+    case 'returned':
+      return String(message.senderId) === myId ? "👋 You're back" : `👋 ${actor} is back`;
+    case 'revive':
+      if (event.answer) return REVIVE_ANSWERS[event.answer]?.result || '';
+      return String(message.senderId) === myId ? '🧟 You asked to revive this chat' : `🧟 ${actor}: Should we revive this?`;
     case 'call': {
       const kind = event.video ? 'video call' : 'voice call';
       if (event.duration) return `${event.video ? 'Video' : 'Voice'} call · ${formatDuration(event.duration)}`;
@@ -106,6 +122,7 @@ export function messagePreview(message, { nameOf = () => 'Someone', myId = null 
   if (!message) return '';
   if (message.isDeleted) return 'This message was deleted';
   if (message.messageType === 'event') return describeEvent(message, nameOf, myId);
+  if (message.forgiveness) return '🕊️ Forgiveness request';
   if (message.undecryptable) return "🔒 This message can't be decrypted";
   if (message.messageType === 'image') return message.text ? `📷 ${message.text}` : '📷 Photo';
   return message.text;

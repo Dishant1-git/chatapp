@@ -4,9 +4,26 @@ const reactionSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     emoji: { type: String, required: true },
+    // Anonymous reactions: others see that someone reacted, not which emoji,
+    // unless they reveal it (limited per day)
+    anonymous: { type: Boolean, default: false },
+    revealedTo: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   },
   { _id: false }
 );
+
+// Hides the emoji of anonymous reactions from everyone except the reactor
+// and people who revealed it. viewerId null = hide from everyone.
+export function maskReactions(reactions = [], viewerId = null) {
+  return reactions.map((r) => {
+    const reaction = r.toObject ? r.toObject() : r;
+    const { revealedTo = [], ...rest } = reaction;
+    const canSee =
+      !rest.anonymous ||
+      (viewerId && (String(rest.userId) === String(viewerId) || revealedTo.some((id) => String(id) === String(viewerId))));
+    return canSee ? rest : { ...rest, emoji: null };
+  });
+}
 
 // The message's random content key, locked for one member of the chat
 // (see frontend/lib/e2ee.js). keyId says which of their public keys was used.
@@ -25,7 +42,21 @@ const eventSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ['created', 'added', 'removed', 'left', 'renamed', 'photo', 'call', 'missYou'],
+      enum: [
+        'created',
+        'added',
+        'removed',
+        'left',
+        'renamed',
+        'photo',
+        'call',
+        'missYou',
+        'forgiven', // a forgiveness request was accepted
+        'stillGhosted', // … or turned down
+        'paused', // someone left a one-to-one chat ("exit without drama")
+        'returned', // … and came back
+        'revive', // "Should we revive this?" on a dead chat
+      ],
       required: true,
     },
     targets: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
@@ -36,6 +67,10 @@ const eventSchema = new mongoose.Schema(
     // Calls
     video: { type: Boolean, default: false },
     duration: { type: Number, default: 0 }, // seconds; 0 = nobody answered
+    // "paused": why they stepped away
+    reason: { type: String, default: '' },
+    // "revive": the other person's answer ('' = not answered, 'yes', 'maybe', 'no')
+    answer: { type: String, default: '' },
   },
   { _id: false }
 );
@@ -61,6 +96,17 @@ const messageSchema = new mongoose.Schema(
     text: { type: String, default: '', maxlength: 4000 },
 
     event: { type: eventSchema, default: null },
+    // A forgiveness request from someone who was ghosted. Its text is encrypted
+    // like any message; only the status is plain.
+    forgiveness: {
+      type: new mongoose.Schema(
+        { status: { type: String, enum: ['pending', 'forgiven', 'declined'], default: 'pending' } },
+        { _id: false }
+      ),
+      default: null,
+    },
+    // "growth" = 🕊️ Character development (sender later forgave the other person)
+    badge: { type: String, default: '' },
     replyTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Message', default: null },
     reactions: { type: [reactionSchema], default: [] },
     deliveredTo: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],

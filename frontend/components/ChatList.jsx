@@ -13,6 +13,7 @@ import Profile from './Profile';
 import { MessageTicks } from './Message';
 import { formatListDate, messagePreview } from '@/lib/format';
 import { conversationTitle, isGroup, makeNameOf, typingText } from '@/lib/conversations';
+import { isDeadChat } from '@/lib/social';
 
 export default function ChatList() {
   const {
@@ -158,6 +159,15 @@ const ConversationItem = memo(function ConversationItem({ conversation, myId, is
   // In groups, show who wrote the last message: "Ann: see you soon"
   const showSender =
     isGroup(conversation) && !isMine && lastMessage && !lastMessage.isDeleted && lastMessage.messageType !== 'event';
+  // Messages from someone I'm ghosting stay hidden here too
+  const hiddenByGhost =
+    ghost?.by === myId &&
+    lastMessage &&
+    !isMine &&
+    lastMessage.messageType !== 'event' &&
+    !lastMessage.forgiveness &&
+    new Date(lastMessage.createdAt) >= new Date(ghost.since || 0);
+  const isDead = isDeadChat(conversation);
 
   return (
     <li>
@@ -180,6 +190,11 @@ const ConversationItem = memo(function ConversationItem({ conversation, myId, is
                   aria-label={ghost.by === myId ? 'You ghosted them' : 'Ghosted you'}
                 />
               )}
+              {isDead && (
+                <span className="shrink-0 text-sm" title="This chat is officially dead">
+                  🪦
+                </span>
+              )}
             </p>
             <span className={`shrink-0 text-xs ${showUnread ? 'font-medium text-brand' : 'text-muted'}`}>
               {lastMessage ? formatListDate(lastMessageAt) : ''}
@@ -199,7 +214,7 @@ const ConversationItem = memo(function ConversationItem({ conversation, myId, is
                     className={`truncate ${lastMessage?.isDeleted || lastMessage?.undecryptable ? 'italic' : ''}`}
                   >
                     {showSender && `${nameOf(lastMessage.senderId)}: `}
-                    {lastMessage ? messagePreview(lastMessage, { nameOf, myId }) : 'Say hello 👋'}
+                    {hiddenByGhost ? '👻 Ghosted' : lastMessage ? messagePreview(lastMessage, { nameOf, myId }) : 'Say hello 👋'}
                   </span>
                 </>
               )}

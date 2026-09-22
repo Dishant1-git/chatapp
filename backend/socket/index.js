@@ -60,6 +60,17 @@ export function setupSocket(httpServer, allowedOrigins) {
       if (socket.rooms.has(room)) socket.to(room).emit('stopTyping', { conversationId, userId });
     });
 
+    // "👻 They typed something... then disappeared." Only the fact is shared —
+    // never what was typed. At most once a minute per chat.
+    const lastAlmostSaid = new Map();
+    socket.on('almostSaid', ({ conversationId } = {}) => {
+      const room = conversationRoom(conversationId);
+      if (!socket.rooms.has(room)) return;
+      if (Date.now() - (lastAlmostSaid.get(room) || 0) < 60 * 1000) return;
+      lastAlmostSaid.set(room, Date.now());
+      socket.to(room).emit('almostSaid', { conversationId, userId });
+    });
+
     // "disconnecting" fires while socket.rooms is still filled in
     socket.on('disconnecting', async () => {
       const rooms = getConversationRooms(socket);

@@ -1,15 +1,18 @@
 import { Router } from 'express';
 import { isValidObjectId } from 'mongoose';
 import Conversation from '../models/Conversation.js';
-import Message from '../models/Message.js';
+import Message, { maskReactions } from '../models/Message.js';
 import User from '../models/User.js';
 import { requireAuth } from '../middleware/auth.js';
 import { messageLimiter } from '../middleware/rateLimits.js';
 import { UPLOAD_URL_PATTERN, ENCRYPTED_URL_PATTERN, deleteImage } from '../utils/storage.js';
 import { REACTIONS } from '../utils/reactions.js';
-import { formatGhost, ghostStage, isOnlyEmoji } from '../utils/ghost.js';
-import { publishMessage } from '../utils/publish.js';
-import { isUserOnline, emitToConversation } from '../socket/io.js';
+import { FORGIVE_COOLDOWN_MS, formatGhost, ghostLevel, isOnlyEmoji } from '../utils/ghost.js';
+import { bumpStat, publishMessage, useDailyAllowance } from '../utils/publish.js';
+import { resumeConversation } from './conversations.js';
+import { getIO, isUserOnline, emitToConversation, conversationRoom, userRoom } from '../socket/io.js';
+
+const REVEALS_PER_DAY = 3;
 
 const router = Router();
 router.use(requireAuth);
@@ -31,7 +34,7 @@ async function findMyMessage(req, res) {
 // (including the sender). The server only checks the shape and that nobody
 // was left out, then stores and forwards it — it can't read the content.
 //
-// One exception: someone ghosted into the "emojis only" stage sends
+// One exception: someone in deep ghost mode (emojis only) sends
 // { conversationId, text } unencrypted, so the server can check it really
 // is only emojis (it can't look inside an encrypted message).
 router.post('/', messageLimiter, async (req, res) => {
@@ -62,16 +65,34 @@ router.post('/', messageLimiter, async (req, res) => {
     if (!original) return res.status(404).json({ error: 'The message you are replying to no longer exists.' });
   }
 
-  // Ghosted by the other person (direct chats only): one normal message,
-  // then emojis only until they unghost you
   const receiverId = conversation.type === 'group' ? null : recipients[0];
-  const ghostedByReceiver = receiverId && String(conversation.ghost?.by) === String(receiverId);
-  const stage = ghostedByReceiver ? ghostStage(conversation.ghost) : null;
-  const EMOJIS_ONLY = "You've used your one message. You can only send emojis until they unghost you.";
 
-  if (stage === 'emojiOnly') {
+  // They stepped away from the chat ("exit without drama"). If I'm the one
+  // who stepped away, writing again means I'm back.
+  if (conversation.pausedBy?.by) {
+    if (String(conversation.pausedBy.by) !== req.userId) {
+      return res.status(403).json({ error: "They're taking some space. You can't message them right now." });
+    }
+    await resumeConversation(conversation, req.userId);
+  }
+
+  // Ghosted by the other person (see utils/ghost.js for what each level allows)
+  const ghostedByReceiver = receiverId && String(conversation.ghost?.by) === String(receiverId);
+  const level = ghostedByReceiver ? ghostLevel(conversation.ghost) : null;
+  const isForgivenessRequest = body.forgive === true;
+
+  if (isForgivenessRequest) {
+    if (!level) return res.status(400).json({ error: "You're not being ghosted here." });
+    if (level === 'permanent') return res.status(403).json({ error: 'This chat is locked. You can’t ask for forgiveness.' });
+    if (image) return res.status(400).json({ error: 'A forgiveness request is text only.' });
+  } else if (level === 'ghosted') {
+    return res.status(403).json({ error: "You've been ghosted. You can only send a forgiveness request." });
+  } else if (level === 'permanent') {
+    return res.status(403).json({ error: "You've been permanently ghosted. This chat is locked." });
+  } else if (level === 'deep') {
+    // Emojis only — sent unencrypted so the server can check it really is only emojis
     if (image || ciphertext || !text || text.length > 200 || !isOnlyEmoji(text)) {
-      return res.status(403).json({ error: EMOJIS_ONLY });
+      return res.status(403).json({ error: "You're in deep ghost mode. Only emojis and reactions." });
     }
     const message = await publishMessage(
       conversation,
@@ -127,13 +148,24 @@ router.post('/', messageLimiter, async (req, res) => {
     return res.status(409).json({ error: 'The members of this chat changed. Please try again.', code: 'KEYS_CHANGED' });
   }
 
-  if (stage === 'pending') {
-    // Claim the one message atomically so two quick sends can't both get through
+  if (isForgivenessRequest) {
+    // One request at a time, and 24 hours between requests. Claimed atomically
+    // so two quick sends can't both get through.
     const claimed = await Conversation.updateOne(
-      { _id: conversationId, 'ghost.by': receiverId, 'ghost.stage': 'pending' },
-      { 'ghost.stage': 'emojiOnly' }
+      {
+        _id: conversationId,
+        'ghost.by': receiverId,
+        'ghost.requestId': null,
+        $or: [{ 'ghost.lastRequestAt': null }, { 'ghost.lastRequestAt': { $lt: new Date(Date.now() - FORGIVE_COOLDOWN_MS) } }],
+      },
+      { 'ghost.lastRequestAt': new Date() }
     );
-    if (!claimed.modifiedCount) return res.status(403).json({ error: EMOJIS_ONLY });
+    if (!claimed.modifiedCount) {
+      const error = conversation.ghost.requestId
+        ? 'Your request is still waiting for an answer.'
+        : 'You can ask for forgiveness again 24 hours after your last request.';
+      return res.status(429).json({ error });
+    }
   }
 
   const message = await publishMessage(
@@ -148,17 +180,19 @@ router.post('/', messageLimiter, async (req, res) => {
       keys: members.map((m) => ({ userId: m._id, keyId: m.keyId, key: keyFor.get(String(m._id)).key })),
       image,
       replyTo,
+      forgiveness: isForgivenessRequest ? { status: 'pending' } : null,
       // Recipients with the app open get the message right away
       deliveredTo: recipients.filter((id) => isUserOnline(id)),
     },
     clientId
   );
 
-  if (stage === 'pending') {
-    // Remember which message was the one chance, and tell both of them it's used
+  if (isForgivenessRequest) {
+    // The ghoster now sees Forgive / Keep ghosting / Ask me later on this message
+    await bumpStat(req.userId, 'apologies');
     const updated = await Conversation.findOneAndUpdate(
-      { _id: conversationId, 'ghost.by': receiverId, 'ghost.stage': 'emojiOnly' },
-      { 'ghost.messageId': message._id },
+      { _id: conversationId, 'ghost.by': receiverId },
+      { 'ghost.requestId': message._id },
       { returnDocument: 'after' }
     );
     if (updated) {
@@ -210,31 +244,71 @@ router.delete('/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-// POST /api/messages/:id/reaction { emoji }
+// Pushes new reactions to everyone: anonymous emojis are hidden from others,
+// and the reactor's own devices get the real list
+function emitReactions(message, reactorId) {
+  const io = getIO();
+  const payload = (reactions) => ({
+    messageId: String(message._id),
+    conversationId: String(message.conversationId),
+    reactions,
+  });
+  io?.to(conversationRoom(message.conversationId))
+    .except(userRoom(reactorId))
+    .emit('message:reaction', payload(maskReactions(message.reactions, null)));
+  io?.to(userRoom(reactorId)).emit('message:reaction', payload(maskReactions(message.reactions, reactorId)));
+}
+
+// POST /api/messages/:id/reaction { emoji, anonymous? }
 // Each user has at most one reaction per message (like WhatsApp):
 // same emoji again → removed, different emoji → replaced.
+// Anonymous: others see that someone reacted, but not which emoji.
 router.post('/:id/reaction', async (req, res) => {
   const emoji = String(req.body?.emoji || '');
+  const anonymous = req.body?.anonymous === true;
   if (!REACTIONS.includes(emoji)) return res.status(400).json({ error: 'This reaction is not supported.' });
 
   const message = await findMyMessage(req, res);
   if (!message) return;
   if (message.isDeleted || message.messageType === 'event') return res.status(404).json({ error: 'Message not found.' });
 
+  // Ghosted (not soft or deep) or paused chats: no reactions either
+  const conversation = await Conversation.findById(message.conversationId).select('ghost pausedBy');
+  const ghostedByOther = conversation?.ghost?.by && String(conversation.ghost.by) !== req.userId;
+  if (ghostedByOther && ['ghosted', 'permanent'].includes(ghostLevel(conversation.ghost))) {
+    return res.status(403).json({ error: "You've been ghosted. You can't react here." });
+  }
+  if (conversation?.pausedBy?.by && String(conversation.pausedBy.by) !== req.userId) {
+    return res.status(403).json({ error: "They're taking some space right now." });
+  }
+
   const existing = message.reactions.find((r) => String(r.userId) === req.userId);
-  const sameEmoji = existing?.emoji === emoji;
+  const same = existing?.emoji === emoji && Boolean(existing?.anonymous) === anonymous;
 
   message.reactions = message.reactions.filter((r) => String(r.userId) !== req.userId);
-  if (!sameEmoji) message.reactions.push({ userId: req.userId, emoji });
+  if (!same) message.reactions.push({ userId: req.userId, emoji, anonymous });
   await message.save();
 
-  emitToConversation(message.conversationId, 'message:reaction', {
-    messageId: String(message._id),
-    conversationId: String(message.conversationId),
-    reactions: message.reactions,
-  });
+  emitReactions(message, req.userId);
+  res.json({ reactions: maskReactions(message.reactions, req.userId) });
+});
 
-  res.json({ reactions: message.reactions });
+// POST /api/messages/:id/reveal — see which emoji the anonymous reactions are (3 a day)
+router.post('/:id/reveal', async (req, res) => {
+  const message = await findMyMessage(req, res);
+  if (!message) return;
+
+  const hidden = message.reactions.filter(
+    (r) => r.anonymous && String(r.userId) !== req.userId && !r.revealedTo.some((id) => String(id) === req.userId)
+  );
+  if (!hidden.length) return res.status(400).json({ error: 'Nothing to reveal.' });
+
+  const remaining = await useDailyAllowance(req.userId, 'reveals', REVEALS_PER_DAY);
+  if (remaining < 0) return res.status(429).json({ error: `You can reveal ${REVEALS_PER_DAY} reactions a day. Try tomorrow 👀` });
+
+  hidden.forEach((r) => r.revealedTo.push(req.userId));
+  await message.save();
+  res.json({ reactions: maskReactions(message.reactions, req.userId), remaining });
 });
 
 export default router;

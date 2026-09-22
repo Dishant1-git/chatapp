@@ -1,14 +1,21 @@
 // Ghosting rules. Keep in sync with frontend/lib/ghost.js
 //
-// When A ghosts B, the conversation's "ghost" has one of two stages:
-//   pending   — B may send exactly one normal message
-//   emojiOnly — B used it; from now on B can only send emojis
-// It stays that way until A unghosts B, which removes the ghost.
+// When A ghosts B (one-to-one chats only), A picks a level:
+//   soft      — B can message normally; A just doesn't get notified
+//   ghosted   — B can only send a forgiveness request
+//   deep      — B can only send emojis and reactions (and a forgiveness request)
+//   permanent — the chat is locked for B: nothing, not even a request
+// A can change the level or unghost B at any time. Forgiving B's request unghosts them.
+// B can send one request at a time, and must wait 24 hours before asking again.
 
-// "awaiting" was used by an older version for the same thing as emojiOnly
-export function ghostStage(ghost) {
+export const GHOST_LEVELS = ['soft', 'ghosted', 'deep', 'permanent'];
+export const FORGIVE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+// Chats ghosted by older versions stored a "stage" instead of a level
+export function ghostLevel(ghost) {
   if (!ghost?.by) return null;
-  return ghost.stage === 'pending' ? 'pending' : 'emojiOnly';
+  if (GHOST_LEVELS.includes(ghost.level)) return ghost.level;
+  return ghost.stage === 'pending' ? 'ghosted' : 'deep';
 }
 
 // Shapes a stored ghost for the browser
@@ -16,8 +23,11 @@ export function formatGhost(ghost) {
   if (!ghost?.by) return null;
   return {
     by: String(ghost.by),
-    stage: ghostStage(ghost),
-    messageId: ghost.messageId ? String(ghost.messageId) : null,
+    level: ghostLevel(ghost),
+    since: ghost.since || null,
+    // The forgiveness request waiting for an answer, if any
+    requestId: ghost.requestId ? String(ghost.requestId) : null,
+    lastRequestAt: ghost.lastRequestAt || null,
   };
 }
 

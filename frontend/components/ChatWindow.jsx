@@ -14,9 +14,11 @@ import ChatMenu from './ChatMenu';
 import GhostBanner from './GhostBanner';
 import GroupInfo from './GroupInfo';
 import MissYouHearts from './MissYouHearts';
+import Celebration from './Celebration';
+import { BadgeDialog, GhostDialog, LeaveDialog, VibePanel } from './ChatDialogs';
 import { ImageLightbox, ImageSendPreview } from './ImagePreview';
 import { api } from '@/lib/client';
-import { ghostStage } from '@/lib/ghost';
+import { MOODS, PAUSE_REASONS, REVIVE_ANSWERS, isDeadChat, timezoneOffset } from '@/lib/social';
 import { describeEvent, formatDayDivider, formatLastSeen, formatTime, isDifferentDay } from '@/lib/format';
 import { encryptFile, encryptMessage, openMessage, openMessages, prepareImage, rememberImage } from '@/lib/e2ee';
 import {
@@ -25,6 +27,7 @@ import {
   makeNameOf,
   markDeliveredTo,
   markReadBy,
+  markUnreadBy,
   memberSummary,
   typingText,
 } from '@/lib/conversations';
@@ -47,11 +50,14 @@ function addOrReplace(list, message, clientId, { keepExisting = false } = {}) {
   return [...list, message];
 }
 
-// A "miss you" from the other person that I haven't seen yet
-function isNewMissYou(message, myId) {
+// Notes that get a little moment on screen the first time I see them
+const MOMENT_EVENTS = ['missYou', 'forgiven', 'stillGhosted'];
+
+// One of those notes from the other person that I haven't seen yet
+function isNewMoment(message, myId) {
   return (
     message.messageType === 'event' &&
-    message.event?.type === 'missYou' &&
+    MOMENT_EVENTS.includes(message.event?.type) &&
     String(message.senderId) !== myId &&
     !(message.readBy || []).some((id) => String(id) === myId)
   );
@@ -107,14 +113,25 @@ export default function ChatWindow({ conversationId }) {
   const [isUnghosting, setIsUnghosting] = useState(false);
   const [missYouFrom, setMissYouFrom] = useState(null); // name to show in the hearts overlay
   const [isSendingMissYou, setIsSendingMissYou] = useState(false);
+  const [celebration, setCelebration] = useState(null); // { emojis, title, subtitle }
+  const [dialog, setDialog] = useState(null); // ghost | vibe | badge | leave
+  const [streak, setStreak] = useState(0);
+  const [almostSaid, setAlmostSaid] = useState(false);
+  const [undoSeen, setUndoSeen] = useState(false); // show "👀 Oops… Undo seen"
   const rootRef = useRef(null);
+  const suppressRead = useRef(false); // after "undo seen", don't mark as read again
+  const almostSaidTimer = useRef(null);
 
-  // Ghosting only exists in one-to-one chats. A ghosted person gets one normal
-  // message, then can only send emojis until they're unghosted.
+  // Ghosting only exists in one-to-one chats. What the ghosted person can do
+  // depends on the level (see lib/ghost.js).
   const ghost = isGroupChat ? null : conversation?.ghost || null;
-  const stage = ghostStage(ghost);
-  const iAmGhosted = Boolean(stage) && ghost.by !== myId;
-  const emojiOnly = iAmGhosted && stage === 'emojiOnly';
+  const ghostedByMe = ghost?.by === myId;
+  const iAmGhosted = Boolean(ghost) && !ghostedByMe;
+  const emojiOnly = iAmGhosted && ghost.level === 'deep';
+  // "Exit without drama": one of us stepped away from the chat
+  const pausedBy = isGroupChat ? null : conversation?.pausedBy || null;
+  const canType = !pausedBy && !(iAmGhosted && ['ghosted', 'permanent'].includes(ghost.level));
+  const isDead = status === 'ready' && isDeadChat(conversation);
   // Read by deliver(), which is a stable callback
   const emojiOnlyRef = useRef(emojiOnly);
   useEffect(() => {
@@ -145,6 +162,20 @@ export default function ChatWindow({ conversationId }) {
     noticeTimer.current = setTimeout(() => setNotice(''), 3500);
   }, []);
 
+  // Marks the chat as read — unless I just used "undo seen"
+  const readNow = useCallback(() => {
+    if (!suppressRead.current) markAsRead(conversationId);
+  }, [markAsRead, conversationId]);
+
+  // Hearts for "miss you", doves when I'm forgiven, a ghost when I'm not
+  const showMoment = useCallback((message) => {
+    const name = nameOfRef.current(message.senderId, message);
+    const type = message.event?.type;
+    if (type === 'missYou') setMissYouFrom(name);
+    if (type === 'forgiven') setCelebration({ emojis: ['🕊️', '✨', '🤍'], title: "✨ You're unghosted", subtitle: `${name} forgave you` });
+    if (type === 'stillGhosted') setCelebration({ emojis: ['👻'], title: '👻 Still ghosted', subtitle: `${name} isn't ready yet` });
+  }, []);
+
   // Opened from a link or a brand-new chat: fetch the conversation if we don't have it
   const hasConversation = Boolean(conversation);
   useEffect(() => {
@@ -161,6 +192,9 @@ export default function ChatWindow({ conversationId }) {
   useEffect(() => {
     let cancelled = false;
     setStatus('loading');
+    suppressRead.current = false;
+    // Opening a chat with new messages marks them as seen: offer "undo seen"
+    const hadUnread = conversationRef.current?.unreadCount > 0;
 
     api(`/api/conversations/${conversationId}/messages`)
       .then(async (data) => {
@@ -171,22 +205,42 @@ export default function ChatWindow({ conversationId }) {
         setHasMore(data.hasMore);
         setStatus('ready');
 
-        // They said they miss me while I was away: hearts!
-        const missYou = opened.findLast((m) => isNewMissYou(m, myId));
-        if (missYou) setMissYouFrom(nameOfRef.current(missYou.senderId, missYou));
+        // Something happened while I was away (a "miss you", being forgiven…)
+        const moment = opened.findLast((m) => isNewMoment(m, myId));
+        if (moment) showMoment(moment);
+        if (hadUnread) setUndoSeen(true);
       })
       .catch((err) => {
         if (cancelled) return;
         setStatus(err.status === 404 ? 'notfound' : 'error');
         setErrorText(err.message);
       })
-      // Marked as read only after loading, so an unseen "miss you" is still recognisable
+      // Marked as read only after loading, so unseen notes are still recognisable
       .finally(() => !cancelled && markAsRead(conversationId));
 
     return () => {
       cancelled = true;
     };
-  }, [conversationId, markAsRead, reloadKey, myId]);
+  }, [conversationId, markAsRead, reloadKey, myId, showMoment]);
+
+  // "👀 Oops… they'll know you saw it" goes away by itself
+  useEffect(() => {
+    if (!undoSeen) return;
+    const timer = setTimeout(() => setUndoSeen(false), 10000);
+    return () => clearTimeout(timer);
+  }, [undoSeen]);
+
+  // 🔥 Connection streak for one-to-one chats
+  useEffect(() => {
+    if (isGroupChat || !hasConversation) return;
+    let cancelled = false;
+    api(`/api/conversations/${conversationId}/insights?tz=${encodeURIComponent(timezoneOffset())}`)
+      .then((data) => !cancelled && setStreak(data.streak))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, isGroupChat, hasConversation]);
 
   // Keep the scroll position right after messages change:
   // - after loading older messages, stay where the user was
@@ -256,8 +310,8 @@ export default function ChatWindow({ conversationId }) {
           if (opened.senderId === myId) stickToBottom.current = true;
           setMessages((prev) => addOrReplace(prev, opened, clientId));
           if (opened.senderId !== myId && document.visibilityState === 'visible') {
-            if (isNewMissYou(opened, myId)) setMissYouFrom(nameOfRef.current(opened.senderId, opened));
-            markAsRead(conversationId);
+            if (isNewMoment(opened, myId)) showMoment(opened);
+            readNow();
           }
         })
         .catch(() => {});
@@ -280,6 +334,26 @@ export default function ChatWindow({ conversationId }) {
       setMessages((prev) => prev.map((m) => (m._id === messageId ? { ...m, reactions } : m)));
     }
 
+    // A forgiveness request was answered, a revive got a reply, "character development"…
+    function onUpdated({ messageId, conversationId: id, changes }) {
+      if (id !== conversationId) return;
+      setMessages((prev) => prev.map((m) => (m._id === messageId ? { ...m, ...changes } : m)));
+    }
+
+    // They used "undo seen": my ticks go back to delivered
+    function onUnread({ conversationId: id, readerId }) {
+      if (id !== conversationId || readerId === myId) return;
+      setMessages((prev) => prev.map((m) => (m.senderId === myId ? markUnreadBy(m, readerId) : m)));
+    }
+
+    // 🫥 They typed something... then deleted it
+    function onAlmostSaid({ conversationId: id, userId }) {
+      if (id !== conversationId || userId === myId) return;
+      setAlmostSaid(true);
+      clearTimeout(almostSaidTimer.current);
+      almostSaidTimer.current = setTimeout(() => setAlmostSaid(false), 7000);
+    }
+
     function onRead({ conversationId: id, readerId }) {
       if (id !== conversationId || readerId === myId) return;
       setMessages((prev) => prev.map((m) => (m.senderId === myId ? markReadBy(m, readerId) : m)));
@@ -296,36 +370,40 @@ export default function ChatWindow({ conversationId }) {
         .then((data) => openMessages(data.messages, conversationId))
         .then((latest) => setMessages((prev) => mergeLatest(prev, latest)))
         .catch(() => {});
-      if (document.visibilityState === 'visible') markAsRead(conversationId);
+      if (document.visibilityState === 'visible') readNow();
     }
 
     socket.on('message:new', onNewMessage);
     socket.on('message:deleted', onDeleted);
     socket.on('message:reaction', onReaction);
+    socket.on('message:updated', onUpdated);
     socket.on('messages:read', onRead);
+    socket.on('messages:unread', onUnread);
     socket.on('messages:delivered', onDelivered);
+    socket.on('almostSaid', onAlmostSaid);
     socket.on('connect', onReconnect);
 
     return () => {
       socket.off('message:new', onNewMessage);
       socket.off('message:deleted', onDeleted);
       socket.off('message:reaction', onReaction);
+      socket.off('message:updated', onUpdated);
       socket.off('messages:read', onRead);
+      socket.off('messages:unread', onUnread);
       socket.off('messages:delivered', onDelivered);
+      socket.off('almostSaid', onAlmostSaid);
       socket.off('connect', onReconnect);
     };
-  }, [socket, conversationId, myId, markAsRead]);
+  }, [socket, conversationId, myId, readNow, showMoment]);
 
   // Coming back to the tab counts as reading the new messages
   useEffect(() => {
     function onVisibilityChange() {
-      if (document.visibilityState === 'visible' && conversationRef.current?.unreadCount > 0) {
-        markAsRead(conversationId);
-      }
+      if (document.visibilityState === 'visible' && conversationRef.current?.unreadCount > 0) readNow();
     }
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
-  }, [conversationId, markAsRead]);
+  }, [readNow]);
 
   // ---- Sending ----
 
@@ -353,14 +431,21 @@ export default function ChatWindow({ conversationId }) {
 
         return api('/api/messages', {
           method: 'POST',
-          body: { conversationId, ...encrypted, image, replyTo: temp.replyTo?._id, clientId: temp._id },
+          body: {
+            conversationId,
+            ...encrypted,
+            image,
+            replyTo: temp.replyTo?._id,
+            clientId: temp._id,
+            ...(temp.forgiveness && { forgive: true }),
+          },
         });
       }
 
       try {
         let result;
         try {
-          result = emojiOnlyRef.current
+          result = emojiOnlyRef.current && !temp.forgiveness
             ? // Ghosted, emojis only: sent unencrypted so the server can check it's only emojis
               await api('/api/messages', {
                 method: 'POST',
@@ -386,8 +471,9 @@ export default function ChatWindow({ conversationId }) {
   );
 
   // The message shows up immediately with a clock icon, then gets its ticks once saved
+  // forgive: send it as a 🕊️ forgiveness request (when I'm being ghosted)
   const sendMessage = useCallback(
-    (text, file = null) => {
+    (text, file = null, { forgive = false } = {}) => {
       const localImage = file ? URL.createObjectURL(file) : '';
       const temp = {
         _id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -398,12 +484,15 @@ export default function ChatWindow({ conversationId }) {
         localImage,
         file,
         messageType: file ? 'image' : 'text',
-        replyTo: replyingTo,
+        replyTo: forgive ? null : replyingTo,
         reactions: [],
         createdAt: new Date().toISOString(),
         pending: true,
+        ...(forgive && { forgiveness: { status: 'pending' } }),
       };
 
+      // Writing again means I'm fine with them seeing I read their messages
+      suppressRead.current = false;
       stickToBottom.current = true;
       setMessages((prev) => [...prev, temp]);
       setReplyingTo(null);
@@ -424,18 +513,70 @@ export default function ChatWindow({ conversationId }) {
   // ---- Message actions (callbacks are stable so memoized bubbles don't re-render) ----
 
   const react = useCallback(
-    async (message, emoji) => {
+    async (message, emoji, anonymous = false) => {
       try {
         const { reactions } = await api(`/api/messages/${message._id}/reaction`, {
           method: 'POST',
-          body: { emoji },
+          body: { emoji, anonymous },
         });
         setMessages((prev) => prev.map((m) => (m._id === message._id ? { ...m, reactions } : m)));
+        if (anonymous) showNotice('🫣 Reacted anonymously');
       } catch (err) {
         showNotice(err.message);
       }
     },
     [showNotice]
+  );
+
+  // 👀 Reveal which emoji an anonymous reaction was (3 a day)
+  const revealReaction = useCallback(
+    async (message) => {
+      try {
+        const { reactions, remaining } = await api(`/api/messages/${message._id}/reveal`, { method: 'POST' });
+        setMessages((prev) => prev.map((m) => (m._id === message._id ? { ...m, reactions } : m)));
+        showNotice(`👀 Revealed · ${remaining} left today`);
+      } catch (err) {
+        showNotice(err.message);
+      }
+    },
+    [showNotice]
+  );
+
+  // 🕊️ Forgive / 👻 Keep ghosting
+  const answerForgiveness = useCallback(
+    async (message, answer) => {
+      try {
+        const { ghost: updated } = await api(`/api/conversations/${conversationId}/ghost/answer`, {
+          method: 'POST',
+          body: { answer },
+        });
+        updateConversation(conversationId, { ghost: updated });
+        if (answer === 'forgive') {
+          setCelebration({ emojis: ['🕊️', '✨'], title: '🕊️ Forgiven', subtitle: 'Character development unlocked' });
+        } else {
+          showNotice('👻 Still ghosting them');
+        }
+      } catch (err) {
+        showNotice(err.message);
+      }
+    },
+    [conversationId, updateConversation, showNotice]
+  );
+
+  // ❤️ / 😂 / 👻 to "Should we revive this?"
+  const answerRevive = useCallback(
+    async (message, answer) => {
+      try {
+        await api(`/api/conversations/${conversationId}/revive/${message._id}`, { method: 'POST', body: { answer } });
+        setMessages((prev) =>
+          prev.map((m) => (m._id === message._id ? { ...m, event: { ...m.event, answer } } : m))
+        );
+        if (answer === 'yes') setCelebration({ emojis: ['🔥', '🧟', '✨'], title: '🔥 Chat revived!' });
+      } catch (err) {
+        showNotice(err.message);
+      }
+    },
+    [conversationId, showNotice]
   );
 
   const requestDelete = useCallback((message) => {
@@ -505,6 +646,7 @@ export default function ChatWindow({ conversationId }) {
     try {
       await api(`/api/conversations/${conversationId}/ghost`, { method: 'DELETE' });
       updateConversation(conversationId, { ghost: null });
+      setCelebration({ emojis: ['🕊️', '✨'], title: '🕊️ Unghosted', subtitle: 'Character development unlocked' });
     } catch (err) {
       showNotice(err.message);
     } finally {
@@ -512,7 +654,51 @@ export default function ChatWindow({ conversationId }) {
     }
   }
 
+  // 🧟 "Should we revive this?" on a dead chat
+  async function sendRevive() {
+    try {
+      const { message } = await api(`/api/conversations/${conversationId}/revive`, { method: 'POST' });
+      stickToBottom.current = true;
+      setMessages((prev) => addOrReplace(prev, message));
+    } catch (err) {
+      showNotice(err.message);
+    }
+  }
+
+  // Coming back after "leave conversation"
+  async function comeBack() {
+    try {
+      await api(`/api/conversations/${conversationId}/pause`, { method: 'DELETE' });
+      updateConversation(conversationId, { pausedBy: null });
+    } catch (err) {
+      showNotice(err.message);
+    }
+  }
+
+  // 👀 "Undo seen": their messages go back to unread, and I stop marking them read
+  async function undoSeenNow() {
+    setUndoSeen(false);
+    try {
+      const { unread, remaining } = await api(`/api/conversations/${conversationId}/unread`, { method: 'POST' });
+      suppressRead.current = true;
+      updateConversation(conversationId, { unreadCount: unread });
+      showNotice(`🤫 Unseen · ${remaining} left today`);
+    } catch (err) {
+      showNotice(err.message);
+    }
+  }
+
+  async function removeBadge(badge) {
+    try {
+      await api(`/api/conversations/${conversationId}/badges/${badge._id}`, { method: 'DELETE' });
+    } catch (err) {
+      showNotice(err.message);
+    }
+  }
+
   const closeLightbox = useCallback(() => setLightboxSrc(null), []);
+  const closeCelebration = useCallback(() => setCelebration(null), []);
+  const closeDialog = useCallback(() => setDialog(null), []);
   const closeImagePicker = useCallback(() => setPickedImage(null), []);
   const closeDeleteDialog = useCallback(() => setDeleting(null), []);
 
@@ -565,16 +751,19 @@ export default function ChatWindow({ conversationId }) {
     );
   }
 
+  const presence = otherUser?.isOnline ? 'online' : otherUser ? formatLastSeen(otherUser.lastSeen) : '';
+  // 🎭 Their mood goes first: "🧠 overthinking · online"
+  const mood = !isGroupChat && MOODS[otherUser?.mood];
   const statusText = typing
     ? typing
     : isGroupChat
       ? memberSummary(conversation, myId)
-      : otherUser?.isOnline
-        ? 'online'
-        : otherUser
-          ? formatLastSeen(otherUser.lastSeen)
-          : '';
+      : mood
+        ? `${mood.emoji} ${mood.label} · ${presence}`
+        : presence;
   const statusIsHighlighted = Boolean(typing) || (!isGroupChat && otherUser?.isOnline);
+  const badges = conversation?.badges || [];
+  const hasPendingRevive = messages.some((m) => m.event?.type === 'revive' && !m.event.answer);
 
   return (
     <div ref={rootRef} className="mobile-slide-in relative flex h-full min-h-0 flex-1 flex-col bg-panel">
@@ -594,7 +783,14 @@ export default function ChatWindow({ conversationId }) {
         >
           {conversation && <ChatAvatar conversation={conversation} size={40} />}
           <div className="min-w-0 flex-1">
-            <h2 className="truncate leading-tight font-semibold">{conversationTitle(conversation) || '…'}</h2>
+            <h2 className="flex min-w-0 items-center gap-1.5 leading-tight font-semibold">
+              <span className="truncate">{conversationTitle(conversation) || '…'}</span>
+              {streak >= 2 && (
+                <span className="shrink-0 text-xs font-semibold text-orange-500" title={`${streak}-day connection streak`}>
+                  🔥 {streak}
+                </span>
+              )}
+            </h2>
             <p className={`truncate text-xs ${statusIsHighlighted ? 'text-brand' : 'text-muted'}`}>{statusText}</p>
           </div>
         </button>
@@ -641,8 +837,29 @@ export default function ChatWindow({ conversationId }) {
               </button>
             </div>
           ))}
-        {conversation && <ChatMenu conversation={conversation} myId={myId} onError={showNotice} />}
+        {conversation && <ChatMenu conversation={conversation} myId={myId} onError={showNotice} onOpen={setDialog} />}
       </header>
+
+      {/* 🧩 Inside jokes */}
+      {badges.length > 0 && (
+        <div className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-line bg-panel px-3 py-1.5 md:px-4">
+          {badges.map((badge) => (
+            <span
+              key={badge._id}
+              className="group flex shrink-0 items-center gap-1 rounded-full border border-line bg-panel-soft py-0.5 pr-1 pl-2.5 text-xs font-medium"
+            >
+              {badge.emoji} {badge.label}
+              <button
+                onClick={() => removeBadge(badge)}
+                className="flex h-5 w-5 items-center justify-center rounded-full text-muted opacity-60 hover:bg-hover hover:opacity-100"
+                aria-label={`Remove ${badge.label}`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
 
       <div
         ref={listRef}
@@ -696,10 +913,17 @@ export default function ChatWindow({ conversationId }) {
                 return (
                   <Fragment key={message._id}>
                     {showDay && <DayDivider date={message.createdAt} />}
-                    <EventNote message={message} nameOf={nameOf} myId={myId} />
+                    <EventNote message={message} nameOf={nameOf} myId={myId} onReviveAnswer={answerRevive} />
                   </Fragment>
                 );
               }
+
+              // Sent to me after I ghosted them: shown collapsed as "👻 Ghosted"
+              const ghostedView =
+                ghostedByMe &&
+                message.senderId !== myId &&
+                !message.forgiveness &&
+                new Date(message.createdAt) >= new Date(ghost.since || 0);
 
               const isGrouped =
                 Boolean(previous) &&
@@ -726,10 +950,21 @@ export default function ChatWindow({ conversationId }) {
                     onJumpTo={jumpTo}
                     onOpenImage={setLightboxSrc}
                     onImageLoad={handleImageLoad}
+                    ghostedView={ghostedView}
+                    canAnswerForgiveness={
+                      ghostedByMe && message.forgiveness?.status === 'pending' && ghost.requestId === message._id
+                    }
+                    onForgivenessAnswer={answerForgiveness}
+                    onReveal={revealReaction}
                   />
                 </Fragment>
               );
             })}
+
+            {/* 🫥 They typed for a while, then deleted it (never what they typed) */}
+            {almostSaid && !typing && (
+              <p className="mt-2.5 text-xs text-muted italic">👻 They typed something... then disappeared.</p>
+            )}
 
             {typing && (
               <div className="mt-2.5 flex">
@@ -764,27 +999,72 @@ export default function ChatWindow({ conversationId }) {
         </div>
       )}
 
-      {ghost && !isGroupChat && (
+      {/* 👀 Oops… offer to undo "seen" for a few seconds after opening */}
+      {undoSeen && !notice && (
+        <div className="absolute inset-x-0 bottom-24 z-10 flex justify-center px-4">
+          <p className="flex items-center gap-3 rounded-full bg-fg px-4 py-2 text-sm text-panel shadow-lg">
+            👀 Oops… they’ll know you saw it
+            <button onClick={undoSeenNow} className="font-semibold underline underline-offset-2">
+              Undo seen
+            </button>
+          </p>
+        </div>
+      )}
+
+      {/* 🚪 One of us stepped away */}
+      {pausedBy && (
+        <div className="shrink-0 border-t border-line bg-panel-soft px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-sm">
+          {pausedBy.by === myId ? (
+            <div className="flex items-center gap-3">
+              <p className="min-w-0 flex-1">You stepped away from this chat. They can’t message you until you’re back.</p>
+              <button onClick={comeBack} className="shrink-0 rounded-full bg-brand px-4 py-1.5 font-medium text-white hover:bg-brand-strong">
+                Come back
+              </button>
+            </div>
+          ) : (
+            <p>
+              {(PAUSE_REASONS[pausedBy.reason] || PAUSE_REASONS.space).emoji} {otherUser?.name}{' '}
+              {(PAUSE_REASONS[pausedBy.reason] || PAUSE_REASONS.space).note}. You can’t message them right now.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* 🪦 Dead chat */}
+      {isDead && !pausedBy && !hasPendingRevive && (
+        <div className="flex shrink-0 items-center gap-3 border-t border-line bg-panel-soft px-4 py-2.5 text-sm">
+          <p className="min-w-0 flex-1">🪦 This chat is officially dead.</p>
+          <button onClick={sendRevive} className="shrink-0 rounded-full bg-brand px-4 py-1.5 font-medium text-white hover:bg-brand-strong">
+            🧟 Revive it
+          </button>
+        </div>
+      )}
+
+      {ghost && !pausedBy && (
         <GhostBanner
           ghost={ghost}
           myId={myId}
           otherName={otherUser?.name}
           isUnghosting={isUnghosting}
           onUnghost={unghost}
-          onJumpTo={jumpTo}
+          onChangeLevel={() => setDialog('ghost')}
+          onRequest={(text) => sendMessage(text, null, { forgive: true })}
+          asFooter={!canType}
         />
       )}
 
-      <MessageInput
-        conversationId={conversationId}
-        replyingTo={replyingTo}
-        replyName={replyingTo ? (replyingTo.senderId === myId ? 'yourself' : nameOf(replyingTo.senderId)) : ''}
-        emojiOnly={emojiOnly}
-        onCancelReply={() => setReplyingTo(null)}
-        onSendText={sendMessage}
-        onPickImage={setPickedImage}
-        onError={showNotice}
-      />
+      {canType && (
+        <MessageInput
+          conversationId={conversationId}
+          replyingTo={replyingTo}
+          replyName={replyingTo ? (replyingTo.senderId === myId ? 'yourself' : nameOf(replyingTo.senderId)) : ''}
+          emojiOnly={emojiOnly}
+          onCancelReply={() => setReplyingTo(null)}
+          onSendText={sendMessage}
+          onPickImage={setPickedImage}
+          onError={showNotice}
+        />
+      )}
 
       <AnimatePresence>
         {showInfo && isGroupChat && (
@@ -799,6 +1079,24 @@ export default function ChatWindow({ conversationId }) {
             onClose={() => setMissYouFrom(null)}
           />
         )}
+        {celebration && <Celebration key="celebration" {...celebration} onClose={closeCelebration} />}
+        {dialog === 'ghost' && conversation && (
+          <GhostDialog
+            key="ghost-dialog"
+            conversation={conversation}
+            myId={myId}
+            onClose={closeDialog}
+            onError={showNotice}
+            onChanged={(updated) => updateConversation(conversationId, { ghost: updated })}
+          />
+        )}
+        {dialog === 'leave' && conversation && (
+          <LeaveDialog key="leave-dialog" conversation={conversation} onClose={closeDialog} onError={showNotice} onLeft={closeDialog} />
+        )}
+        {dialog === 'badge' && conversation && (
+          <BadgeDialog key="badge-dialog" conversation={conversation} onClose={closeDialog} onError={showNotice} />
+        )}
+        {dialog === 'vibe' && conversation && <VibePanel key="vibe" conversation={conversation} onClose={closeDialog} />}
         {pickedImage && (
           <ImageSendPreview
             key="send-preview"
@@ -836,15 +1134,17 @@ function DayDivider({ date }) {
 }
 
 // Group changes, call logs and "miss you" nudges: a small note in the middle of the chat
-function EventNote({ message, nameOf, myId }) {
+function EventNote({ message, nameOf, myId, onReviveAnswer }) {
   const event = message.event || {};
   const isCall = event.type === 'call';
   const isMissYou = event.type === 'missYou';
   const isMissed = isCall && !event.duration && String(message.senderId) !== myId;
   const Icon = event.video ? Video : Phone;
+  // 🧟 "Should we revive this?" — the other person answers right here
+  const canAnswerRevive = event.type === 'revive' && !event.answer && String(message.senderId) !== myId;
 
   return (
-    <div className="my-2 flex justify-center">
+    <div className="my-2 flex flex-col items-center gap-1.5">
       <span
         className={`flex max-w-[85%] items-center gap-1.5 rounded-lg bg-panel/95 px-3 py-1 text-center text-xs shadow-sm ${
           isMissed ? 'text-red-600 dark:text-red-400' : isMissYou ? 'text-rose-600 dark:text-rose-400' : 'text-muted'
@@ -855,6 +1155,19 @@ function EventNote({ message, nameOf, myId }) {
         {describeEvent(message, nameOf, myId)}
         {(isCall || isMissYou) && <span className="opacity-70">· {formatTime(message.createdAt)}</span>}
       </span>
+      {canAnswerRevive && (
+        <div className="flex flex-wrap justify-center gap-1.5">
+          {Object.entries(REVIVE_ANSWERS).map(([answer, info]) => (
+            <button
+              key={answer}
+              onClick={() => onReviveAnswer(message, answer)}
+              className="rounded-full border border-line bg-panel px-3 py-1 text-xs font-medium shadow-sm hover:bg-hover"
+            >
+              {info.emoji} {info.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
