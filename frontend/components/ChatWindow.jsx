@@ -2,8 +2,8 @@
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ChevronsDown, Heart, Loader2, Lock, MessageSquareOff, Phone, PhoneCall, Video } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ArrowLeft, ChevronsDown, X, Heart, Loader2, Lock, MessageSquareOff, Phone, PhoneCall, Video } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import { useCalls } from './CallProvider';
 import { ChatAvatar } from './Avatar';
@@ -33,6 +33,8 @@ import {
   memberSummary,
   typingText,
 } from '@/lib/conversations';
+
+const UNDO_SEEN_MS = 10000; // how long "Undo seen" is offered after opening a chat
 
 // Start loading older messages when the user scrolls this close to the top
 const LOAD_OLDER_THRESHOLD = 150;
@@ -121,7 +123,7 @@ export default function ChatWindow({ conversationId }) {
   const [dialog, setDialog] = useState(null); // ghost | vibe | badge | leave
   const [streak, setStreak] = useState(0);
   const [almostSaid, setAlmostSaid] = useState(false);
-  const [undoSeen, setUndoSeen] = useState(false); // show "👀 Oops… Undo seen"
+  const [undoSeen, setUndoSeen] = useState(0); // how many new messages I just saw (0 = hide "Undo seen")
   const rootRef = useRef(null);
   const suppressRead = useRef(false); // after "undo seen", don't mark as read again
   const almostSaidTimer = useRef(null);
@@ -199,7 +201,7 @@ export default function ChatWindow({ conversationId }) {
     setStatus('loading');
     suppressRead.current = false;
     // Opening a chat with new messages marks them as seen: offer "undo seen"
-    const hadUnread = conversationRef.current?.unreadCount > 0;
+    const hadUnread = conversationRef.current?.unreadCount || 0;
 
     api(`/api/conversations/${conversationId}/messages`)
       .then(async (data) => {
@@ -213,7 +215,7 @@ export default function ChatWindow({ conversationId }) {
         // Something happened while I was away (a "miss you", being forgiven…)
         const moment = opened.findLast((m) => isNewMoment(m, myId));
         if (moment) showMoment(moment);
-        if (hadUnread) setUndoSeen(true);
+        if (hadUnread) setUndoSeen(hadUnread);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -231,7 +233,7 @@ export default function ChatWindow({ conversationId }) {
   // "👀 Oops… they'll know you saw it" goes away by itself
   useEffect(() => {
     if (!undoSeen) return;
-    const timer = setTimeout(() => setUndoSeen(false), 10000);
+    const timer = setTimeout(() => setUndoSeen(0), UNDO_SEEN_MS);
     return () => clearTimeout(timer);
   }, [undoSeen]);
 
@@ -689,7 +691,7 @@ export default function ChatWindow({ conversationId }) {
 
   // 👀 "Undo seen": their messages go back to unread, and I stop marking them read
   async function undoSeenNow() {
-    setUndoSeen(false);
+    setUndoSeen(0);
     try {
       const { unread, remaining } = await api(`/api/conversations/${conversationId}/unread`, { method: 'POST' });
       suppressRead.current = true;
@@ -901,6 +903,57 @@ export default function ChatWindow({ conversationId }) {
         </div>
       )}
 
+      {/* 👀 Just saw their messages? Offer to take the "seen" back for a few seconds.
+          It sits above the messages (not on top of them) so the chat stays readable. */}
+      <AnimatePresence>
+        {undoSeen > 0 && !notice && (
+          <motion.div
+            key="undo-seen"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            className="relative shrink-0 overflow-hidden border-b border-line bg-brand-soft"
+            role="status"
+          >
+            <div className="flex items-center gap-2.5 px-3 py-1.5 md:px-4">
+              <motion.span
+                className="text-lg"
+                animate={{ rotate: [0, -12, 12, -8, 0] }}
+                transition={{ duration: 0.7, delay: 0.2 }}
+                aria-hidden="true"
+              >
+                👀
+              </motion.span>
+              <p className="min-w-0 flex-1 truncate text-sm">
+                Seen {undoSeen === 1 ? '1 new message' : `${undoSeen} new messages`}
+                <span className="text-muted"> · they’ll know</span>
+              </p>
+              <button
+                onClick={undoSeenNow}
+                className="shrink-0 rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white transition hover:bg-brand-strong active:scale-95"
+              >
+                🤫 Undo seen
+              </button>
+              <button
+                onClick={() => setUndoSeen(0)}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-fg"
+                aria-label="Dismiss"
+              >
+                <X size={15} />
+              </button>
+            </div>
+            {/* Time left to undo */}
+            <motion.div
+              className="absolute bottom-0 left-0 h-0.5 bg-brand"
+              initial={{ width: '100%' }}
+              animate={{ width: '0%' }}
+              transition={{ duration: UNDO_SEEN_MS / 1000, ease: 'linear' }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div
         ref={listRef}
         onScroll={handleScroll}
@@ -1037,18 +1090,6 @@ export default function ChatWindow({ conversationId }) {
       {notice && (
         <div className="pointer-events-none absolute inset-x-0 bottom-24 z-10 flex justify-center px-4">
           <p className="rounded-full bg-fg px-4 py-2 text-center text-sm text-panel shadow-lg">{notice}</p>
-        </div>
-      )}
-
-      {/* 👀 Oops… offer to undo "seen" for a few seconds after opening */}
-      {undoSeen && !notice && (
-        <div className="absolute inset-x-0 bottom-24 z-10 flex justify-center px-4">
-          <p className="flex items-center gap-3 rounded-full bg-fg px-4 py-2 text-sm text-panel shadow-lg">
-            👀 Oops… they’ll know you saw it
-            <button onClick={undoSeenNow} className="font-semibold underline underline-offset-2">
-              Undo seen
-            </button>
-          </p>
         </div>
       )}
 
