@@ -64,7 +64,7 @@ const STEPS = [
   },
   {
     title: '🔒 Private by design',
-    text: 'Your messages and photos are end-to-end encrypted. Your PIN never leaves your device — not even Ghosted can read your chats. You’re all set!',
+    text: 'Your messages and photos are end-to-end encrypted. It all happens automatically — nothing to set up, and not even Ghosted can read your chats. You’re all set!',
   },
 ];
 

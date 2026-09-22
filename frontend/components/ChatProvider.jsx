@@ -26,7 +26,8 @@ export default function ChatProvider({ children }) {
   const [conversations, setConversations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  // checking | setup (no keys yet) | locked (PIN needed on this device) | ready
+  // checking | ready. The key is unlocked at login with the password; if this
+  // device doesn't have it (e.g. browser data was cleared), we ask for a fresh login.
   const [keyStatus, setKeyStatus] = useState('checking');
   const [typingIn, setTypingIn] = useState({}); // { [conversationId]: { [userId]: true } }
   const [toasts, setToasts] = useState([]);
@@ -71,7 +72,9 @@ export default function ChatProvider({ children }) {
         await loadConversations();
         setKeyStatus('ready');
       } else {
-        setKeyStatus(me.user.publicKey ? 'locked' : 'setup');
+        // The key is unlocked with the password, which we only have at login
+        logoutAndRedirect('/login?unlock=1');
+        return;
       }
     } catch (err) {
       if (err.status === 401 || err.status === 404) {
@@ -89,23 +92,6 @@ export default function ChatProvider({ children }) {
     window.addEventListener('pointerdown', unlockAudio, { once: true });
     return () => window.removeEventListener('pointerdown', unlockAudio);
   }, [loadInitialData]);
-
-  // Called by the PIN screen once the keys are unlocked (or newly created)
-  const onKeysReady = useCallback(
-    async (updatedUser) => {
-      if (updatedUser) setUser(updatedUser);
-      setIsLoading(true);
-      try {
-        await loadConversations();
-        setKeyStatus('ready');
-      } catch (err) {
-        setLoadError(err.message);
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [loadConversations]
-  );
 
   const updateConversation = useCallback((conversationId, changes) => {
     setConversations((prev) =>
@@ -324,12 +310,9 @@ export default function ChatProvider({ children }) {
 
     // Someone set up or reset their encryption keys
     function handleKeysChanged({ userId, publicKey, keyId }) {
-      // I reset my PIN on another device: the key on this one is outdated, so unlock again
+      // My keys were replaced on another device: this one's key is outdated, so log in again
       if (userId === userRef.current?._id && keyId !== getSessionKeyId()) {
-        clearDeviceKeys().finally(() => {
-          setUser((u) => ({ ...u, publicKey, keyId }));
-          setKeyStatus('locked');
-        });
+        logoutAndRedirect('/login?unlock=1');
         return;
       }
       updateMember(userId, { publicKey, keyId });
@@ -440,7 +423,6 @@ export default function ChatProvider({ children }) {
       loadError,
       retryLoad: loadInitialData,
       keyStatus,
-      onKeysReady,
       conversations,
       activeConversationId,
       typingIn,
@@ -464,7 +446,6 @@ export default function ChatProvider({ children }) {
       loadError,
       loadInitialData,
       keyStatus,
-      onKeysReady,
       conversations,
       activeConversationId,
       typingIn,

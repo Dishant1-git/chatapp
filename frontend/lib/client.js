@@ -33,12 +33,13 @@ export async function api(url, { method = 'GET', body, formData, file } = {}) {
 }
 
 // Clears the login cookie (via the backend) and goes to the login page.
-// Used when the session has expired, so the login page doesn't bounce us back.
-export async function logoutAndRedirect() {
+// Used when the session has expired, so the login page doesn't bounce us back,
+// and when this device needs the password to unlock the encryption key.
+export async function logoutAndRedirect(target = '/login') {
   try {
     await clearDeviceKeys();
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
   } finally {
-    window.location.href = '/login';
+    window.location.href = target;
   }
 }

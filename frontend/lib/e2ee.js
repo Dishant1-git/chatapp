@@ -2,10 +2,11 @@
 //
 // - Every user has an ECDH P-256 key pair. The public key is stored on the
 //   server so others can encrypt for them. The private key is locked with the
-//   user's PIN (PBKDF2 → AES-GCM) before it's uploaded as a backup, so the
-//   server only ever holds a copy it can't open. The PIN never leaves the device.
+//   user's login password (PBKDF2 → AES-GCM) before it's uploaded as a backup,
+//   so a copy of the database alone can't open it. It's unlocked automatically
+//   when the user logs in (see lib/accountKeys.js) — there's no separate PIN.
 // - Once unlocked, the private key is kept in IndexedDB as a non-extractable
-//   CryptoKey, so the PIN is only needed once per device.
+//   CryptoKey, so reloading the page doesn't need the password again.
 // - Each message gets a fresh random AES-GCM key. The message is encrypted with
 //   it, and that key is then locked separately for every member of the chat
 //   (ECDH between the sender and that member → HKDF → AES-KW). Images are
@@ -13,7 +14,7 @@
 // - New group members can't read older messages, because those keys were never
 //   locked for them. Resetting your keys makes your old messages unreadable.
 
-const PIN_ITERATIONS = 600000;
+const SECRET_ITERATIONS = 600000;
 const WRAP_INFO = new TextEncoder().encode('ghosted-wrap-v1');
 const EC = { name: 'ECDH', namedCurve: 'P-256' };
 
@@ -127,8 +128,8 @@ export function getSessionKeyId() {
   return session?.keyId || null;
 }
 
-async function derivePinKey(pin, salt, iterations) {
-  const material = await crypto.subtle.importKey('raw', encoder.encode(pin), 'PBKDF2', false, ['deriveKey']);
+async function deriveSecretKey(secret, salt, iterations) {
+  const material = await crypto.subtle.importKey('raw', encoder.encode(secret), 'PBKDF2', false, ['deriveKey']);
   return crypto.subtle.deriveKey(
     { name: 'PBKDF2', hash: 'SHA-256', salt, iterations },
     material,
@@ -145,7 +146,7 @@ async function startSession(userId, privateKey, publicKey, keyId) {
   try {
     await saveDeviceKey(session);
   } catch {
-    // Private browsing may block IndexedDB — the PIN is then asked on every visit
+    // Private browsing may block IndexedDB — the user then has to log in again on each visit
   }
 }
 
@@ -162,17 +163,17 @@ export async function restoreSession(user) {
   }
 }
 
-// Creates a new key pair, locks the private key with the PIN and uploads it.
+// Creates a new key pair and locks the private key with the secret (the login password).
 // Returns the request body for PUT /api/keys.
-export async function createKeys(userId, pin) {
+export async function createKeys(userId, secret) {
   const pair = await crypto.subtle.generateKey(EC, true, ['deriveKey', 'deriveBits']);
   const publicKey = toBase64(await crypto.subtle.exportKey('spki', pair.publicKey));
   const pkcs8 = await crypto.subtle.exportKey('pkcs8', pair.privateKey);
 
   const salt = randomBytes(16);
   const iv = randomBytes(12);
-  const pinKey = await derivePinKey(pin, salt, PIN_ITERATIONS);
-  const encryptedPrivateKey = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, pinKey, pkcs8);
+  const secretKey = await deriveSecretKey(secret, salt, SECRET_ITERATIONS);
+  const encryptedPrivateKey = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, secretKey, pkcs8);
 
   // Re-import so the copy we keep can't be exported by any script on the page
   const privateKey = await crypto.subtle.importKey('pkcs8', pkcs8, EC, false, ['deriveKey', 'deriveBits']);
@@ -184,7 +185,7 @@ export async function createKeys(userId, pin) {
         encryptedPrivateKey: toBase64(encryptedPrivateKey),
         salt: toBase64(salt),
         iv: toBase64(iv),
-        iterations: PIN_ITERATIONS,
+        iterations: SECRET_ITERATIONS,
       },
     },
     // Call once the server has accepted the keys
@@ -192,18 +193,18 @@ export async function createKeys(userId, pin) {
   };
 }
 
-// Opens the PIN-locked backup from GET /api/keys/backup. Throws on a wrong PIN.
-export async function unlockKeys(userId, { publicKey, keyId, backup }, pin) {
-  const pinKey = await derivePinKey(pin, fromBase64(backup.salt), backup.iterations);
+// Opens the locked backup from GET /api/keys/backup. Throws if the secret is wrong.
+export async function unlockKeys(userId, { publicKey, keyId, backup }, secret) {
+  const secretKey = await deriveSecretKey(secret, fromBase64(backup.salt), backup.iterations);
   let pkcs8;
   try {
     pkcs8 = await crypto.subtle.decrypt(
       { name: 'AES-GCM', iv: fromBase64(backup.iv) },
-      pinKey,
+      secretKey,
       fromBase64(backup.encryptedPrivateKey)
     );
   } catch {
-    throw new Error('Wrong PIN. Please try again.');
+    throw new Error('Could not unlock your encryption key.');
   }
   const privateKey = await crypto.subtle.importKey('pkcs8', pkcs8, EC, false, ['deriveKey', 'deriveBits']);
   await startSession(userId, privateKey, publicKey, keyId);

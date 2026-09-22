@@ -5,15 +5,17 @@ export const MOODS = ['', 'barely', 'overthinking', 'dontText', 'yap', 'social',
 
 // The user's end-to-end encryption key pair. The public key is shared with
 // everyone who chats with them. The private key never reaches the server in
-// readable form: the browser locks it with the user's PIN (which the server
-// never sees) and only that locked copy is stored here, so the user can
-// unlock it on any device.
+// readable form: the browser locks it with the user's login password
+// (stretched with PBKDF2) and only that locked copy is stored here, so the
+// user can unlock it on any device just by logging in.
 const keyBackupSchema = new mongoose.Schema(
   {
     encryptedPrivateKey: { type: String, required: true },
     salt: { type: String, required: true },
     iv: { type: String, required: true },
     iterations: { type: Number, required: true },
+    // What the key is locked with. Older accounts used a separate PIN.
+    kind: { type: String, enum: ['pin', 'password'], default: 'pin' },
   },
   { _id: false }
 );

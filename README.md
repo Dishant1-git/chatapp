@@ -112,12 +112,15 @@ Browser ──► Next.js (frontend) ──/api, /socket.io, /uploads──► E
 
 ### End-to-end encryption
 
-- Each user has an ECDH P-256 key pair, created in the browser the first time they log in. They
-  choose a **PIN** that locks the private key (PBKDF2 with 600,000 rounds, then AES-GCM). The server
-  stores the public key and the **locked** private key. The PIN never leaves the device, so the
-  server can't unlock it.
-- On a new device, the user enters their PIN once. The unlocked key is kept in IndexedDB as a
-  non-extractable key, and deleted on logout.
+- Encryption is on by default — there's nothing to set up. Each user has an ECDH P-256 key pair,
+  created in the browser when they sign up and locked with their **login password** (PBKDF2 with
+  600,000 rounds, then AES-GCM). The server stores the public key and the **locked** private key
+  (`frontend/lib/accountKeys.js` does this right after login/sign-up).
+- Logging in on any device unlocks the key with the password the user just typed. The unlocked key
+  is kept in IndexedDB as a non-extractable key (so reloads don't ask for anything) and deleted on
+  logout. If a device loses it (e.g. browser data cleared), the user is simply asked to log in again.
+- Accounts from the earlier PIN version get new keys at their next login (the old key can't be
+  opened without the PIN), so messages sent to them before that can't be decrypted.
 - Every message gets a fresh AES-256-GCM key. The message (and its photo) is encrypted with it, and
   that key is locked separately for each member of the chat (ECDH → HKDF → AES-KW). The server
   checks that every current member got a copy, made with the latest version of their key.
@@ -127,9 +130,9 @@ Browser ──► Next.js (frontend) ──/api, /socket.io, /uploads──► E
   and read receipts. Messages sent before encryption was added stay readable as they were.
 - **Trade-offs:** there's no forward secrecy (a stolen private key can open that user's old messages),
   and there's no safety-number check yet, so users have to trust that the server hands out the real
-  public keys. A short PIN can be guessed by someone who has the database, so the app asks for at least
-  6 characters and suggests a phrase. Forgetting the PIN means resetting keys, which makes older
-  messages unreadable.
+  public keys. Because the key is locked with the login password — which the server receives when
+  you log in — a dishonest server operator could in theory unlock it; a stolen copy of the database
+  alone can't. A weak password is easier to guess, so good passwords matter.
 - People added to a group can't read messages sent before they joined.
 
 ### Calls
@@ -196,7 +199,6 @@ frontend/
     chat/[id]/page.js     A conversation
   components/
     ChatProvider.jsx      Shared state: user, socket, conversations, typing, notifications, encryption lock
-    EncryptionGate.jsx    Create / enter / reset the encryption PIN
     CallProvider.jsx      Calls: WebRTC connections, ringing, mic/camera
     CallScreen.jsx        Incoming call, in-call screen, minimized call bar
     ChatList.jsx          Conversation list + search
@@ -239,7 +241,7 @@ frontend/
 | POST   | `/api/messages/:id/reaction`               | Toggle a reaction `{ emoji }`                 |
 | POST   | `/api/upload`                              | Upload an unencrypted image, returns its URL  |
 | POST   | `/api/upload/encrypted`                    | Upload an encrypted chat photo (raw bytes)    |
-| GET    | `/api/keys/backup`                         | My PIN-locked private key                     |
+| GET    | `/api/keys/backup`                         | My password-locked private key                |
 | PUT    | `/api/keys`                                | Save my public key + locked private key (`reset: true` to replace) |
 | GET    | `/api/calls/config`                        | STUN/TURN servers for calls                   |
 | POST   | `/api/conversations/:id/ghost`             | Ghost / change level `{ level }` (DELETE to unghost) |

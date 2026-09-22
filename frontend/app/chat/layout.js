@@ -6,7 +6,6 @@ import ChatList from '@/components/ChatList';
 import Navbar from '@/components/Navbar';
 import Notifications from '@/components/Notifications';
 import Tour from '@/components/Tour';
-import EncryptionGate from '@/components/EncryptionGate';
 import CallProvider from '@/components/CallProvider';
 import { useViewportHeight } from '@/hooks/useViewportHeight';
 
@@ -25,7 +24,9 @@ export default function ChatLayout({ children }) {
 function ChatShell({ children }) {
   const { isLoading, loadError, retryLoad, activeConversationId, keyStatus } = useChat();
 
-  if (isLoading) {
+  // Also shown for the moment it takes to send a device without the encryption
+  // key back to the login page (the key is unlocked with the password there)
+  if (isLoading || (!loadError && keyStatus !== 'ready')) {
     return (
       <div className="flex h-dvh items-center justify-center text-muted">
         <Loader2 className="animate-spin" size={28} />
@@ -47,9 +48,6 @@ function ChatShell({ children }) {
       </div>
     );
   }
-
-  // This device doesn't have the encryption key yet: ask for the PIN first
-  if (keyStatus !== 'ready') return <EncryptionGate />;
 
   // On mobile only one screen is shown at a time: the list, or the open chat.
   // On desktop (md and up) both are shown side by side.

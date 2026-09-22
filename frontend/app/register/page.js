@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Camera } from 'lucide-react';
 import AuthCard, { Field, FormError, SubmitButton } from '@/components/AuthCard';
 import { api } from '@/lib/client';
+import { prepareKeys } from '@/lib/accountKeys';
 import { checkImageFile } from '@/components/ImagePreview';
 
 export default function RegisterPage() {
@@ -51,7 +52,10 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      await api('/api/auth/register', { method: 'POST', formData });
+      const { user } = await api('/api/auth/register', { method: 'POST', formData });
+      // Encryption is on from the start: the key is created and locked with the password.
+      // (If that fails, the account still exists — the next login finishes it.)
+      await prepareKeys(user, form.password).catch(() => {});
       window.location.href = '/chat';
     } catch (err) {
       setError(err.message);

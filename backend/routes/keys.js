@@ -21,7 +21,7 @@ export function computeKeyId(publicKey) {
   return crypto.createHash('sha256').update(publicKey).digest('hex').slice(0, 16);
 }
 
-// GET /api/keys/backup — my PIN-locked private key, to unlock it on this device
+// GET /api/keys/backup — my locked private key, to unlock it on this device after logging in
 router.get('/backup', async (req, res) => {
   const user = await User.findById(req.userId).select('+keyBackup publicKey keyId');
   if (!user) return res.status(404).json({ error: 'User not found.' });
@@ -29,7 +29,7 @@ router.get('/backup', async (req, res) => {
   res.json({ publicKey: user.publicKey, keyId: user.keyId, backup: user.keyBackup });
 });
 
-// PUT /api/keys { publicKey, backup: { encryptedPrivateKey, salt, iv, iterations }, reset? }
+// PUT /api/keys { publicKey, backup: { encryptedPrivateKey, salt, iv, iterations, kind }, reset? }
 // Saves a new key pair made in the browser. Replacing existing keys needs
 // reset: true, because messages locked with the old key can't be read anymore.
 router.put('/', keyLimiter, async (req, res) => {
@@ -65,6 +65,7 @@ router.put('/', keyLimiter, async (req, res) => {
         salt: backup.salt,
         iv: backup.iv,
         iterations: backup.iterations,
+        kind: backup.kind === 'pin' ? 'pin' : 'password',
       },
     },
     { returnDocument: 'after' }
