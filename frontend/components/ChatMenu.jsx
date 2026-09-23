@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, BellOff, Brain, DoorOpen, EllipsisVertical, Ghost, Heart, Puzzle, Star, Vibrate } from 'lucide-react';
+import { Bell, BellOff, Brain, DoorOpen, EllipsisVertical, Ghost, Heart, Image, Puzzle, Star, Vibrate } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import { api } from '@/lib/client';
 import { GHOST_LEVEL_INFO } from '@/lib/ghost';
@@ -124,6 +124,12 @@ export default function ChatMenu({ conversation, myId, onError, onOpen, onMissYo
               onClick={toggleTrustedGhost}
             />
           )}
+          <MenuItem
+            icon={Image}
+            label="🖼️ Chat background"
+            hint="Just for this chat, on this device"
+            onClick={() => open('background')}
+          />
           <MenuItem icon={Brain} label="Read the vibe" onClick={() => open('vibe')} />
           <MenuItem icon={Puzzle} label="Add inside joke" onClick={() => open('badge')} />
           {isDirect && <MenuItem icon={DoorOpen} label="Leave conversation" onClick={() => open('leave')} />}

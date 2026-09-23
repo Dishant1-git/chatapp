@@ -1,9 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, X } from 'lucide-react';
+import { ImagePlus, Loader2, X } from 'lucide-react';
+import { checkImageFile } from './ImagePreview';
 import { api } from '@/lib/client';
+import { prepareImage } from '@/lib/e2ee';
+import { backgroundStyle, removeBackground, saveBackground } from '@/lib/chatBackground';
 import { GHOST_LEVEL_INFO } from '@/lib/ghost';
 import { PAUSE_REASONS, formatShortDuration, timezoneOffset } from '@/lib/social';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
@@ -195,6 +198,115 @@ export function BadgeDialog({ conversation, onClose, onError }) {
           {busy ? 'Adding…' : `Add ${emoji} ${label.trim() || 'badge'}`}
         </button>
       </form>
+    </Modal>
+  );
+}
+
+// 🖼️ A background picture for THIS chat only, kept on this device
+export function BackgroundDialog({ conversation, current, onClose, onError, onChanged }) {
+  const [preview, setPreview] = useState(current?.url || '');
+  const [dim, setDim] = useState(current?.dim ?? 0.25);
+  const [blob, setBlob] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef(null);
+
+  // Free the preview of a picture that was picked but not saved
+  useEffect(() => () => blob && preview && URL.revokeObjectURL(preview), [blob, preview]);
+
+  async function pick(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const problem = checkImageFile(file);
+    if (problem) return onError(problem);
+    try {
+      // Resized first, so a huge photo doesn't fill up this device's storage
+      const prepared = await prepareImage(file, 1600);
+      setBlob(prepared.blob);
+      setPreview(URL.createObjectURL(prepared.blob));
+    } catch {
+      onError('This image could not be read.');
+    }
+  }
+
+  async function save() {
+    setBusy(true);
+    try {
+      if (blob) await saveBackground(conversation._id, blob, dim);
+      else if (current) await saveBackground(conversation._id, current.blob, dim); // only the fade changed
+      onChanged();
+      onClose();
+    } catch (err) {
+      onError(err.message || 'It could not be saved on this device.');
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    setBusy(true);
+    try {
+      await removeBackground(conversation._id);
+      onChanged();
+      onClose();
+    } catch (err) {
+      onError(err.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Chat background" onClose={onClose}>
+      <button
+        type="button"
+        onClick={() => fileRef.current?.click()}
+        className="chat-bg flex h-40 w-full items-center justify-center overflow-hidden rounded-2xl border border-line bg-cover bg-center text-sm font-medium"
+        style={preview ? backgroundStyle(preview, dim) : undefined}
+      >
+        <span className={`rounded-full px-3 py-1.5 ${preview ? 'bg-black/50 text-white' : 'bg-panel text-brand'}`}>
+          <ImagePlus size={16} className="mr-1.5 inline" />
+          {preview ? 'Choose another picture' : 'Choose a picture'}
+        </span>
+      </button>
+      <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={pick} className="hidden" />
+
+      {preview && (
+        <label className="mt-3 block text-sm">
+          Fade
+          <input
+            type="range"
+            min="0"
+            max="0.6"
+            step="0.05"
+            value={dim}
+            onChange={(e) => setDim(Number(e.target.value))}
+            className="mt-1 w-full accent-[var(--brand)]"
+            aria-label="Fade the background"
+          />
+        </label>
+      )}
+
+      <p className="mt-2 text-xs text-muted">
+        Only for this chat, and only on this device. {conversation.otherUser?.name || 'The others'} won’t see it.
+      </p>
+
+      <div className="mt-4 flex gap-2">
+        {current && (
+          <button
+            onClick={remove}
+            disabled={busy}
+            className="flex-1 rounded-full border border-line py-2.5 font-medium hover:bg-hover disabled:opacity-50"
+          >
+            Remove
+          </button>
+        )}
+        <button
+          onClick={save}
+          disabled={busy || (!blob && !current)}
+          className="flex-1 rounded-full bg-brand py-2.5 font-medium text-white hover:bg-brand-strong disabled:opacity-50"
+        >
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+      </div>
     </Modal>
   );
 }

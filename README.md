@@ -195,6 +195,14 @@ Routes live in `backend/routes/social.js`; labels in `frontend/lib/ghost.js` and
   encrypted message; the server only stores the file. If a saved message comes back without its
   recording — an out-of-date server drops it — sending fails with a clear message instead of
   leaving an empty bubble.
+- **🌟 Stickers** (the emoji button → *Stickers*): a built-in pack of ghost stickers, drawn as SVGs
+  in `frontend/public/stickers` and listed in `frontend/lib/stickers.js`. A sticker message carries
+  only the sticker's id, inside the encrypted message, so the server can't tell a sticker from any
+  other message. They're shown large, without a bubble. Emoji-only (ghosted) chats can't send them.
+- **🖼️ Chat background** (⋮ menu): a picture behind the messages of **one** chat. Other chats keep
+  the normal background. It's resized and kept on that device only (IndexedDB,
+  `frontend/lib/chatBackground.js`) — never uploaded, and the other person doesn't see it. A fade
+  slider keeps the messages readable, and *Remove* puts it back.
 - **♿ Accessibility** (Profile): text size (4 steps), text colour (including high contrast),
   "Read new messages aloud", and *Read aloud* in every message's menu. The settings are stored on
   this device (`frontend/lib/accessibility.js`) and applied before the page is drawn.

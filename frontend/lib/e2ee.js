@@ -319,6 +319,8 @@ export async function openMessage(message, conversationId = message?.conversatio
       ? {
           ...full,
           text: String(result.payload.text || ''),
+          // 🌟 The sticker's id; it's checked against the pack before it's shown
+          sticker: typeof result.payload.sticker === 'string' ? result.payload.sticker : '',
           imageType: result.payload.image?.type || '',
           imageWidth: result.payload.image?.width || 0,
           imageHeight: result.payload.image?.height || 0,

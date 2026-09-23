@@ -17,8 +17,9 @@ import MissYouHearts from './MissYouHearts';
 import { GhostClickCamera, GhostClickViewer } from './GhostClick';
 import { loadAccessibility, speak } from '@/lib/accessibility';
 import Celebration from './Celebration';
-import { BadgeDialog, GhostDialog, LeaveDialog, VibePanel } from './ChatDialogs';
+import { BackgroundDialog, BadgeDialog, GhostDialog, LeaveDialog, VibePanel } from './ChatDialogs';
 import { ImageLightbox } from './ImagePreview';
+import { backgroundStyle, loadBackground } from '@/lib/chatBackground';
 import { api } from '@/lib/client';
 import { MOODS, PAUSE_REASONS, REVIVE_ANSWERS, isDeadChat, shakeElement, timezoneOffset } from '@/lib/social';
 import { describeEvent, formatDayDivider, formatLastSeen, formatTime, isDifferentDay } from '@/lib/format';
@@ -120,7 +121,9 @@ export default function ChatWindow({ conversationId }) {
   const [isSendingMissYou, setIsSendingMissYou] = useState(false);
   const [isSendingBuzz, setIsSendingBuzz] = useState(false);
   const [celebration, setCelebration] = useState(null); // { emojis, title, subtitle }
-  const [dialog, setDialog] = useState(null); // ghost | vibe | badge | leave
+  const [dialog, setDialog] = useState(null); // ghost | vibe | badge | leave | background
+  const [background, setBackground] = useState(null); // 🖼️ this chat's own background
+  const [backgroundKey, setBackgroundKey] = useState(0); // bump after it's changed
   const [almostSaid, setAlmostSaid] = useState(false);
   const [undoSeen, setUndoSeen] = useState(0); // how many new messages I just saw (0 = hide "Undo seen")
   const rootRef = useRef(null);
@@ -236,6 +239,21 @@ export default function ChatWindow({ conversationId }) {
     const timer = setTimeout(() => setUndoSeen(0), UNDO_SEEN_MS);
     return () => clearTimeout(timer);
   }, [undoSeen]);
+
+  // 🖼️ This chat's own background picture, kept on this device
+  useEffect(() => {
+    let cancelled = false;
+    let url = '';
+    loadBackground(conversationId).then((saved) => {
+      if (cancelled || !saved) return setBackground(null);
+      url = URL.createObjectURL(saved.blob);
+      setBackground({ ...saved, url });
+    });
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [conversationId, backgroundKey]);
 
   // 🔥 Opening a chat refreshes its streak, which is shown next to the name
   // in the chat list (the list loads them all in one go)
@@ -424,7 +442,8 @@ export default function ChatWindow({ conversationId }) {
   const deliver = useCallback(
     async (temp) => {
       async function encryptAndSend(members) {
-        const payload = { text: temp.text };
+        // 🌟 A sticker only travels as its id, inside the encrypted message
+        const payload = { text: temp.text, ...(temp.sticker && { sticker: temp.sticker }) };
         let prepared = null;
         if (temp.file) {
           prepared = await prepareImage(temp.file);
@@ -508,8 +527,8 @@ export default function ChatWindow({ conversationId }) {
   // The message shows up immediately with a clock icon, then gets its ticks once saved
   // forgive: send it as a 🕊️ forgiveness request (when I'm being ghosted)
   const sendMessage = useCallback(
-    // ghostClick: 'once' | 'keep' for a 👻 Ghost Click photo
-    (text, file = null, { forgive = false, ghostClick = null } = {}) => {
+    // ghostClick: 'once' | 'keep' for a 👻 Ghost Click photo; sticker: a sticker id
+    (text, file = null, { forgive = false, ghostClick = null, sticker = '' } = {}) => {
       const localImage = file ? URL.createObjectURL(file) : '';
       const temp = {
         _id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -520,6 +539,7 @@ export default function ChatWindow({ conversationId }) {
         localImage,
         file,
         messageType: file ? 'image' : 'text',
+        ...(sticker && { sticker }),
         replyTo: forgive ? null : replyingTo,
         reactions: [],
         createdAt: new Date().toISOString(),
@@ -1022,6 +1042,7 @@ export default function ChatWindow({ conversationId }) {
         ref={listRef}
         onScroll={handleScroll}
         className="chat-bg scroll-thin relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-3 pb-4 md:px-[5%] lg:px-[8%]"
+        style={backgroundStyle(background?.url, background?.dim)}
       >
         {status === 'loading' && (
           <div className="flex h-full items-center justify-center text-muted">
@@ -1208,6 +1229,7 @@ export default function ChatWindow({ conversationId }) {
           onCancelReply={() => setReplyingTo(null)}
           onSendText={sendMessage}
           onCamera={() => setGhostCamera(true)}
+          onSendSticker={(sticker) => sendMessage('', null, { sticker })}
           onSendVoice={(recording) => sendMedia('audio', recording)}
           onError={showNotice}
         />
@@ -1244,6 +1266,16 @@ export default function ChatWindow({ conversationId }) {
           <BadgeDialog key="badge-dialog" conversation={conversation} onClose={closeDialog} onError={showNotice} />
         )}
         {dialog === 'vibe' && conversation && <VibePanel key="vibe" conversation={conversation} onClose={closeDialog} />}
+        {dialog === 'background' && conversation && (
+          <BackgroundDialog
+            key="background-dialog"
+            conversation={conversation}
+            current={background}
+            onClose={closeDialog}
+            onError={showNotice}
+            onChanged={() => setBackgroundKey((n) => n + 1)}
+          />
+        )}
         {ghostCamera && (
           <GhostClickCamera
             key="ghost-camera"

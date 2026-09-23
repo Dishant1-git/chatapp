@@ -7,6 +7,7 @@ import VoiceRecorder from './VoiceRecorder';
 import { messagePreview } from '@/lib/format';
 import { isOnlyEmoji } from '@/lib/ghost';
 import { canRecord } from '@/lib/recording';
+import { STICKERS, stickerUrl } from '@/lib/stickers';
 
 const EMOJIS = [
   '😀', '😂', '🤣', '😊', '😍', '🥰', '😘', '😎', '🤔', '😅', '😉', '🙂',
@@ -29,12 +30,14 @@ export default function MessageInput({
   onCancelReply,
   onSendText,
   onCamera, // 📷 opens the camera (tap = photo, hold = video)
+  onSendSticker, // 🌟 (id) sends a sticker
   onSendVoice, // 🎤 ({ blob, duration, waveform }) a recorded voice message
   onError,
 }) {
   const { socket } = useChat();
   const [text, setText] = useState('');
   const [showEmojis, setShowEmojis] = useState(emojiOnly);
+  const [panel, setPanel] = useState('emoji'); // emoji | stickers
   const [isRecording, setIsRecording] = useState(false);
   // Checked after mounting, since the server render has no MediaRecorder
   const [recordingSupported, setRecordingSupported] = useState(false);
@@ -96,6 +99,8 @@ export default function MessageInput({
   const canSend = Boolean(trimmed) && (!emojiOnly || isOnlyEmoji(trimmed));
   // With nothing typed, the send button becomes a mic (like WhatsApp)
   const canRecordVoice = recordingSupported && !emojiOnly && Boolean(onSendVoice);
+  // Being ghosted means emojis only — no stickers until that's over
+  const canSendStickers = !emojiOnly && Boolean(onSendSticker);
   const showMic = canRecordVoice && !trimmed;
 
   function handleChange(event) {
@@ -169,19 +174,65 @@ export default function MessageInput({
       )}
 
       {showEmojis && (
-        <div className="scroll-thin grid max-h-48 grid-cols-8 gap-1 overflow-y-auto px-3 pt-2 sm:grid-cols-12">
-          {EMOJIS.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              // Keep the keyboard open on mobile
-              onPointerDown={(e) => e.preventDefault()}
-              onClick={() => insertEmoji(emoji)}
-              className="flex h-10 items-center justify-center rounded-lg text-2xl hover:bg-hover"
-            >
-              {emoji}
-            </button>
-          ))}
+        <div className="pt-2">
+          {/* 😀 Emoji and 🌟 stickers share one panel */}
+          {canSendStickers && (
+            <div className="flex gap-1 px-3 pb-1.5">
+              {[
+                ['emoji', '😀 Emoji'],
+                ['stickers', '🌟 Stickers'],
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onPointerDown={(e) => e.preventDefault()}
+                  onClick={() => setPanel(key)}
+                  aria-pressed={panel === key}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                    panel === key ? 'bg-brand-soft text-brand' : 'text-muted hover:bg-hover'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {panel === 'stickers' && canSendStickers ? (
+            <div className="scroll-thin grid max-h-52 grid-cols-4 gap-1 overflow-y-auto px-3 sm:grid-cols-6">
+              {STICKERS.map((sticker) => (
+                <button
+                  key={sticker.id}
+                  type="button"
+                  onPointerDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setShowEmojis(false);
+                    onSendSticker(sticker.id);
+                  }}
+                  className="flex items-center justify-center rounded-xl p-1.5 transition hover:bg-hover active:scale-95"
+                  aria-label={`Send sticker: ${sticker.label}`}
+                  title={sticker.label}
+                >
+                  <img src={stickerUrl(sticker.id)} alt="" className="h-16 w-16" draggable={false} />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="scroll-thin grid max-h-48 grid-cols-8 gap-1 overflow-y-auto px-3 sm:grid-cols-12">
+              {EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  // Keep the keyboard open on mobile
+                  onPointerDown={(e) => e.preventDefault()}
+                  onClick={() => insertEmoji(emoji)}
+                  className="flex h-10 items-center justify-center rounded-lg text-2xl hover:bg-hover"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
