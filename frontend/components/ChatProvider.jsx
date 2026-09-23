@@ -7,7 +7,7 @@ import { messagePreview } from '@/lib/format';
 import { clearDeviceKeys, getSessionKeyId, openMessage, restoreSession } from '@/lib/e2ee';
 import { makeNameOf, markDeliveredTo, markReadBy, openConversation } from '@/lib/conversations';
 import { playNotificationSound, unlockAudio } from '@/lib/sounds';
-import { buzzPhone } from '@/lib/social';
+import { buzzPhone, timezoneOffset } from '@/lib/social';
 import { useSocket } from '@/hooks/useSocket';
 
 // Holds everything the chat list and chat window share: the logged-in user,
@@ -59,7 +59,8 @@ export default function ChatProvider({ children }) {
   }, [pathname]);
 
   const loadConversations = useCallback(async () => {
-    const list = await api('/api/conversations');
+    // tz: 🔥 streaks are counted in whole days, in this browser's time zone
+    const list = await api(`/api/conversations?tz=${encodeURIComponent(timezoneOffset())}`);
     setConversations(await Promise.all(list.conversations.map(openConversation)));
   }, []);
 

@@ -173,7 +173,7 @@ export default function ChatList() {
 
 // memo: a row only re-renders when its own conversation changes
 const ConversationItem = memo(function ConversationItem({ conversation, myId, isActive, typingUsers, isTrusted = false }) {
-  const { lastMessage, lastMessageAt, unreadCount, isMuted, ghost } = conversation;
+  const { lastMessage, lastMessageAt, unreadCount, isMuted, ghost, streak = 0 } = conversation;
   const isMine = lastMessage?.senderId === myId;
   const showUnread = unreadCount > 0 && !isMuted;
   const nameOf = makeNameOf(conversation, myId);
@@ -205,6 +205,15 @@ const ConversationItem = memo(function ConversationItem({ conversation, myId, is
           <div className="flex items-baseline justify-between gap-2">
             <p className="flex min-w-0 items-center gap-1.5 font-medium">
               <span className="truncate">{conversationTitle(conversation)}</span>
+              {/* 🔥 Connection streak, next to the name */}
+              {streak >= 2 && (
+                <span
+                  className="shrink-0 text-xs font-semibold text-orange-500"
+                  title={`${streak}-day connection streak`}
+                >
+                  🔥 {streak}
+                </span>
+              )}
               {isTrusted && (
                 <span className="shrink-0 text-xs" title="Trusted Ghost">
                   ⭐

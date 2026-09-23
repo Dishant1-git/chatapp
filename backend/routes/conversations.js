@@ -10,6 +10,7 @@ import { groupLimiter } from '../middleware/rateLimits.js';
 import { saveImage } from '../utils/storage.js';
 import { publishEvent } from '../utils/publish.js';
 import { ghostLevel } from '../utils/ghost.js';
+import { parseOffset, streaksFor } from '../utils/streak.js';
 import { getIO, userRoom, conversationRoom, emitToConversation } from '../socket/io.js';
 import { leaveCallsFor } from '../socket/calls.js';
 
@@ -118,10 +119,17 @@ router.get('/', async (req, res) => {
   ]);
   const unreadByConversation = Object.fromEntries(unread.map((u) => [String(u._id), u.count]));
 
+  // 🔥 Streaks for the list, also in one query. Groups don't have them.
+  const streaks = await streaksFor(
+    conversations.filter((c) => c.type !== 'group').map((c) => c._id),
+    parseOffset(req.query.tz)
+  );
+
   res.json({
-    conversations: conversations.map((c) =>
-      formatConversation(c, req.userId, unreadByConversation[String(c._id)] || 0)
-    ),
+    conversations: conversations.map((c) => ({
+      ...formatConversation(c, req.userId, unreadByConversation[String(c._id)] || 0),
+      streak: streaks.get(String(c._id)) || 0,
+    })),
   });
 });
 

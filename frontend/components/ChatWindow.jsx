@@ -121,7 +121,6 @@ export default function ChatWindow({ conversationId }) {
   const [isSendingBuzz, setIsSendingBuzz] = useState(false);
   const [celebration, setCelebration] = useState(null); // { emojis, title, subtitle }
   const [dialog, setDialog] = useState(null); // ghost | vibe | badge | leave
-  const [streak, setStreak] = useState(0);
   const [almostSaid, setAlmostSaid] = useState(false);
   const [undoSeen, setUndoSeen] = useState(0); // how many new messages I just saw (0 = hide "Undo seen")
   const rootRef = useRef(null);
@@ -238,17 +237,18 @@ export default function ChatWindow({ conversationId }) {
     return () => clearTimeout(timer);
   }, [undoSeen]);
 
-  // 🔥 Connection streak for one-to-one chats
+  // 🔥 Opening a chat refreshes its streak, which is shown next to the name
+  // in the chat list (the list loads them all in one go)
   useEffect(() => {
     if (isGroupChat || !hasConversation) return;
     let cancelled = false;
     api(`/api/conversations/${conversationId}/insights?tz=${encodeURIComponent(timezoneOffset())}`)
-      .then((data) => !cancelled && setStreak(data.streak))
+      .then((data) => !cancelled && updateConversation(conversationId, { streak: data.streak }))
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [conversationId, isGroupChat, hasConversation]);
+  }, [conversationId, isGroupChat, hasConversation, updateConversation]);
 
   // Keep the scroll position right after messages change:
   // - after loading older messages, stay where the user was
@@ -914,13 +914,8 @@ export default function ChatWindow({ conversationId }) {
         >
           {conversation && <ChatAvatar conversation={conversation} size={40} />}
           <div className="min-w-0 flex-1">
-            <h2 className="flex min-w-0 items-center gap-1.5 leading-tight font-semibold">
-              <span className="truncate">{conversationTitle(conversation) || '…'}</span>
-              {streak >= 2 && (
-                <span className="shrink-0 text-xs font-semibold text-orange-500" title={`${streak}-day connection streak`}>
-                  🔥 {streak}
-                </span>
-              )}
+            <h2 className="min-w-0 truncate leading-tight font-semibold">
+              {conversationTitle(conversation) || '…'}
             </h2>
             <p className={`truncate text-xs ${statusIsHighlighted ? 'text-brand' : 'text-muted'}`}>{statusText}</p>
           </div>

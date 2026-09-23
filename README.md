@@ -163,7 +163,9 @@ Routes live in `backend/routes/social.js`; labels in `frontend/lib/ghost.js` and
 - **🫥 Almost said**: typing for 8+ seconds and then deleting everything tells the other person
   "They typed something... then disappeared." Only that fact is sent — never the text.
 - **🔥 Connection streak**: consecutive days where you both wrote and there were 5+ messages, or a
-  call, or a "miss you". **🧠 Read the vibe**: message/reaction/photo/call counts, average reply
+  call, or a "miss you". Shown next to the name in the chat list once it reaches 2 days, Snapchat
+  style (`backend/utils/streak.js` works out every chat's streak in one query, in the browser's
+  time zone). **🧠 Read the vibe**: message/reaction/photo/call counts, average reply
   time and a playful label — worked out from counts only, never from message content.
 - **🎭 Mood**: six moods shown next to your name. **📊 Your social life**: private counters in your
   profile (ghosted, forgave, apologies, revived) that only you can see.

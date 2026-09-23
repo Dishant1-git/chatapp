@@ -9,6 +9,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { badRequest, findMyConversation, resumeConversation } from './conversations.js';
 import { GHOST_LEVELS, formatGhost, isOnlyEmoji } from '../utils/ghost.js';
 import { bumpStat, emitMessageUpdate, publishEvent, useDailyAllowance } from '../utils/publish.js';
+import { connectionStreak, localDay, parseOffset } from '../utils/streak.js';
 import { emitToConversation } from '../socket/io.js';
 import { leaveCallsFor } from '../socket/calls.js';
 
@@ -300,35 +301,6 @@ router.post('/:id/unread', async (req, res) => {
 });
 
 // ---- 🧠 Read the vibe + 🔥 connection streak ----
-
-// "+05:30" → 330 (minutes east of UTC)
-function parseOffset(tz) {
-  const match = /^([+-])(\d{2}):?(\d{2})$/.exec(String(tz || ''));
-  if (!match) return 0;
-  const minutes = Number(match[2]) * 60 + Number(match[3]);
-  return Math.min(14 * 60, minutes) * (match[1] === '-' ? -1 : 1);
-}
-
-function localDay(date, offsetMin) {
-  return new Date(date.getTime() + offsetMin * 60000).toISOString().slice(0, 10);
-}
-
-// Consecutive "meaningful" days ending today (or yesterday, since today isn't over yet).
-// A day counts when both people talked and there were 5+ messages, or there was a call or a "miss you".
-function connectionStreak(days, offsetMin) {
-  const qualifies = (day) => {
-    const d = days.get(day);
-    return Boolean(d && ((d.senders.size >= 2 && d.count >= 5) || d.special));
-  };
-  const cursor = new Date();
-  if (!qualifies(localDay(cursor, offsetMin))) cursor.setUTCDate(cursor.getUTCDate() - 1);
-  let streak = 0;
-  while (qualifies(localDay(cursor, offsetMin))) {
-    streak += 1;
-    cursor.setUTCDate(cursor.getUTCDate() - 1);
-  }
-  return streak;
-}
 
 // A playful label — not an analysis of anyone
 function vibeLabel(stats) {
