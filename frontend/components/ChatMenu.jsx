@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, BellOff, Brain, DoorOpen, EllipsisVertical, Ghost, Puzzle, Star } from 'lucide-react';
+import { Bell, BellOff, Brain, DoorOpen, EllipsisVertical, Ghost, Heart, Puzzle, Star, Vibrate } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import { api } from '@/lib/client';
 import { GHOST_LEVEL_INFO } from '@/lib/ghost';
 
-// The ⋮ menu in the chat header. Mute works here; the rest opens a dialog
-// owned by ChatWindow (onOpen('ghost' | 'vibe' | 'badge' | 'leave')).
-export default function ChatMenu({ conversation, myId, onError, onOpen }) {
+// The ⋮ menu in the chat header. Mute, 💕 miss you and 📳 buzz work here;
+// the rest opens a dialog owned by ChatWindow (onOpen('ghost' | 'vibe' | 'badge' | 'leave')).
+export default function ChatMenu({ conversation, myId, onError, onOpen, onMissYou, onBuzz, isBusy }) {
   const { updateConversation, user, toggleTrusted } = useChat();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
@@ -61,6 +61,11 @@ export default function ChatMenu({ conversation, myId, onError, onOpen }) {
     onOpen(dialog);
   }
 
+  function run(action) {
+    setIsOpen(false);
+    action();
+  }
+
   return (
     <div ref={menuRef} className="relative shrink-0">
       <button
@@ -79,6 +84,24 @@ export default function ChatMenu({ conversation, myId, onError, onOpen }) {
           transition={{ duration: 0.12 }}
           className="absolute top-full right-0 z-30 mt-1 w-64 origin-top-right overflow-hidden rounded-2xl border border-line bg-panel py-1 text-sm shadow-xl"
         >
+          {isDirect && onMissYou && (
+            <MenuItem
+              icon={Heart}
+              label="💕 Miss you"
+              hint="They see floating hearts"
+              disabled={isBusy}
+              onClick={() => run(onMissYou)}
+            />
+          )}
+          {isDirect && onBuzz && (
+            <MenuItem
+              icon={Vibrate}
+              label="📳 Buzz their phone"
+              hint="Vibrates and shakes their chat"
+              disabled={isBusy}
+              onClick={() => run(onBuzz)}
+            />
+          )}
           {isMuted ? (
             <MenuItem icon={Bell} label="Unmute" onClick={() => setMuted(false)} />
           ) : (

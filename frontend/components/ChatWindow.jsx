@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, ChevronsDown, X, Heart, Loader2, Lock, MessageSquareOff, Phone, PhoneCall, Vibrate, Video } from 'lucide-react';
+import { ArrowLeft, ChevronsDown, X, Heart, Loader2, Lock, MessageSquareOff, Phone, PhoneCall, Video } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import { useCalls } from './CallProvider';
 import { ChatAvatar } from './Avatar';
@@ -926,29 +926,7 @@ export default function ChatWindow({ conversationId }) {
           </div>
         </button>
 
-        {conversation && !isGroupChat && (
-          <button
-            onClick={sendMissYou}
-            disabled={isSendingMissYou}
-            className="flex h-10 w-9 md:w-10 shrink-0 items-center justify-center rounded-full text-rose-500 transition hover:bg-rose-500/10 disabled:opacity-40"
-            aria-label="Tell them you miss them"
-            title="Miss you"
-          >
-            <Heart size={20} />
-          </button>
-        )}
-        {conversation && !isGroupChat && (
-          <button
-            onClick={sendBuzz}
-            disabled={isSendingBuzz}
-            className="flex h-10 w-9 md:w-10 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg active:rotate-12 disabled:opacity-40"
-            aria-label="Buzz their phone"
-            title="Buzz"
-          >
-            <Vibrate size={20} />
-          </button>
-        )}
-
+        {/* Two dropdowns keep the header tidy: 📞 calls, and ⋮ for everything else */}
         {conversation &&
           (canJoinCall ? (
             <button
@@ -958,28 +936,19 @@ export default function ChatWindow({ conversationId }) {
               <PhoneCall size={16} /> Join
             </button>
           ) : (
-            <div className="flex shrink-0 items-center">
-              <button
-                onClick={() => handleCall(true)}
-                disabled={Boolean(currentCall)}
-                className="flex h-10 w-9 md:w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg disabled:opacity-40"
-                aria-label="Video call"
-                title="Video call"
-              >
-                <Video size={21} />
-              </button>
-              <button
-                onClick={() => handleCall(false)}
-                disabled={Boolean(currentCall)}
-                className="flex h-10 w-9 md:w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg disabled:opacity-40"
-                aria-label="Voice call"
-                title="Voice call"
-              >
-                <Phone size={19} />
-              </button>
-            </div>
+            <CallMenu disabled={Boolean(currentCall)} onCall={handleCall} />
           ))}
-        {conversation && <ChatMenu conversation={conversation} myId={myId} onError={showNotice} onOpen={setDialog} />}
+        {conversation && (
+          <ChatMenu
+            conversation={conversation}
+            myId={myId}
+            onError={showNotice}
+            onOpen={setDialog}
+            onMissYou={sendMissYou}
+            onBuzz={sendBuzz}
+            isBusy={isSendingMissYou || isSendingBuzz}
+          />
+        )}
       </header>
 
       {/* 🧩 Inside jokes */}
@@ -1315,6 +1284,73 @@ function DayDivider({ date }) {
       <span className="rounded-lg bg-panel px-3 py-1 text-xs font-medium text-muted shadow-sm">
         {formatDayDivider(date)}
       </span>
+    </div>
+  );
+}
+
+// 📞 The call button in the header: it opens a small menu with video and voice,
+// so the header isn't crowded with one button per kind of call
+function CallMenu({ disabled, onCall }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  // Close it when tapping anywhere else
+  useEffect(() => {
+    if (!isOpen) return;
+    function handlePointerDown(event) {
+      if (!menuRef.current?.contains(event.target)) setIsOpen(false);
+    }
+    function handleKey(event) {
+      if (event.key === 'Escape') setIsOpen(false);
+    }
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [isOpen]);
+
+  function call(video) {
+    setIsOpen(false);
+    onCall(video);
+  }
+
+  return (
+    <div ref={menuRef} className="relative shrink-0">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        disabled={disabled}
+        className="flex h-10 w-9 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg disabled:opacity-40 md:w-10"
+        aria-label="Call"
+        aria-expanded={isOpen}
+      >
+        <Phone size={19} />
+      </button>
+
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.12 }}
+          className="absolute top-full right-0 z-30 mt-1 w-44 origin-top-right overflow-hidden rounded-2xl border border-line bg-panel py-1 text-sm shadow-xl"
+        >
+          <button
+            type="button"
+            onClick={() => call(true)}
+            className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-hover"
+          >
+            <Video size={17} className="shrink-0" /> Video call
+          </button>
+          <button
+            type="button"
+            onClick={() => call(false)}
+            className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-hover"
+          >
+            <Phone size={17} className="shrink-0" /> Voice call
+          </button>
+        </motion.div>
+      )}
     </div>
   );
 }
