@@ -13,13 +13,13 @@ const reactionSchema = new mongoose.Schema(
 );
 
 // A view-once Ghost Click can't be opened again by its sender or by anyone who
-// already opened it, so the image link isn't handed out to them
+// already opened it, so the file link isn't handed out to them
 export function maskGhostClick(message, viewerId) {
   const gc = message.ghostClick;
   if (!gc || gc.mode !== 'once') return message;
   const seen =
     String(message.senderId) === String(viewerId) || (gc.openedBy || []).some((id) => String(id) === String(viewerId));
-  return seen ? { ...message, image: '' } : message;
+  return seen ? { ...message, image: '', media: '' } : message;
 }
 
 // Hides the emoji of anonymous reactions from everyone except the reactor

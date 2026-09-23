@@ -191,8 +191,12 @@ router.post('/', messageLimiter, async (req, res) => {
       media,
       replyTo,
       forgiveness: isForgivenessRequest ? { status: 'pending' } : null,
-      // 👻 Ghost Click: only for photos; the sender picks view-once or keep
-      ghostClick: image && ['once', 'keep'].includes(body.ghostClick) ? { mode: body.ghostClick, openedBy: [] } : null,
+      // 👻 Ghost Click: a photo or video from the in-app camera; the sender picks
+      // view-once or keep
+      ghostClick:
+        (image || mediaKind === 'video') && ['once', 'keep'].includes(body.ghostClick)
+          ? { mode: body.ghostClick, openedBy: [] }
+          : null,
       // Recipients with the app open get the message right away
       deliveredTo: recipients.filter((id) => isUserOnline(id)),
     },
@@ -325,14 +329,15 @@ router.post('/:id/opened', async (req, res) => {
 
   const everyoneOpened = updated.recipients.every((id) => updated.ghostClick.openedBy.some((o) => String(o) === String(id)));
   if (everyoneOpened) {
-    const imageUrl = updated.image;
+    const fileUrl = updated.image || updated.media;
     updated.image = '';
+    updated.media = '';
     updated.ghostClick.expired = true;
     await updated.save();
-    if (imageUrl) deleteImage(imageUrl);
+    if (fileUrl) deleteImage(fileUrl);
   }
 
-  // Everyone sees "Opened"; the image link is only sent where it's still needed
+  // Everyone sees "Opened"; the file link is only sent where it's still needed
   emitToConversation(updated.conversationId, 'message:updated', {
     conversationId: String(updated.conversationId),
     messageId: String(updated._id),

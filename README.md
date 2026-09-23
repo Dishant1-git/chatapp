@@ -180,11 +180,19 @@ Routes live in `backend/routes/social.js`; labels in `frontend/lib/ghost.js` and
 
 ### Ghost Click, accessibility and Trusted Ghosts
 
-- **👻 Ghost Click** (camera button next to the message box): take a photo in the app and choose
-  *👻 View once* or *💾 Can be saved*. The photo is encrypted like any chat photo. A view-once photo
-  opens one time per person (`POST /api/messages/:id/opened`). After that, the server stops sending
-  its link, and once everyone has opened it the file is deleted. Saved photos have a Save button.
-  No website can stop screenshots or a second camera.
+- **👻 Ghost Click** (the 📷 camera button next to the message box — the only one for photos and
+  videos): **tap** the round button for a photo, **hold** it to record a video (up to 60 seconds,
+  with sound), or pick a photo from the device. Then choose *👻 View once* or *💾 Can be saved* and
+  add a caption. Everything is encrypted like any chat photo. A view-once photo or video opens one
+  time per person (`POST /api/messages/:id/opened`); after that the server stops sending its link,
+  and once everyone has opened it the file is deleted. Savable photos and videos have a Save button
+  (for a video, *Save video* in its menu). No website can stop screenshots or a second camera.
+- **🎤 Voice messages** (the mic button, when nothing is typed): recorded with `MediaRecorder`
+  (`frontend/lib/recording.js`), encrypted and uploaded like a photo, then played back with a
+  waveform and 1×/1.5×/2× speed. The recording, its length and its waveform all travel inside the
+  encrypted message; the server only stores the file. If a saved message comes back without its
+  recording — an out-of-date server drops it — sending fails with a clear message instead of
+  leaving an empty bubble.
 - **♿ Accessibility** (Profile): text size (4 steps), text colour (including high contrast),
   "Read new messages aloud", and *Read aloud* in every message's menu. The settings are stored on
   this device (`frontend/lib/accessibility.js`) and applied before the page is drawn.
@@ -271,7 +279,7 @@ frontend/
 | POST   | `/api/conversations/:id/miss-you`          | Tell them you miss them                       |
 | POST   | `/api/conversations/:id/buzz`              | Buzz (vibrate) their phone                    |
 | POST   | `/api/messages/:id/reveal`                 | Reveal anonymous reactions (3 a day)          |
-| POST   | `/api/messages/:id/opened`                 | Open a view-once Ghost Click (once per person) |
+| POST   | `/api/messages/:id/opened`                 | Open a view-once Ghost Click photo or video (once per person) |
 | PUT    | `/api/users/me/trusted/:userId`            | Add a Trusted Ghost (DELETE to remove)        |
 | GET    | `/api/health`                              | Health check: server uptime + database status. 200 when healthy, 503 when the database is down |
 

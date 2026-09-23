@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Camera, ImagePlus, Mic, SendHorizontal, Smile, Video, X } from 'lucide-react';
+import { Camera, Mic, SendHorizontal, Smile, X } from 'lucide-react';
 import { useChat } from './ChatProvider';
-import { checkImageFile } from './ImagePreview';
 import VoiceRecorder from './VoiceRecorder';
 import { messagePreview } from '@/lib/format';
 import { isOnlyEmoji } from '@/lib/ghost';
@@ -29,10 +28,8 @@ export default function MessageInput({
   emojiOnly = false, // deep ghost: only emojis can be sent, no photos
   onCancelReply,
   onSendText,
-  onPickImage,
-  onGhostClick, // 👻 opens the Ghost Click camera
+  onCamera, // 📷 opens the camera (tap = photo, hold = video)
   onSendVoice, // 🎤 ({ blob, duration, waveform }) a recorded voice message
-  onVideoNote, // 📹 opens the video note recorder
   onError,
 }) {
   const { socket } = useChat();
@@ -42,7 +39,6 @@ export default function MessageInput({
   // Checked after mounting, since the server render has no MediaRecorder
   const [recordingSupported, setRecordingSupported] = useState(false);
   const textareaRef = useRef(null);
-  const fileInputRef = useRef(null);
   const typing = useRef({ active: false, lastSent: 0, timer: null });
   const draftRef = useRef({ startedAt: 0, longest: 0 });
   const socketRef = useRef(socket);
@@ -101,7 +97,6 @@ export default function MessageInput({
   // With nothing typed, the send button becomes a mic (like WhatsApp)
   const canRecordVoice = recordingSupported && !emojiOnly && Boolean(onSendVoice);
   const showMic = canRecordVoice && !trimmed;
-  const showVideoNote = recordingSupported && !emojiOnly && Boolean(onVideoNote) && !trimmed;
 
   function handleChange(event) {
     const value = event.target.value;
@@ -153,16 +148,6 @@ export default function MessageInput({
     requestAnimationFrame(() => {
       el?.setSelectionRange(start + emoji.length, start + emoji.length);
     });
-  }
-
-  function handleFile(event) {
-    const file = event.target.files?.[0];
-    event.target.value = ''; // allow picking the same file again later
-    if (!file) return;
-
-    const problem = checkImageFile(file);
-    if (problem) return onError(problem);
-    onPickImage(file);
   }
 
   return (
@@ -233,46 +218,16 @@ export default function MessageInput({
             className="scroll-thin max-h-32 min-w-0 flex-1 resize-none rounded-3xl bg-panel-soft px-4 py-2.5 text-base leading-6 outline-none placeholder:text-muted md:text-[15px]"
           />
 
-          {!emojiOnly && (
-            <>
-              {onGhostClick && (
-                <button
-                  type="button"
-                  onClick={onGhostClick}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
-                  aria-label="Ghost Click"
-                  title="👻 Ghost Click — take a photo"
-                >
-                  <Camera size={22} />
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
-                aria-label="Send a photo"
-              >
-                <ImagePlus size={22} />
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={handleFile}
-                className="hidden"
-              />
-              {showVideoNote && (
-                <button
-                  type="button"
-                  onClick={onVideoNote}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
-                  aria-label="Record a video message"
-                  title="📹 Video message"
-                >
-                  <Video size={22} />
-                </button>
-              )}
-            </>
+          {!emojiOnly && onCamera && (
+            <button
+              type="button"
+              onClick={onCamera}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
+              aria-label="Camera"
+              title="📷 Tap for a photo, hold the button to record a video"
+            >
+              <Camera size={22} />
+            </button>
           )}
 
           {showMic ? (

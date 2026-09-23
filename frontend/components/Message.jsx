@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Clock3,
   Copy,
+  Download,
   Lock,
   Reply,
   RotateCw,
@@ -95,11 +96,14 @@ function Message({
   const hasText = Boolean(message.text) && !isDeleted && !isViewOnce;
   const imageView = useMessageImage(hasImage ? message : null);
   const imageOnly = hasImage && !hasText;
-  // 🎤 Voice message or 📹 video note
-  const hasMedia = Boolean(message.media) && !isDeleted && !undecryptable;
+  // 🎤 Voice message or 📹 video (a view-once one is only shown in the viewer)
+  const hasMedia = Boolean(message.media) && !isDeleted && !undecryptable && !isViewOnce;
   const isVoiceNote = hasMedia && message.messageType === 'audio';
   // A video note is a circle on its own, without a bubble around it
   const isVideoNote = hasMedia && message.messageType === 'video';
+  // Nothing at all to show: the recording never made it to the server
+  const isEmpty =
+    !hasText && !hasImage && !hasMedia && !isViewOnce && !isDeleted && !undecryptable && !message.forgiveness;
 
   // ✨ When a new reaction shows up (mine or someone else's), its emoji bursts up
   useEffect(() => {
@@ -290,6 +294,20 @@ function Message({
           {isDeleted && (
             <p className="flex items-center gap-1.5 pr-14 text-[14px] text-muted italic">
               <Ban size={14} /> This message was deleted
+            </p>
+          )}
+
+          {/* An empty bubble would look like a bug, so say what's missing */}
+          {isEmpty && (
+            <p className="flex items-center gap-1.5 pr-14 text-[14px] text-muted italic">
+              <AlertCircle size={14} />
+              {/* mediaKind comes from the encrypted message, so it's known even
+                  when the recording itself never made it to the server */}
+              {(message.mediaKind || message.messageType) === 'audio'
+                ? 'Voice message unavailable'
+                : (message.mediaKind || message.messageType) === 'video'
+                  ? 'Video message unavailable'
+                  : 'This message is empty'}
             </p>
           )}
 
@@ -505,6 +523,10 @@ function Message({
                   onClick={() => runAndClose(() => speak(`${nameOf(message.senderId)} said: ${message.text}`))}
                 />
               )}
+              {/* 💾 A savable Ghost Click video opens full screen, where it can be saved */}
+              {isVideoNote && ghostClick?.mode === 'keep' && (
+                <MenuItem icon={Download} label="Save video" onClick={() => runAndClose(() => onOpenGhostClick(message))} />
+              )}
               {message.failed && (
                 <MenuItem icon={RotateCw} label="Retry" onClick={() => runAndClose(() => onRetry(message))} />
               )}
@@ -542,7 +564,7 @@ function GhostClickCard({ message, isMine, myId, onOpen }) {
     );
   }
 
-  if (openedByMe || expired || !message.image) {
+  if (openedByMe || expired || !(message.image || message.media)) {
     return (
       <p className="flex items-center gap-2 pr-12 text-[14px] text-muted italic">
         <span className="text-lg not-italic opacity-60">👻</span> Opened

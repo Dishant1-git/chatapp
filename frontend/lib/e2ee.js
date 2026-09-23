@@ -338,6 +338,9 @@ export async function openMessage(message, conversationId = message?.conversatio
 function openMediaDetails(media) {
   const waveform = Array.isArray(media.waveform) ? media.waveform.slice(0, 64) : [];
   return {
+    // What the sender recorded. It's worth knowing even if the file itself is
+    // missing, so the message can say what it was meant to be.
+    mediaKind: ['audio', 'video'].includes(media.kind) ? media.kind : '',
     mediaType: typeof media.type === 'string' ? media.type : '',
     mediaDuration: Math.max(0, Number(media.duration) || 0),
     mediaWaveform: waveform.map((v) => Math.min(31, Math.max(0, Number(v) || 0))),
