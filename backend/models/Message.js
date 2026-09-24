@@ -67,6 +67,7 @@ const eventSchema = new mongoose.Schema(
         'paused', // someone left a one-to-one chat ("exit without drama")
         'returned', // … and came back
         'revive', // "Should we revive this?" on a dead chat
+        'nickname', // 💖 someone gave the other person a nickname (name: the nickname, '' = removed)
       ],
       required: true,
     },
@@ -145,6 +146,8 @@ const messageSchema = new mongoose.Schema(
     isDeleted: { type: Boolean, default: false },
     // "Delete for me" — users in this list no longer see the message
     deletedFor: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    // ✏️ When the sender last edited it (text messages only)
+    editedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

@@ -109,6 +109,11 @@ export function describeEvent(message, nameOf, myId) {
     case 'revive':
       if (event.answer) return REVIVE_ANSWERS[event.answer]?.result || '';
       return String(message.senderId) === myId ? '🧟 You asked to revive this chat' : `🧟 ${actor}: Should we revive this?`;
+    case 'nickname': {
+      const isMine = String(message.senderId) === myId;
+      if (!event.name) return isMine ? `You removed ${targets}’s nickname` : `${actor} removed your nickname`;
+      return isMine ? `💖 You named ${targets} “${event.name}”` : `💖 ${actor} named you “${event.name}”`;
+    }
     case 'call': {
       const kind = event.video ? 'video call' : 'voice call';
       if (event.duration) return `${event.video ? 'Video' : 'Voice'} call · ${formatDuration(event.duration)}`;

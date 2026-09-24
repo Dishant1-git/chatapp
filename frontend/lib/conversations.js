@@ -4,9 +4,15 @@ export function isGroup(conversation) {
   return conversation?.type === 'group';
 }
 
+// 💖 One-to-one chats show the nickname I gave them, if any
 export function conversationTitle(conversation) {
   if (!conversation) return '';
-  return isGroup(conversation) ? conversation.name : conversation.otherUser?.name || '';
+  if (isGroup(conversation)) return conversation.name;
+  return nicknameOf(conversation, conversation.otherUser?._id) || conversation.otherUser?.name || '';
+}
+
+export function nicknameOf(conversation, userId) {
+  return (userId && conversation?.nicknames?.[String(userId)]) || '';
 }
 
 export function findMember(conversation, userId) {

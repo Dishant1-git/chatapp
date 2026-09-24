@@ -277,6 +277,7 @@ frontend/
 | GET    | `/api/conversations/:id/messages?before=`  | 30 messages per page, older with `before`     |
 | POST   | `/api/conversations/:id/read`              | Mark messages as read                         |
 | POST   | `/api/messages`                            | Send `{ conversationId, ciphertext, iv, senderKey, keys, image?, replyTo?, ghostClick? }` |
+| PATCH  | `/api/messages/:id`                        | Edit my text message `{ ciphertext, iv, senderKey, keys }` |
 | DELETE | `/api/messages/:id?for=me\|everyone`       | Delete a message                              |
 | POST   | `/api/messages/:id/reaction`               | Toggle a reaction `{ emoji }`                 |
 | POST   | `/api/upload`                              | Upload an unencrypted image, returns its URL  |
@@ -293,6 +294,10 @@ frontend/
 | GET    | `/api/conversations/:id/insights?tz=`      | Vibe stats + connection streak                |
 | POST   | `/api/conversations/:id/miss-you`          | Tell them you miss them                       |
 | POST   | `/api/conversations/:id/buzz`              | Buzz (vibrate) their phone                    |
+| POST   | `/api/conversations/:id/block`             | Block the other person (DELETE to unblock)    |
+| PUT    | `/api/conversations/:id/nickname`          | Nickname the other person `{ nickname }` (`''` removes it) |
+| POST   | `/api/conversations/:id/clear`             | Clear the chat, only for me                   |
+| DELETE | `/api/conversations/:id`                   | Delete the chat for me (back with the next message) |
 | POST   | `/api/messages/:id/reveal`                 | Reveal anonymous reactions (3 a day)          |
 | POST   | `/api/messages/:id/opened`                 | Open a view-once Ghost Click photo or video (once per person) |
 | PUT    | `/api/users/me/trusted/:userId`            | Add a Trusted Ghost (DELETE to remove)        |

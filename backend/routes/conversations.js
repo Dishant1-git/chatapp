@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import mongoose, { isValidObjectId } from 'mongoose';
-import Conversation, { MAX_GROUP_MEMBERS, conversationKey, formatConversation } from '../models/Conversation.js';
+import Conversation, { MAX_GROUP_MEMBERS, blockError, conversationKey, formatConversation } from '../models/Conversation.js';
 import Message, { REPLY_FIELDS, REFRESH_TICKS, maskGhostClick, maskReactions } from '../models/Message.js';
 import User from '../models/User.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -100,11 +100,12 @@ async function broadcastGroup(conversation) {
 // GET /api/conversations — my conversations, newest first, with unread counts
 router.get('/', async (req, res) => {
   // Empty conversations (opened but no message sent yet) are not listed,
-  // nor chats I stepped away from ("exit without drama")
+  // nor chats I stepped away from ("exit without drama") or deleted
   const conversations = await Conversation.find({
     participants: req.userId,
     lastMessage: { $ne: null },
     'pausedBy.by': { $ne: new mongoose.Types.ObjectId(req.userId) },
+    hiddenFor: { $ne: new mongoose.Types.ObjectId(req.userId) },
   })
     .sort({ lastMessageAt: -1 })
     .populate('participants', PARTICIPANT_FIELDS)
@@ -495,6 +496,9 @@ async function sendNudge(req, res, type, cooldownMs, cooldownError) {
   const conversation = await findMyConversation(req, res);
   if (!conversation) return;
   if (conversation.type === 'group') return badRequest(res, 'You can only send this in a one-to-one chat.');
+
+  const blocked = blockError(conversation, req.userId);
+  if (blocked) return res.status(403).json({ error: blocked });
 
   // Ghosting limits what you can send; this mustn't be a way around it
   const ghostedByThem = conversation.ghost?.by && String(conversation.ghost.by) !== req.userId;

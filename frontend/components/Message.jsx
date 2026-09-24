@@ -12,6 +12,7 @@ import {
   Copy,
   Download,
   Lock,
+  Pencil,
   Reply,
   RotateCw,
   Trash2,
@@ -64,6 +65,7 @@ function Message({
   registerRef,
   onReply,
   onReact,
+  onEdit,
   onDelete,
   onRetry,
   onJumpTo,
@@ -107,6 +109,17 @@ function Message({
   // Nothing at all to show: the recording never made it to the server
   const isEmpty =
     !hasText && !hasImage && !hasMedia && !isViewOnce && !showSticker && !isDeleted && !undecryptable && !message.forgiveness;
+  // ✏️ My own encrypted text messages can be edited (not stickers, photos or forgiveness requests)
+  const canEdit =
+    isMine &&
+    hasText &&
+    message.messageType === 'text' &&
+    Boolean(message.ciphertext) &&
+    !message.sticker &&
+    !message.forgiveness &&
+    !message.pending &&
+    !message.failed;
+  const isEdited = Boolean(message.editedAt) && !isDeleted;
 
   // ✨ When a new reaction shows up (mine or someone else's), its emoji bursts up
   useEffect(() => {
@@ -197,6 +210,7 @@ function Message({
 
   const time = (
     <>
+      {isEdited && <span className="italic">edited</span>}
       {formatTime(message.createdAt)}
       {isMine && !isDeleted && <MessageTicks message={message} />}
     </>
@@ -336,7 +350,11 @@ function Message({
             <p className={`text-[15px] leading-snug break-words whitespace-pre-wrap ${hasImage ? 'px-1.5 pt-1' : ''}`}>
               <Linkified text={message.text} />
               {/* Spacer so the time never overlaps the last line of text */}
-              <span className={`inline-block ${isMine ? 'w-[4.6rem]' : 'w-12'}`} />
+              <span
+                className={`inline-block ${
+                  isMine ? (isEdited ? 'w-[7.4rem]' : 'w-[4.6rem]') : isEdited ? 'w-[5.8rem]' : 'w-12'
+                }`}
+              />
             </p>
           )}
 
@@ -525,6 +543,9 @@ function Message({
               {/* A view-once Ghost Click can't be quoted (the quote would show the photo) */}
               {!isDeleted && !undecryptable && !message.failed && !isViewOnce && (
                 <MenuItem icon={Reply} label="Reply" onClick={() => runAndClose(() => onReply(message))} />
+              )}
+              {canEdit && (
+                <MenuItem icon={Pencil} label="Edit" onClick={() => runAndClose(() => onEdit(message))} />
               )}
               {hasText && (
                 <MenuItem
