@@ -34,22 +34,14 @@ function bucket() {
   return new mongoose.mongo.GridFSBucket(mongoose.connection.db, { bucketName: 'uploads' });
 }
 
-// A GIF with more than one frame, or an animated WEBP. Both start with a
-// fixed signature, so this only reads the first bytes.
-function isAnimated(buffer) {
-  const head = buffer.subarray(0, 4).toString('latin1');
-  if (head === 'GIF8') return buffer.includes(Buffer.from('NETSCAPE2.0')) || countGifFrames(buffer) > 1;
-  if (head === 'RIFF') return buffer.subarray(0, 64).includes(Buffer.from('ANMF'));
-  return false;
-}
-
-// Counts image descriptors, enough to tell a still GIF from a moving one
-function countGifFrames(buffer) {
-  let frames = 0;
-  for (let i = 0; i < buffer.length - 1 && frames < 2; i++) {
-    if (buffer[i] === 0x00 && buffer[i + 1] === 0x2c) frames += 1;
+// More than one frame — a moving GIF or WEBP. sharp reads the real frame count,
+// which beats guessing from the first bytes.
+async function isAnimated(buffer) {
+  try {
+    return ((await sharp(buffer).metadata()).pages || 1) > 1;
+  } catch {
+    return false;
   }
-  return frames;
 }
 
 async function store(buffer, extension) {
@@ -66,7 +58,7 @@ export async function saveImage(buffer, { maxSize = 1600 } = {}) {
   try {
     // animated: keeps every frame of a GIF (or animated WEBP), so 🎞️ stickers move.
     // .rotate() would flatten them, so it's only used for still pictures.
-    const animated = isAnimated(buffer);
+    const animated = await isAnimated(buffer);
     const image = sharp(buffer, { animated });
     output = await (animated ? image : image.rotate())
       .resize({ width: maxSize, height: maxSize, fit: 'inside', withoutEnlargement: true })

@@ -18,10 +18,12 @@ async function installedIds(userId) {
   return (user?.stickerPacks || []).map(String);
 }
 
-// GET /api/stickers/packs — every pack, most installed first
+// GET /api/stickers/packs — the public packs plus my own, most installed first
 router.get('/packs', async (req, res) => {
   const [packs, installed] = await Promise.all([
-    StickerPack.find().sort({ installs: -1, createdAt: -1 }).limit(200),
+    StickerPack.find({ $or: [{ isPublic: { $ne: false } }, { createdBy: req.userId }] })
+      .sort({ installs: -1, createdAt: -1 })
+      .limit(200),
     installedIds(req.userId),
   ]);
   res.json({
@@ -65,7 +67,13 @@ router.post('/packs', uploadLimiter, imagesUpload.array('images', MAX_STICKERS_P
     throw err;
   }
 
-  const pack = await StickerPack.create({ name, stickers, createdBy: req.userId, installs: 1 });
+  const pack = await StickerPack.create({
+    name,
+    stickers,
+    createdBy: req.userId,
+    isPublic: String(req.body?.isPublic ?? 'true') !== 'false',
+    installs: 1,
+  });
   await User.updateOne({ _id: req.userId }, { $addToSet: { stickerPacks: pack._id } });
   res.status(201).json({ pack: formatPack(pack, { isInstalled: true, isMine: true }) });
 });

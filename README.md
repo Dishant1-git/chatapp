@@ -216,14 +216,17 @@ Routes live in `backend/routes/social.js`; labels in `frontend/lib/ghost.js` and
   `frontend/lib/stickers.js`. A sticker message carries only the sticker's id, inside the encrypted
   message, so the server can't tell a sticker from any other message. They're shown large, without a
   bubble. Emoji-only (ghosted) chats can't send them.
-- **⭐ Sticker packs made by people** (*Get stickers* in the sticker panel): anyone can publish a
-  pack from their own pictures (a name plus up to 30 images), and **everyone can see and install
-  it** — the packs screen lists every pack, most installed first. A pack never shows who made it,
-  only its name. Whoever made it can delete it, which removes it for everyone who installed it.
-  Sending one of these stickers encrypts a copy of the picture like a photo, so the other person
-  doesn't need the pack installed and the server can't tell it from any other photo.
-  Since packs are public, only publish pictures you're happy to share and have the right to use —
-  there's no moderation built in (`backend/routes/stickers.js`).
+- **⭐ Sticker packs** (*Get stickers* in the sticker panel): make a pack from your own pictures
+  (a name plus up to 30 images) and choose who it's for — **🔒 Just for me** (the default: nobody
+  else sees it) or **🌍 Everyone**, which puts it in the packs screen for every user, most
+  installed first. A pack never shows who made it, only its name, and whoever made it can delete
+  it, which removes it for everyone who added it. Sending one of these stickers encrypts a copy of
+  the picture like a photo, so the other person doesn't need the pack and the server can't tell it
+  from any other photo. **Animated stickers stay animated** all the way through: the upload keeps
+  every frame (sharp with `animated: true`, frame count read from the file's metadata) and the send
+  skips the canvas that would otherwise freeze them (`isAnimatedImage` in `frontend/lib/e2ee.js`).
+  A public pack is there for anyone, with no moderation built in, so only publish pictures you're
+  happy to share and have the right to use (`backend/routes/stickers.js`).
 - **🖼️ Chat background** (⋮ menu): a picture behind the messages of **one** chat, seen by everyone
   in that chat — in a group, every member, and any member can change it. Other chats keep the normal
   background. A fade slider keeps the messages readable, and *Remove* clears it for everyone.

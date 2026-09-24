@@ -17,6 +17,8 @@ const stickerPackSchema = new mongoose.Schema(
     },
     // Never returned by the API
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    // false = "just for me": it stays out of the packs screen for everyone else
+    isPublic: { type: Boolean, default: true },
     installs: { type: Number, default: 0 },
   },
   { timestamps: true }
@@ -31,6 +33,7 @@ export function formatPack(pack, { isInstalled = false, isMine = false } = {}) {
     _id: String(pack._id),
     name: pack.name,
     stickers: pack.stickers.map((s) => ({ _id: String(s._id), url: s.url })),
+    isPublic: pack.isPublic !== false,
     installs: pack.installs,
     isInstalled,
     isMine,

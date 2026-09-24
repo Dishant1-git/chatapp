@@ -104,9 +104,13 @@ export default function StickerStore({ onClose, onError }) {
                   <div key={pack._id} className="border-b border-line py-3 last:border-0">
                     <div className="flex items-center gap-2">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium">{pack.name}</p>
+                        <p className="truncate font-medium">
+                          {pack.name}
+                          {!pack.isPublic && <span className="ml-1.5 text-[11px] font-normal text-muted">🔒 Just for me</span>}
+                        </p>
                         <p className="text-xs text-muted">
-                          {pack.stickers.length} stickers · {pack.installs} {pack.installs === 1 ? 'install' : 'installs'}
+                          {pack.stickers.length} stickers
+                          {pack.isPublic && ` · ${pack.installs} ${pack.installs === 1 ? 'install' : 'installs'}`}
                         </p>
                       </div>
                       {pack.isMine && (
@@ -170,6 +174,7 @@ function CreatePack({ onDone, onError }) {
   const { createPack } = useChat();
   const [name, setName] = useState('');
   const [files, setFiles] = useState([]);
+  const [who, setWho] = useState('me'); // me | everyone
   const [busy, setBusy] = useState(false);
   const inputRef = useRef(null);
   const [previews, setPreviews] = useState([]);
@@ -194,7 +199,7 @@ function CreatePack({ onDone, onError }) {
     event.preventDefault();
     setBusy(true);
     try {
-      await createPack(name.trim(), files);
+      await createPack(name.trim(), files, who === 'everyone');
       onDone();
     } catch (err) {
       onError(err.message);
@@ -239,10 +244,33 @@ function CreatePack({ onDone, onError }) {
       </div>
       <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={pick} className="hidden" />
 
-      <p className="mt-3 rounded-xl bg-panel-soft px-3.5 py-2.5 text-xs text-muted">
-        ⚠️ A pack is public: <span className="font-medium">everyone using Ghosted can see and add it</span>. Your name
-        isn’t shown, but the pictures are there for anyone. Only add pictures you’re happy to share and have the right to
-        use. You can delete your pack later, which removes it for everyone.
+      {/* Who gets to see this pack */}
+      <div className="mt-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Who can use this pack?">
+        {[
+          ['me', '🔒 Just for me', 'Only in your own picker'],
+          ['everyone', '🌍 Everyone', 'Anyone can add it'],
+        ].map(([key, label, hint]) => (
+          <button
+            key={key}
+            type="button"
+            role="radio"
+            aria-checked={who === key}
+            onClick={() => setWho(key)}
+            className={`rounded-2xl border px-3 py-2 text-left transition ${
+              who === key ? 'border-brand bg-brand-soft' : 'border-line hover:bg-hover'
+            }`}
+          >
+            <span className="block text-sm font-medium">{label}</span>
+            <span className="block text-[11px] text-muted">{hint}</span>
+          </button>
+        ))}
+      </div>
+
+      <p className="mt-2 rounded-xl bg-panel-soft px-3.5 py-2.5 text-xs text-muted">
+        {who === 'everyone'
+          ? '⚠️ A public pack is there for everyone using Ghosted to add. Your name isn’t shown, but the pictures are. Only publish pictures you’re happy to share and have the right to use.'
+          : 'Nobody else sees this pack. When you send one of its stickers, a copy of the picture goes to that chat, encrypted like a photo.'}{' '}
+        You can delete it later, which removes it for anyone who added it.
       </p>
 
       <div className="mt-3 flex gap-2 pb-2">

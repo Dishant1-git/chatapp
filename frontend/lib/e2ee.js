@@ -363,6 +363,19 @@ export function openMessages(messages, conversationId) {
 
 // Shrinks the photo (like the server used to) and removes its metadata,
 // since the server can no longer do that for encrypted images
+// A moving GIF, or an animated WEBP (which carries an ANIM chunk near the start).
+// Animated stickers are WEBP, so this is what keeps them moving when sent.
+async function isAnimatedImage(file) {
+  if (file.type === 'image/gif') return true;
+  if (file.type !== 'image/webp') return false;
+  try {
+    const head = new Uint8Array(await file.slice(0, 4096).arrayBuffer());
+    return String.fromCharCode(...head).includes('ANIM');
+  } catch {
+    return false;
+  }
+}
+
 // How big a picture is, without giving up if the browser can't decode it
 function imageSize(file) {
   return new Promise((resolve) => {
@@ -379,9 +392,10 @@ function imageSize(file) {
 }
 
 export async function prepareImage(file, maxSize = 1600) {
-  // 🎞️ A GIF is sent as it is: drawing it on a canvas would leave one frame.
-  // Its size is only used for the bubble's shape, so it isn't worth failing over.
-  if (file.type === 'image/gif') {
+  // 🎞️ Anything that moves is sent as it is: drawing it on a canvas would leave
+  // a single frame. Its size is only used for the bubble's shape, so a picture
+  // whose size can't be read is still worth sending.
+  if (await isAnimatedImage(file)) {
     return { blob: file, type: file.type, ...(await imageSize(file)) };
   }
 

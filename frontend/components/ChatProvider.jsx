@@ -467,9 +467,10 @@ export default function ChatProvider({ children }) {
   );
 
   const createPack = useCallback(
-    async (name, files) => {
+    async (name, files, isPublic = true) => {
       const formData = new FormData();
       formData.append('name', name);
+      formData.append('isPublic', String(isPublic));
       files.forEach((file) => formData.append('images', file));
       const { pack } = await api('/api/stickers/packs', { method: 'POST', formData });
       await loadStickerPacks();
