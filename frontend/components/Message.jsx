@@ -93,7 +93,7 @@ function Message({
   // 👻 Ghost Click: a view-once photo (and its caption) is only shown in the viewer
   const ghostClick = message.ghostClick;
   const isViewOnce = ghostClick?.mode === 'once';
-  const hasImage = Boolean(message.image) && !isDeleted && !undecryptable && !isViewOnce;
+  const hasImage = Boolean(message.image) && !isDeleted && !undecryptable && !isViewOnce && !message.stickerImage;
   const hasText = Boolean(message.text) && !isDeleted && !isViewOnce;
   const imageView = useMessageImage(hasImage ? message : null);
   const imageOnly = hasImage && !hasText;
@@ -104,9 +104,13 @@ function Message({
   const isVideoNote = hasMedia && message.messageType === 'video';
   // 🌟 A sticker is shown on its own, without a bubble
   const showSticker = Boolean(message.sticker) && isSticker(message.sticker) && !isDeleted && !undecryptable;
+  // One of the sender's own stickers: an encrypted picture, shown sticker-style
+  const isStickerImage =
+    Boolean(message.stickerImage) && Boolean(message.image) && !isDeleted && !undecryptable && !isViewOnce;
+  const bare = showSticker || isStickerImage; // a sticker has no bubble around it
   // Nothing at all to show: the recording never made it to the server
   const isEmpty =
-    !hasText && !hasImage && !hasMedia && !isViewOnce && !showSticker && !isDeleted && !undecryptable && !message.forgiveness;
+    !hasText && !hasImage && !hasMedia && !isViewOnce && !bare && !isDeleted && !undecryptable && !message.forgiveness;
 
   // ✨ When a new reaction shows up (mine or someone else's), its emoji bursts up
   useEffect(() => {
@@ -218,8 +222,8 @@ function Message({
           onTouchEnd={cancelLongPress}
           onTouchMove={cancelLongPress}
           className={`relative rounded-2xl select-none [-webkit-touch-callout:none] md:select-text ${
-            isVideoNote || showSticker ? '' : `shadow-[0_1px_1px_rgba(0,0,0,0.08)] ${isMine ? 'bg-bubble-out' : 'bg-bubble-in'}`
-          } ${isGrouped ? '' : isMine ? 'rounded-tr-md' : 'rounded-tl-md'} ${isVideoNote || showSticker ? '' : imageOnly ? 'p-1' : 'px-2.5 py-1.5'} ${
+            isVideoNote || bare ? '' : `shadow-[0_1px_1px_rgba(0,0,0,0.08)] ${isMine ? 'bg-bubble-out' : 'bg-bubble-in'}`
+          } ${isGrouped ? '' : isMine ? 'rounded-tr-md' : 'rounded-tl-md'} ${isVideoNote || bare ? '' : imageOnly ? 'p-1' : 'px-2.5 py-1.5'} ${
             message.pending ? 'opacity-80' : ''
           } ${request ? 'border border-sky-400/40' : ''}`}
         >
@@ -295,6 +299,11 @@ function Message({
             />
           )}
 
+          {/* One of the sender's own stickers, decrypted like a photo */}
+          {isStickerImage && (
+            <SecureImage message={message} onLoad={onImageLoad} alt="Sticker" className="h-32 w-32 object-contain sm:h-36 sm:w-36" />
+          )}
+
           {isVoiceNote && <VoiceNote message={message} isMine={isMine} />}
           {isVideoNote && <VideoNote message={message} time={time} />}
 
@@ -340,13 +349,13 @@ function Message({
             </p>
           )}
 
-          {showSticker && (
+          {bare && (
             <span className={`flex items-center gap-1 pt-0.5 text-[11px] text-muted ${isMine ? 'justify-end' : ''}`}>
               {time}
             </span>
           )}
 
-          {!imageOnly && !isVideoNote && !showSticker && (
+          {!imageOnly && !isVideoNote && !bare && (
             <span className="absolute right-2.5 bottom-1 flex items-center gap-1 text-[11px] text-muted">
               {time}
             </span>

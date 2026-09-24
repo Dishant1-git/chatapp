@@ -33,6 +33,7 @@ export default function ChatProvider({ children }) {
   const [typingIn, setTypingIn] = useState({}); // { [conversationId]: { [userId]: true } }
   const [toasts, setToasts] = useState([]);
   const [sidebarPanel, setSidebarPanel] = useState(null); // null | 'newChat' | 'newGroup' | 'profile'
+  const [stickerPacks, setStickerPacks] = useState([]); // 🌟 the packs I installed
 
   const { socket, isConnected } = useSocket(keyStatus === 'ready');
 
@@ -72,6 +73,9 @@ export default function ChatProvider({ children }) {
       setUser(me.user);
       if (await restoreSession(me.user)) {
         await loadConversations();
+        api('/api/stickers/installed')
+          .then(({ packs }) => setStickerPacks(packs))
+          .catch(() => {}); // stickers are not worth failing the whole load for
         setKeyStatus('ready');
       } else {
         // The key is unlocked with the password, which we only have at login
@@ -416,6 +420,40 @@ export default function ChatProvider({ children }) {
     return !isTrusted;
   }, []);
 
+  // 🌟 Sticker packs: anyone can make one, anyone can install it
+  const loadStickerPacks = useCallback(async () => {
+    const { packs } = await api('/api/stickers/installed');
+    setStickerPacks(packs);
+  }, []);
+
+  const installPack = useCallback(
+    async (packId, install = true) => {
+      await api(`/api/stickers/packs/${packId}/install`, { method: install ? 'POST' : 'DELETE' });
+      await loadStickerPacks();
+    },
+    [loadStickerPacks]
+  );
+
+  const createPack = useCallback(
+    async (name, files) => {
+      const formData = new FormData();
+      formData.append('name', name);
+      files.forEach((file) => formData.append('images', file));
+      const { pack } = await api('/api/stickers/packs', { method: 'POST', formData });
+      await loadStickerPacks();
+      return pack;
+    },
+    [loadStickerPacks]
+  );
+
+  const deletePack = useCallback(
+    async (packId) => {
+      await api(`/api/stickers/packs/${packId}`, { method: 'DELETE' });
+      await loadStickerPacks();
+    },
+    [loadStickerPacks]
+  );
+
   const logout = useCallback(async () => {
     try {
       await clearDeviceKeys();
@@ -449,6 +487,11 @@ export default function ChatProvider({ children }) {
       openChatWith,
       createGroup,
       toggleTrusted,
+      stickerPacks,
+      loadStickerPacks,
+      installPack,
+      createPack,
+      deletePack,
       goBackToList,
       logout,
     }),
@@ -472,6 +515,11 @@ export default function ChatProvider({ children }) {
       openChatWith,
       createGroup,
       toggleTrusted,
+      stickerPacks,
+      loadStickerPacks,
+      installPack,
+      createPack,
+      deletePack,
       goBackToList,
       logout,
     ]

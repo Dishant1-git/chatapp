@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Mic, SendHorizontal, Smile, X } from 'lucide-react';
+import { Camera, Mic, Plus, SendHorizontal, Smile, X } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import VoiceRecorder from './VoiceRecorder';
 import { messagePreview } from '@/lib/format';
@@ -30,11 +30,13 @@ export default function MessageInput({
   onCancelReply,
   onSendText,
   onCamera, // 📷 opens the camera (tap = photo, hold = video)
-  onSendSticker, // 🌟 (id) sends a sticker
+  onSendSticker, // 🌟 (id) sends a built-in sticker
+  onSendCustomSticker, // 🌟 (url) sends a sticker from an installed pack
+  onOpenStickerStore, // 🌟 opens the sticker packs screen
   onSendVoice, // 🎤 ({ blob, duration, waveform }) a recorded voice message
   onError,
 }) {
-  const { socket } = useChat();
+  const { socket, stickerPacks } = useChat();
   const [text, setText] = useState('');
   const [showEmojis, setShowEmojis] = useState(emojiOnly);
   const [panel, setPanel] = useState('emoji'); // emoji | stickers
@@ -200,6 +202,44 @@ export default function MessageInput({
 
           {panel === 'stickers' && canSendStickers ? (
             <div className="scroll-thin max-h-52 overflow-y-auto px-3">
+              {/* 🌟 Packs I installed from the sticker packs screen */}
+              <div className="flex items-center justify-between pt-1 pb-1">
+                <p className="text-[11px] font-semibold text-muted">
+                  {stickerPacks.length ? 'My packs' : 'Add packs made by other people'}
+                </p>
+                <button
+                  type="button"
+                  onPointerDown={(e) => e.preventDefault()}
+                  onClick={onOpenStickerStore}
+                  className="flex items-center gap-1 rounded-full bg-brand-soft px-2.5 py-1 text-[11px] font-medium text-brand"
+                >
+                  <Plus size={13} /> Get stickers
+                </button>
+              </div>
+
+              {stickerPacks.map((pack) => (
+                <div key={pack._id}>
+                  <p className="pt-1 pb-0.5 text-[11px] font-semibold text-muted">{pack.name}</p>
+                  <div className="grid grid-cols-4 gap-1 sm:grid-cols-6">
+                    {pack.stickers.map((sticker) => (
+                      <button
+                        key={sticker._id}
+                        type="button"
+                        onPointerDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setShowEmojis(false);
+                          onSendCustomSticker(sticker.url);
+                        }}
+                        className="flex items-center justify-center rounded-xl p-1.5 transition hover:bg-hover active:scale-95"
+                        aria-label={`Send sticker from ${pack.name}`}
+                      >
+                        <img src={sticker.url} alt="" className="h-16 w-16 object-contain" draggable={false} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
               {STICKER_PACKS.map((pack) => (
                 <div key={pack.id}>
                   <p className="pt-1 pb-0.5 text-[11px] font-semibold text-muted">{pack.name}</p>

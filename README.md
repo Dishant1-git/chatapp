@@ -202,6 +202,14 @@ Routes live in `backend/routes/social.js`; labels in `frontend/lib/ghost.js` and
   `frontend/lib/stickers.js`. A sticker message carries only the sticker's id, inside the encrypted
   message, so the server can't tell a sticker from any other message. They're shown large, without a
   bubble. Emoji-only (ghosted) chats can't send them.
+- **⭐ Sticker packs made by people** (*Get stickers* in the sticker panel): anyone can publish a
+  pack from their own pictures (a name plus up to 30 images), and **everyone can see and install
+  it** — the packs screen lists every pack, most installed first. A pack never shows who made it,
+  only its name. Whoever made it can delete it, which removes it for everyone who installed it.
+  Sending one of these stickers encrypts a copy of the picture like a photo, so the other person
+  doesn't need the pack installed and the server can't tell it from any other photo.
+  Since packs are public, only publish pictures you're happy to share and have the right to use —
+  there's no moderation built in (`backend/routes/stickers.js`).
 - **🖼️ Chat background** (⋮ menu): a picture behind the messages of **one** chat, seen by everyone
   in that chat — in a group, every member, and any member can change it. Other chats keep the normal
   background. A fade slider keeps the messages readable, and *Remove* clears it for everyone.
@@ -295,6 +303,11 @@ frontend/
 | POST   | `/api/messages/:id/reveal`                 | Reveal anonymous reactions (3 a day)          |
 | POST   | `/api/messages/:id/opened`                 | Open a view-once Ghost Click photo or video (once per person) |
 | PUT    | `/api/users/me/trusted/:userId`            | Add a Trusted Ghost (DELETE to remove)        |
+| GET    | `/api/stickers/packs`                      | Every sticker pack (never says who made one)  |
+| GET    | `/api/stickers/installed`                  | The packs in my sticker picker                |
+| POST   | `/api/stickers/packs`                      | Publish a pack (multipart: `name`, `images`)  |
+| POST   | `/api/stickers/packs/:id/install`          | Install a pack (DELETE removes it from my picker) |
+| DELETE | `/api/stickers/packs/:id`                  | Delete a pack I made — for everyone           |
 | PUT    | `/api/conversations/:id/background`        | Set this chat's background (multipart: `image`, `dim`); DELETE removes it |
 | GET    | `/api/health`                              | Health check: server uptime + database status. 200 when healthy, 503 when the database is down |
 

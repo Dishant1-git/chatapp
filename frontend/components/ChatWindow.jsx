@@ -15,6 +15,7 @@ import GhostBanner from './GhostBanner';
 import GroupInfo from './GroupInfo';
 import MissYouHearts from './MissYouHearts';
 import { GhostClickCamera, GhostClickViewer } from './GhostClick';
+import StickerStore from './StickerStore';
 import { loadAccessibility, speak } from '@/lib/accessibility';
 import Celebration from './Celebration';
 import { BackgroundDialog, BadgeDialog, GhostDialog, LeaveDialog, VibePanel } from './ChatDialogs';
@@ -121,7 +122,7 @@ export default function ChatWindow({ conversationId }) {
   const [isSendingMissYou, setIsSendingMissYou] = useState(false);
   const [isSendingBuzz, setIsSendingBuzz] = useState(false);
   const [celebration, setCelebration] = useState(null); // { emojis, title, subtitle }
-  const [dialog, setDialog] = useState(null); // ghost | vibe | badge | leave | background
+  const [dialog, setDialog] = useState(null); // ghost | vibe | badge | leave | background | stickers
   const [almostSaid, setAlmostSaid] = useState(false);
   const [undoSeen, setUndoSeen] = useState(0); // how many new messages I just saw (0 = hide "Undo seen")
   const rootRef = useRef(null);
@@ -426,7 +427,11 @@ export default function ChatWindow({ conversationId }) {
     async (temp) => {
       async function encryptAndSend(members) {
         // 🌟 A sticker only travels as its id, inside the encrypted message
-        const payload = { text: temp.text, ...(temp.sticker && { sticker: temp.sticker }) };
+        const payload = {
+          text: temp.text,
+          ...(temp.sticker && { sticker: temp.sticker }),
+          ...(temp.stickerImage && { stickerImage: true }),
+        };
         let prepared = null;
         if (temp.file) {
           prepared = await prepareImage(temp.file);
@@ -511,7 +516,7 @@ export default function ChatWindow({ conversationId }) {
   // forgive: send it as a 🕊️ forgiveness request (when I'm being ghosted)
   const sendMessage = useCallback(
     // ghostClick: 'once' | 'keep' for a 👻 Ghost Click photo; sticker: a sticker id
-    (text, file = null, { forgive = false, ghostClick = null, sticker = '' } = {}) => {
+    (text, file = null, { forgive = false, ghostClick = null, sticker = '', stickerImage = false } = {}) => {
       const localImage = file ? URL.createObjectURL(file) : '';
       const temp = {
         _id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -523,6 +528,7 @@ export default function ChatWindow({ conversationId }) {
         file,
         messageType: file ? 'image' : 'text',
         ...(sticker && { sticker }),
+        ...(stickerImage && { stickerImage: true }),
         replyTo: forgive ? null : replyingTo,
         reactions: [],
         createdAt: new Date().toISOString(),
@@ -539,6 +545,20 @@ export default function ChatWindow({ conversationId }) {
       deliver(temp);
     },
     [conversationId, myId, replyingTo, deliver]
+  );
+
+  // 🌟 One of my own stickers: a copy of the picture is encrypted and sent,
+  // like a photo, so the other person doesn't need my sticker collection
+  const sendCustomSticker = useCallback(
+    async (url) => {
+      try {
+        const blob = await fetch(url).then((r) => r.blob());
+        sendMessage('', new File([blob], 'sticker.webp', { type: blob.type || 'image/webp' }), { stickerImage: true });
+      } catch {
+        showNotice("That sticker couldn't be sent.");
+      }
+    },
+    [sendMessage, showNotice]
   );
 
   // 🎤 / 📹 A recorded voice message (kind 'audio') or video note (kind 'video'),
@@ -1213,6 +1233,8 @@ export default function ChatWindow({ conversationId }) {
           onSendText={sendMessage}
           onCamera={() => setGhostCamera(true)}
           onSendSticker={(sticker) => sendMessage('', null, { sticker })}
+          onSendCustomSticker={sendCustomSticker}
+          onOpenStickerStore={() => setDialog('stickers')}
           onSendVoice={(recording) => sendMedia('audio', recording)}
           onError={showNotice}
         />
@@ -1265,6 +1287,7 @@ export default function ChatWindow({ conversationId }) {
             }}
           />
         )}
+        {dialog === 'stickers' && <StickerStore key="sticker-store" onClose={closeDialog} onError={showNotice} />}
         {ghostView && <GhostClickViewer key="ghost-view" {...ghostView} onClose={() => setGhostView(null)} />}
         {lightboxSrc && <ImageLightbox key="lightbox" src={lightboxSrc} onClose={closeLightbox} />}
         {deleting && (
