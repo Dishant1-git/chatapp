@@ -13,6 +13,7 @@ import socialRoutes from './routes/social.js';
 import stickerRoutes from './routes/stickers.js';
 import gifRoutes from './routes/gifs.js';
 import chatActionRoutes from './routes/chatActions.js';
+import scheduledRoutes from './routes/scheduled.js';
 import healthRoutes from './routes/health.js';
 import { requireDatabase, notFound, errorHandler } from './middleware/errors.js';
 import { serveUpload } from './utils/storage.js';
@@ -52,6 +53,7 @@ export function createApp(allowedOrigins) {
   // Block, clear chat, delete chat and nicknames
   app.use('/api/conversations', chatActionRoutes);
   app.use('/api/messages', messageRoutes);
+  app.use('/api/scheduled', scheduledRoutes);
   app.use('/api/upload', uploadRoutes);
   app.use('/api/stickers', stickerRoutes);
   app.use('/api/gifs', gifRoutes);

@@ -32,7 +32,7 @@ export default function ChatProvider({ children }) {
   const [keyStatus, setKeyStatus] = useState('checking');
   const [typingIn, setTypingIn] = useState({}); // { [conversationId]: { [userId]: true } }
   const [toasts, setToasts] = useState([]);
-  const [sidebarPanel, setSidebarPanel] = useState(null); // null | 'newChat' | 'newGroup' | 'profile'
+  const [sidebarPanel, setSidebarPanel] = useState(null); // null | 'newChat' | 'newGroup' | 'profile' | 'scheduled'
   const [stickerPacks, setStickerPacks] = useState([]); // 🌟 the packs I installed
 
   const { socket, isConnected } = useSocket(keyStatus === 'ready');

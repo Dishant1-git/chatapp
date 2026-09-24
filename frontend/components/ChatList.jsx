@@ -3,7 +3,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, BellOff, Ghost, MessageCirclePlus, Search, Star, Trash2, Users, WifiOff, X } from 'lucide-react';
+import { Bell, BellOff, Clock, Ghost, MessageCirclePlus, Search, Star, Trash2, Users, WifiOff, X } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import { ConfirmDialog } from './ChatDialogs';
 import { api } from '@/lib/client';
@@ -12,6 +12,7 @@ import ThemeToggle from './ThemeToggle';
 import UserSearch from './UserSearch';
 import NewGroup from './NewGroup';
 import Profile from './Profile';
+import ScheduledMessages from './ScheduledMessages';
 import { MessageTicks } from './Message';
 import { formatListDate, messagePreview } from '@/lib/format';
 import { conversationTitle, isGroup, makeNameOf, typingText } from '@/lib/conversations';
@@ -111,6 +112,14 @@ export default function ChatList() {
           <span className="hidden md:inline">Chats</span>
         </h1>
         <div className="flex items-center">
+          <button
+            onClick={() => setSidebarPanel('scheduled')}
+            className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
+            aria-label="Scheduled messages"
+            title="Scheduled messages"
+          >
+            <Clock size={20} />
+          </button>
           <button
             onClick={() => setSidebarPanel('newGroup')}
             className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
@@ -261,6 +270,7 @@ export default function ChatList() {
         )}
         {sidebarPanel === 'newGroup' && <NewGroup key="group" onClose={() => setSidebarPanel(null)} />}
         {sidebarPanel === 'profile' && <Profile key="profile" onClose={() => setSidebarPanel(null)} />}
+        {sidebarPanel === 'scheduled' && <ScheduledMessages key="scheduled" onClose={() => setSidebarPanel(null)} />}
       </AnimatePresence>
     </div>
   );
