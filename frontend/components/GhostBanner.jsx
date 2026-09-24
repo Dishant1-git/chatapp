@@ -45,7 +45,7 @@ export default function GhostBanner({ ghost, myId, otherName, isUnghosting, onUn
 
   return (
     <div
-      className={`shrink-0 border-t border-line bg-panel-soft px-3 py-2.5 md:px-4 ${asFooter ? 'pb-[max(0.625rem,env(safe-area-inset-bottom))]' : ''}`}
+      className={`shrink-0 border-t border-line bg-panel-soft px-3 py-2.5 md:px-4 ${asFooter ? 'pb-[max(0.625rem,var(--safe-bottom))]' : ''}`}
       role="status"
     >
       <div className="flex items-center gap-2.5">

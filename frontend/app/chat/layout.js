@@ -57,7 +57,8 @@ function ChatShell({ children }) {
   return (
     // CallProvider shows the incoming-call and in-call screens on top of everything
     <CallProvider>
-      <div className="flex h-[var(--app-height,100dvh)] flex-col overflow-hidden pt-[env(safe-area-inset-top)] md:bg-app">
+      {/* Fixed to the visible area, so it stays right above the keyboard on iPhones (see useViewportHeight) */}
+      <div className="fixed inset-x-0 top-[var(--app-top,0px)] flex h-[var(--app-height,100dvh)] flex-col overflow-hidden pt-[env(safe-area-inset-top)] md:bg-app">
         <Navbar />
 
         <div className="flex min-h-0 flex-1 md:mx-auto md:w-full md:max-w-[1600px] md:px-4 md:pb-4 lg:px-6 lg:pb-6">

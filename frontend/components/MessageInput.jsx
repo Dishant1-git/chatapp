@@ -158,7 +158,7 @@ export default function MessageInput({
   }
 
   return (
-    <div className="shrink-0 border-t border-line bg-panel pb-[env(safe-area-inset-bottom)]">
+    <div className="shrink-0 border-t border-line bg-panel pb-[var(--safe-bottom)]">
       {replyingTo && (
         <div className="flex items-center gap-2 px-3 pt-2">
           <div className="min-w-0 flex-1 rounded-lg border-l-4 border-brand bg-panel-soft px-3 py-1.5">

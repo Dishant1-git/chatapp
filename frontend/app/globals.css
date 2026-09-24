@@ -91,6 +91,15 @@ body {
   height: 100%;
 }
 
+/* Space for the iPhone home bar under the message box. While the keyboard is
+   open it covers the home bar, so the space would only be an empty gap. */
+:root {
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+html.keyboard-open {
+  --safe-bottom: 0px;
+}
+
 body {
   background: var(--app);
   color: var(--fg);

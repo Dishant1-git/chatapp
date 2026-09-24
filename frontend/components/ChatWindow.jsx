@@ -297,6 +297,18 @@ export default function ChatWindow({ conversationId }) {
     }
   }, [messages]);
 
+  // The list gets shorter when the keyboard opens (or the message box grows):
+  // if I was at the bottom, keep the newest messages in view
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      if (stickToBottom.current) el.scrollTop = el.scrollHeight;
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [status]);
+
   const loadOlder = useCallback(async () => {
     const oldest = messagesRef.current[0];
     if (loadingOlderRef.current || !hasMoreRef.current || !oldest) return [];
@@ -1333,7 +1345,7 @@ export default function ChatWindow({ conversationId }) {
 
       {/* 🚪 One of us stepped away */}
       {pausedBy && (
-        <div className="shrink-0 border-t border-line bg-panel-soft px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-sm">
+        <div className="shrink-0 border-t border-line bg-panel-soft px-4 py-3 pb-[max(0.75rem,var(--safe-bottom))] text-sm">
           {pausedBy.by === myId ? (
             <div className="flex items-center gap-3">
               <p className="min-w-0 flex-1">You stepped away from this chat. They can’t message you until you’re back.</p>
@@ -1352,7 +1364,7 @@ export default function ChatWindow({ conversationId }) {
 
       {/* 🚫 I blocked them */}
       {blockedByMe && !pausedBy && (
-        <div className="flex shrink-0 items-center gap-3 border-t border-line bg-panel-soft px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-sm">
+        <div className="flex shrink-0 items-center gap-3 border-t border-line bg-panel-soft px-4 py-3 pb-[max(0.75rem,var(--safe-bottom))] text-sm">
           <p className="min-w-0 flex-1">🚫 You blocked {otherUser?.name}. Neither of you can message or call.</p>
           <button
             onClick={() => setBlocked(false)}
