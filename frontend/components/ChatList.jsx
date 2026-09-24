@@ -105,16 +105,16 @@ export default function ChatList() {
   const otherChats = trustedChats.length ? filtered.filter((c) => !isTrustedChat(c)) : filtered;
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
-      <header className="flex h-16 shrink-0 items-center justify-between gap-2 px-4">
-        <h1 className="text-xl font-semibold tracking-tight">
-          <span className="md:hidden">Ghosted</span>
-          <span className="hidden md:inline">Chats</span>
+    <div className="brand-header relative flex h-full min-h-0 flex-col overflow-hidden">
+      <header className="flex h-16 shrink-0 items-center justify-between gap-2 px-4 pt-1">
+        <h1 className="text-[22px] font-semibold tracking-tight text-white">
+          <span className="md:hidden">Messages</span>
+          <span className="hidden md:inline">Messages</span>
         </h1>
         <div className="flex items-center">
           <button
             onClick={() => setSidebarPanel('scheduled')}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-white/85 transition hover:bg-white/15 hover:text-white"
             aria-label="Scheduled messages"
             title="Scheduled messages"
           >
@@ -122,7 +122,7 @@ export default function ChatList() {
           </button>
           <button
             onClick={() => setSidebarPanel('newGroup')}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-white/85 transition hover:bg-white/15 hover:text-white"
             aria-label="New group"
             title="New group"
           >
@@ -130,7 +130,7 @@ export default function ChatList() {
           </button>
           <button
             onClick={() => setSidebarPanel('newChat')}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-white/85 transition hover:bg-white/15 hover:text-white"
             aria-label="New chat"
             title="New chat"
           >
@@ -155,17 +155,17 @@ export default function ChatList() {
 
       <div className="px-3 pb-2">
         <div className="relative">
-          <Search size={17} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted" />
+          <Search size={17} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-white/70" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search chats"
-            className="w-full rounded-full bg-panel-soft py-2.5 pr-10 pl-10 text-base outline-none placeholder:text-muted focus:ring-2 focus:ring-brand/25 md:text-sm"
+            className="w-full rounded-full border border-white/25 bg-white/15 py-2.5 pr-10 pl-10 text-base text-white outline-none placeholder:text-white/70 focus:bg-white/20 md:text-sm"
           />
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="absolute top-1/2 right-2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted hover:bg-hover"
+              className="absolute top-1/2 right-2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-white/80 hover:bg-white/15"
               aria-label="Clear search"
             >
               <X size={15} />
@@ -174,7 +174,12 @@ export default function ChatList() {
         </div>
       </div>
 
-      <ul className="scroll-thin min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]">
+      {/* The white panel curves up over the teal and holds the conversations */}
+      <ul className="scroll-thin surface mt-1 min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-t-[2rem] pt-3 pb-[env(safe-area-inset-bottom)] text-fg">
+        <li className="flex items-center justify-between px-5 pb-1">
+          <h2 className="text-lg font-semibold">Recent</h2>
+          <span className="text-xs text-muted">{filtered.length}</span>
+        </li>
         {trustedChats.length > 0 && (
           <li className="px-5 pt-1 pb-1 text-xs font-semibold tracking-wide text-muted uppercase">⭐ Trusted Ghosts</li>
         )}
@@ -329,7 +334,7 @@ function ChatContextMenu({ conversation, x, y, isTrusted, onMute, onToggleTruste
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.12 }}
-      className="fixed z-40 overflow-hidden rounded-2xl border border-line bg-panel py-1 text-sm shadow-xl"
+      className="fixed z-40 overflow-hidden rounded-2xl border border-line bg-panel py-1 text-sm text-fg shadow-xl"
       style={{ ...position, width: MENU_WIDTH }}
       // A right-click on the menu itself shouldn't open the browser's menu
       onContextMenu={(e) => e.preventDefault()}
@@ -491,14 +496,14 @@ const ConversationItem = memo(function ConversationItem({
         onTouchCancel={handleTouchEnd}
         style={{ transform: x ? `translateX(${x}px)` : undefined }}
         // touch-action: pan-y lets the list scroll up and down while we handle sideways swipes
-        className={`relative flex touch-pan-y items-center gap-3 rounded-xl px-2.5 py-2.5 select-none [-webkit-touch-callout:none] ${
+        className={`relative mx-2 flex touch-pan-y items-center gap-3 rounded-2xl px-3 py-3 select-none [-webkit-touch-callout:none] ${
           dragX === null ? 'transition-[transform,background-color] duration-200' : ''
         } ${
           // Solid while slid aside, so the red doesn't show through
           x !== 0 ? 'bg-panel' : isActive ? 'bg-brand-soft' : 'hover:bg-hover active:bg-hover'
         }`}
       >
-        <ChatAvatar conversation={conversation} size={50} showStatus viewable />
+        <ChatAvatar conversation={conversation} size={52} showStatus viewable />
 
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">
@@ -559,7 +564,7 @@ const ConversationItem = memo(function ConversationItem({
               {unreadCount > 0 && (
                 <span
                   className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold text-white ${
-                    isMuted ? 'bg-muted' : 'bg-brand'
+                    isMuted ? 'bg-muted' : 'bg-rose-500'
                   }`}
                 >
                   {unreadCount > 99 ? '99+' : unreadCount}

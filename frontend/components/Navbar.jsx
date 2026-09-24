@@ -10,9 +10,9 @@ export default function Navbar() {
   const { user, isConnected, setSidebarPanel, logout } = useChat();
 
   return (
-    <nav className="hidden h-16 shrink-0 items-center justify-between px-4 md:flex lg:px-6">
+    <nav className="hidden h-16 shrink-0 items-center justify-between px-4 text-white md:flex lg:px-6">
       <div className="flex items-center gap-2.5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-white">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 text-white">
           <MessageCircle size={20} />
         </div>
         <span className="text-lg font-semibold tracking-tight">Ghosted</span>
@@ -27,7 +27,7 @@ export default function Navbar() {
         <ThemeToggle />
         <button
           onClick={() => setSidebarPanel('profile')}
-          className="flex items-center gap-2 rounded-full py-1 pr-3 pl-1 transition hover:bg-hover"
+          className="flex items-center gap-2 rounded-full py-1 pr-3 pl-1 transition hover:bg-white/15"
           title="Your profile"
         >
           <Avatar user={user} size={34} />
@@ -35,7 +35,7 @@ export default function Navbar() {
         </button>
         <button
           onClick={logout}
-          className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
+          className="flex h-10 w-10 items-center justify-center rounded-full text-white/85 transition hover:bg-white/15 hover:text-white"
           title="Log out"
           aria-label="Log out"
         >

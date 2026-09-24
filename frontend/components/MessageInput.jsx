@@ -188,7 +188,7 @@ export default function MessageInput({
   }
 
   return (
-    <div className="shrink-0 border-t border-line bg-panel pb-[var(--safe-bottom)]">
+    <div className="shrink-0 bg-panel pb-[var(--safe-bottom)] [&>div:last-child]:pb-[max(0.625rem,var(--safe-bottom))]">
       {replyingTo && (
         <div className="flex items-center gap-2 px-3 pt-2">
           <div className="min-w-0 flex-1 rounded-lg border-l-4 border-brand bg-panel-soft px-3 py-1.5">
@@ -206,7 +206,7 @@ export default function MessageInput({
       )}
 
       {showEmojis && (
-        <div className="pt-2">
+        <div className="border-t border-line pt-2">
           {/* 😀 Emoji, 🌟 stickers and 🎞️ GIFs share one panel */}
           {canSendStickers && (
             <div className="flex gap-1 px-3 pb-1.5">
@@ -338,11 +338,11 @@ export default function MessageInput({
           }}
         />
       ) : (
-        <div className="flex items-end gap-1 px-2 py-2 md:px-3">
+        <div className="brand-header flex items-end gap-1 rounded-t-[1.75rem] px-2 py-2.5 md:px-3">
           <button
             type="button"
             onClick={() => setShowEmojis(!showEmojis)}
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition hover:bg-hover ${showEmojis ? 'text-brand' : 'text-muted'}`}
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition hover:bg-white/15 ${showEmojis ? 'bg-white/20 text-white' : 'text-white/85'}`}
             aria-label="Emoji"
           >
             <Smile size={23} />
@@ -366,14 +366,14 @@ export default function MessageInput({
             maxLength={MAX_LENGTH}
             placeholder={placeholder}
             // text-base (16px) stops iOS from zooming into the field
-            className="scroll-thin max-h-32 min-w-0 flex-1 resize-none rounded-3xl bg-panel-soft px-4 py-2.5 text-base leading-6 outline-none placeholder:text-muted md:text-[15px]"
+            className="scroll-thin max-h-32 min-w-0 flex-1 resize-none rounded-3xl border border-white/25 bg-white/15 px-4 py-2.5 text-base leading-6 text-white outline-none placeholder:text-white/70 focus:bg-white/20 md:text-[15px]"
           />
 
           {!emojiOnly && onCamera && (
             <button
               type="button"
               onClick={onCamera}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white/85 transition hover:bg-white/15 hover:text-white"
               aria-label="Camera"
               title="📷 Tap for a photo, hold the button to record a video"
             >
@@ -389,7 +389,7 @@ export default function MessageInput({
                 setShowEmojis(false);
                 setIsRecording(true);
               }}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-white transition hover:bg-brand-strong"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-brand shadow-md transition hover:bg-white/90"
               aria-label="Record a voice message"
               title="🎤 Voice message"
             >
@@ -401,7 +401,7 @@ export default function MessageInput({
               onMouseDown={(e) => e.preventDefault()} // don't close the mobile keyboard
               onClick={send}
               disabled={!canSend}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-white transition hover:bg-brand-strong disabled:opacity-40"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-brand shadow-md transition hover:bg-white/90 disabled:opacity-50"
               aria-label="Send message"
             >
               <SendHorizontal size={20} />

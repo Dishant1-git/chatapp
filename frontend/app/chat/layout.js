@@ -58,21 +58,22 @@ function ChatShell({ children }) {
     // CallProvider shows the incoming-call and in-call screens on top of everything
     <CallProvider>
       {/* Fixed to the visible area, so it stays right above the keyboard on iPhones (see useViewportHeight) */}
-      <div className="fixed inset-x-0 top-[var(--app-top,0px)] flex h-[var(--app-height,100dvh)] flex-col overflow-hidden pt-[env(safe-area-inset-top)] md:bg-app">
+      <div className="fixed inset-x-0 top-[var(--app-top,0px)] flex h-[var(--app-height,100dvh)] flex-col overflow-hidden pt-[env(safe-area-inset-top)]">
         <Navbar />
 
-        <div className="flex min-h-0 flex-1 md:mx-auto md:w-full md:max-w-[1600px] md:px-4 md:pb-4 lg:px-6 lg:pb-6">
-          <div className="flex min-h-0 flex-1 overflow-hidden md:rounded-2xl md:border md:border-line md:shadow-sm">
-            <aside
-              className={`${isChatOpen ? 'hidden md:flex' : 'flex'} w-full flex-col bg-panel md:w-[340px] md:border-r md:border-line lg:w-[380px]`}
-            >
-              <ChatList />
-            </aside>
+        {/* The two panels float as rounded cards on the teal background */}
+        <div className="flex min-h-0 flex-1 md:mx-auto md:w-full md:max-w-[1600px] md:gap-4 md:px-4 md:pb-5 lg:px-6 lg:pb-6">
+          <aside
+            className={`${isChatOpen ? 'hidden md:flex' : 'flex'} w-full min-h-0 flex-col overflow-hidden bg-panel md:w-[340px] md:rounded-3xl md:shadow-xl lg:w-[380px]`}
+          >
+            <ChatList />
+          </aside>
 
-            <main className={`${isChatOpen ? 'flex' : 'hidden md:flex'} min-w-0 flex-1 flex-col`}>
-              {children}
-            </main>
-          </div>
+          <main
+            className={`${isChatOpen ? 'flex' : 'hidden md:flex'} min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-panel md:rounded-3xl md:shadow-xl`}
+          >
+            {children}
+          </main>
         </div>
 
         <Notifications />

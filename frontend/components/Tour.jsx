@@ -60,7 +60,7 @@ const STEPS = [
   },
   {
     title: '💡 Little extras',
-    text: 'Long-press (or right-click) a message to reply, react — even 🫣 anonymously — or delete it. Opened a chat by accident? 👀 Undo seen. Keep talking to grow a 🔥 connection streak.',
+    text: 'Swipe a message to the right to reply to it. Long-press (or right-click) one to react — even 🫣 anonymously — edit your own, or delete it. Opened a chat by accident? 👀 Undo seen. Keep talking to grow a 🔥 connection streak.',
   },
   {
     title: '🔒 Private by design',

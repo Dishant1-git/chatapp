@@ -3,7 +3,14 @@
     "allow": [
       "Bash(JWT_SECRET=t MONGODB_URI=mongodb://127.0.0.1:27017/chat-app-boot-test PORT=5095 timeout 8 node server.js)",
       "Bash(git fetch *)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(node swipe-edit.mjs)",
+      "Bash(grep -n \"className={\\\\`mx-2 flex items-center gap-3 rounded-xl\" -B 4 -A 3 ChatList.jsx)",
+      "Bash(grep -n \"href={\\\\`/chat/\" -A 8 ChatList.jsx)",
+      "Bash(node look.mjs)",
+      "Bash(perl -0pi -e \"s/return \\\\{ browser, page, email, label \\\\};/return { browser, page, email, label, name };/\" streak.mjs)",
+      "Bash(perl -0pi -e \"s/return \\\\{ browser, page, email, label \\\\};/return { browser, page, email, label, name };/\" shared-bg-video.mjs)",
+      "Bash(perl -0pi -e \"s|\\(await ann\\\\.page\\\\.getByPlaceholder\\\\\\(/Search by name or/\\\\\\)\\\\.fill\\\\\\(ben\\\\.email\\\\\\);\\\\n    await ann\\\\.page\\\\.\\)locator\\\\\\('aside'\\\\\\)\\\\.getByRole\\\\\\('button'\\\\\\)\\\\.filter\\\\\\(\\\\{ hasText: /online\\\\|last seen/ \\\\}\\\\\\)\\\\.first\\\\\\(\\\\\\)\\\\.click\\\\\\(\\\\\\);\\(\\\\n    await ann\\\\.page\\\\.getByRole\\\\\\('button', \\\\{ name: 'Next' \\\\}\\\\\\)\\)|\\\\$1locator\\('aside div.z-20'\\).getByRole\\('button', { name: new RegExp\\(ben.name\\) }\\).first\\(\\).click\\(\\);\\\\$2|s\" shared-bg-video.mjs)"
     ]
   }
 }

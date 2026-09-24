@@ -48,7 +48,7 @@ export default function ChatMenu({ conversation, myId, onOpen, onMissYou, onBuzz
     <div ref={menuRef} className="relative shrink-0">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
+        className="flex h-10 w-10 items-center justify-center rounded-full text-white/85 transition hover:bg-white/15 hover:text-white"
         aria-label="Chat options"
         aria-expanded={isOpen}
       >
@@ -60,7 +60,7 @@ export default function ChatMenu({ conversation, myId, onOpen, onMissYou, onBuzz
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.12 }}
-          className="scroll-thin absolute top-full right-0 z-30 mt-1 max-h-[calc(var(--app-height,100dvh)-6rem)] w-64 origin-top-right overflow-y-auto rounded-2xl border border-line bg-panel py-1 text-sm shadow-xl"
+          className="scroll-thin absolute top-full right-0 z-30 mt-1 max-h-[calc(var(--app-height,100dvh)-6rem)] w-64 origin-top-right overflow-y-auto rounded-2xl border border-line bg-panel py-1 text-sm text-fg shadow-xl"
         >
           {isDirect && onMissYou && (
             <MenuItem
@@ -92,7 +92,7 @@ export default function ChatMenu({ conversation, myId, onOpen, onMissYou, onBuzz
           <MenuItem
             icon={Image}
             label="🖼️ Chat background"
-            hint="Just for this chat, on this device"
+            hint="Just for this chat — everyone in it sees it"
             onClick={() => open('background')}
           />
           <MenuItem icon={Brain} label="Read the vibe" onClick={() => open('vibe')} />

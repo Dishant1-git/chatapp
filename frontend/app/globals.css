@@ -6,37 +6,50 @@
 /* Colour tokens. Components use these (bg-panel, text-muted, ...) so
    light/dark switching happens here instead of in every component. */
 :root {
-  --app: #eef0f3;
+  --app: #e8f5f3;
+  /* The teal wash behind everything (headers, app background) */
+  --brand-deep: #0b6b63;
+  --brand-mid: #12857a;
+  --brand-light: #2ea89a;
   --panel: #ffffff;
-  --panel-soft: #f5f6f8;
-  --hover: #f0f2f5;
-  --fg: #111827;
-  --muted: #6b7280;
-  --line: #e5e7eb;
-  --chat: #f1f3f5;
-  --bubble-out: #d5f2e9;
-  --bubble-in: #ffffff;
-  --brand: #0d8a74;
-  --brand-strong: #0a6f5e;
-  --brand-soft: #e3f5f0;
+  --panel-soft: #f1f6f6;
+  --hover: #eaf4f2;
+  --fg: #10312e;
+  --muted: #6b8481;
+  --line: #e2eceb;
+  --chat: #ffffff;
+  --bubble-out: #12857a;
+  --bubble-out-fg: #ffffff;
+  --bubble-in: #eaf5f3;
+  --bubble-in-fg: #10312e;
+  --brand: #0e7c72;
+  --brand-strong: #0b6b63;
+  --brand-soft: #dbf0ec;
+  --on-brand: #ffffff;
   --tick-read: #2f8fdd;
   color-scheme: light;
 }
 
 .dark {
-  --app: #0a0e13;
-  --panel: #11171e;
-  --panel-soft: #161e27;
-  --hover: #1b2530;
-  --fg: #e6eaee;
-  --muted: #8a96a3;
-  --line: #222c37;
-  --chat: #0c1117;
-  --bubble-out: #11463d;
-  --bubble-in: #1b242e;
-  --brand: #19b394;
-  --brand-strong: #3fcbad;
-  --brand-soft: #123a33;
+  --app: #071614;
+  --brand-deep: #06322e;
+  --brand-mid: #0a4b45;
+  --brand-light: #0f6f66;
+  --panel: #0d1f1d;
+  --panel-soft: #122825;
+  --hover: #17322e;
+  --fg: #e4efed;
+  --muted: #8aa6a2;
+  --line: #1d3b37;
+  --chat: #0d1f1d;
+  --bubble-out: #0f6f66;
+  --bubble-out-fg: #f2fbfa;
+  --bubble-in: #16302c;
+  --bubble-in-fg: #e4efed;
+  --brand: #19b39f;
+  --brand-strong: #3fcbb8;
+  --brand-soft: #123a35;
+  --on-brand: #04201d;
   --tick-read: #53b6ff;
   color-scheme: dark;
 }
@@ -52,6 +65,12 @@
   --color-chat: var(--chat);
   --color-bubble-out: var(--bubble-out);
   --color-bubble-in: var(--bubble-in);
+  --color-bubble-out-fg: var(--bubble-out-fg);
+  --color-bubble-in-fg: var(--bubble-in-fg);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-mid: var(--brand-mid);
+  --color-brand-light: var(--brand-light);
+  --color-on-brand: var(--on-brand);
   --color-brand: var(--brand);
   --color-brand-strong: var(--brand-strong);
   --color-brand-soft: var(--brand-soft);
@@ -101,11 +120,33 @@ html.keyboard-open {
 }
 
 body {
-  background: var(--app);
+  /* The teal wash the whole app sits on */
+  background: linear-gradient(160deg, var(--brand-light) 0%, var(--brand-mid) 45%, var(--brand-deep) 100%);
+  background-attachment: fixed;
   color: var(--fg);
   -webkit-tap-highlight-color: transparent;
   /* Stop the whole page from bouncing on iOS; only lists scroll */
   overscroll-behavior: none;
+}
+
+/* The teal area at the top of a screen: title, search, the person you're
+   chatting with. It curves into the white panel below it. */
+.brand-header {
+  background: linear-gradient(150deg, var(--brand-light) 0%, var(--brand-mid) 55%, var(--brand-deep) 100%);
+  color: #ffffff;
+}
+
+/* White card that the list and the chat sit in */
+.surface {
+  background: var(--panel);
+}
+
+/* Anything on the teal: icons and secondary text */
+.on-brand {
+  color: #ffffff;
+}
+.on-brand-muted {
+  color: rgb(255 255 255 / 0.72);
 }
 
 /* Thin, quiet scrollbars */
@@ -114,11 +155,11 @@ body {
   scrollbar-color: var(--line) transparent;
 }
 
-/* Soft pattern behind messages so the chat area doesn't look flat */
+/* Behind the messages: a clean panel with a hint of teal washing up from the
+   bottom, where the message box sits */
 .chat-bg {
   background-color: var(--chat);
-  background-image: radial-gradient(var(--line) 1px, transparent 1px);
-  background-size: 22px 22px;
+  background-image: linear-gradient(to top, color-mix(in srgb, var(--brand) 9%, transparent) 0%, transparent 22%);
 }
 
 /* Briefly highlights a message after jumping to it from a reply */

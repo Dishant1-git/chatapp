@@ -1063,10 +1063,10 @@ export default function ChatWindow({ conversationId }) {
 
   return (
     <div ref={rootRef} className="mobile-slide-in relative flex h-full min-h-0 flex-1 flex-col bg-panel">
-      <header className="flex h-16 shrink-0 items-center gap-1 md:gap-2 border-b border-line bg-panel px-2 md:px-4">
+      <header className="brand-header flex h-[4.5rem] shrink-0 items-center gap-1 px-2 md:gap-2 md:px-4">
         <button
           onClick={goBackToList}
-          className="flex h-10 w-9 md:w-10 shrink-0 items-center justify-center rounded-full hover:bg-hover md:hidden"
+          className="flex h-10 w-9 shrink-0 items-center justify-center rounded-full text-white hover:bg-white/15 md:w-10 md:hidden"
           aria-label="Back to chats"
         >
           <ArrowLeft size={22} />
@@ -1084,13 +1084,13 @@ export default function ChatWindow({ conversationId }) {
         >
           {conversation && <ChatAvatar conversation={conversation} size={40} viewable />}
           <div className="min-w-0 flex-1">
-            <h2 className="flex min-w-0 items-center gap-1 leading-tight font-semibold">
+            <h2 className="flex min-w-0 items-center gap-1 leading-tight font-semibold text-white">
               <span className="truncate">{conversationTitle(conversation) || '…'}</span>
               {/* 💖 Their real name next to the nickname I gave them */}
-              {theirNickname && <span className="shrink-0 text-xs font-normal text-muted">{otherUser?.name}</span>}
-              {!isGroupChat && otherUser && !blockedByMe && <Pencil size={12} className="shrink-0 text-muted" aria-hidden />}
+              {theirNickname && <span className="shrink-0 text-xs font-normal text-white/70">{otherUser?.name}</span>}
+              {!isGroupChat && otherUser && !blockedByMe && <Pencil size={12} className="shrink-0 text-white/60" aria-hidden />}
             </h2>
-            <p className={`truncate text-xs ${statusIsHighlighted ? 'text-brand' : 'text-muted'}`}>{statusText}</p>
+            <p className={`truncate text-xs ${statusIsHighlighted ? 'text-white' : 'text-white/70'}`}>{statusText}</p>
           </div>
         </button>
 
@@ -1198,7 +1198,7 @@ export default function ChatWindow({ conversationId }) {
       <div
         ref={listRef}
         onScroll={handleScroll}
-        className="chat-bg scroll-thin relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-3 pb-4 md:px-[5%] lg:px-[8%]"
+        className="chat-bg scroll-thin relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-3 pb-4 text-fg md:px-[5%] lg:px-[8%]"
         style={backgroundStyle(conversation?.background?.url, conversation?.background?.dim)}
       >
         {status === 'loading' && (
@@ -1530,7 +1530,7 @@ function CallMenu({ disabled, onCall }) {
       <button
         onClick={() => setIsOpen(!isOpen)}
         disabled={disabled}
-        className="flex h-10 w-9 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg disabled:opacity-40 md:w-10"
+        className="flex h-10 w-9 items-center justify-center rounded-full text-white/85 transition hover:bg-white/15 hover:text-white disabled:opacity-40 md:w-10"
         aria-label="Call"
         aria-expanded={isOpen}
       >
@@ -1542,7 +1542,7 @@ function CallMenu({ disabled, onCall }) {
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.12 }}
-          className="absolute top-full right-0 z-30 mt-1 w-44 origin-top-right overflow-hidden rounded-2xl border border-line bg-panel py-1 text-sm shadow-xl"
+          className="absolute top-full right-0 z-30 mt-1 w-44 origin-top-right overflow-hidden rounded-2xl border border-line bg-panel py-1 text-sm text-fg shadow-xl"
         >
           <button
             type="button"

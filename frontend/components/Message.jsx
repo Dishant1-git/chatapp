@@ -26,11 +26,17 @@ import SecureImage, { useMessageImage } from './SecureImage';
 import { VideoNote, VoiceNote } from './MediaNote';
 import { isSticker, stickerLabel, stickerUrl } from '@/lib/stickers';
 
+// ↩️ Swipe-to-reply: how far the bubble follows the finger, and the point
+// past which letting go starts a reply
+const SWIPE_MAX = 80;
+const SWIPE_REPLY_AT = 56;
+
 // ✓ sent · ✓✓ delivered · blue ✓✓ read
-export function MessageTicks({ message, className = '' }) {
+// onBrand: the ticks sit inside one of my own (teal) bubbles, so blue would jar
+export function MessageTicks({ message, className = '', onBrand = false }) {
   if (message.failed) return <AlertCircle size={15} className={`text-red-500 ${className}`} />;
   if (message.pending) return <Clock3 size={13} className={className} />;
-  if (message.isRead) return <CheckCheck size={16} className={`text-tick-read ${className}`} />;
+  if (message.isRead) return <CheckCheck size={16} className={`${onBrand ? 'text-sky-200' : 'text-tick-read'} ${className}`} />;
   if (message.isDelivered) return <CheckCheck size={16} className={className} />;
   return <Check size={16} className={className} />;
 }
@@ -85,9 +91,11 @@ function Message({
   const [anonymousMode, setAnonymousMode] = useState(false);
   const [askLater, setAskLater] = useState(false);
   const [bursts, setBursts] = useState([]); // ✨ emojis flying up after a new reaction
+  const [swipeX, setSwipeX] = useState(0); // ↩️ how far the bubble is dragged
   const bubbleRef = useRef(null);
   const menuRef = useRef(null);
   const longPressTimer = useRef(null);
+  const swipe = useRef(null); // where the finger started, and whether it counts as a swipe
   const previousReactions = useRef(null);
   const reduceMotion = useReducedMotion();
 
@@ -124,6 +132,8 @@ function Message({
     !message.pending &&
     !message.failed;
   const isEdited = Boolean(message.editedAt) && !isDeleted;
+  // ↩️ Swipe to reply — the same messages the Reply menu item allows
+  const canSwipeToReply = !isDeleted && !undecryptable && !message.failed && !message.pending && !isViewOnce;
 
   // ✨ When a new reaction shows up (mine or someone else's), its emoji bursts up
   useEffect(() => {
@@ -163,14 +173,48 @@ function Message({
   }, [isMenuOpen]);
 
   // Long press on touch screens opens the menu (like WhatsApp)
-  function handleTouchStart() {
+  function handleTouchStart(event) {
     longPressTimer.current = setTimeout(() => {
       navigator.vibrate?.(10);
       openMenu();
     }, 450);
+    // ↩️ Remember where the finger started, for swipe-to-reply
+    const touch = event.touches?.[0];
+    swipe.current = touch ? { x: touch.clientX, y: touch.clientY, active: false, armed: false } : null;
   }
   function cancelLongPress() {
     clearTimeout(longPressTimer.current);
+  }
+
+  // ↩️ Drag a message to the right to reply to it. It only takes over once the
+  // finger clearly moves sideways, so scrolling the chat still works.
+  function handleTouchMove(event) {
+    const start = swipe.current;
+    const touch = event.touches?.[0];
+    if (!start || !touch || !canSwipeToReply) return;
+
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (!start.active) {
+      if (Math.abs(dy) > Math.abs(dx) || dx < 12) return cancelLongPress(); // they're scrolling
+      start.active = true;
+      cancelLongPress();
+    }
+
+    const distance = Math.max(0, Math.min(dx, SWIPE_MAX));
+    setSwipeX(distance);
+    // A small nudge the moment it's far enough, so you can let go with confidence
+    if (distance >= SWIPE_REPLY_AT && !start.armed) {
+      start.armed = true;
+      navigator.vibrate?.(8);
+    }
+  }
+
+  function handleTouchEnd() {
+    cancelLongPress();
+    if (swipe.current?.armed) onReply(message);
+    swipe.current = null;
+    setSwipeX(0);
   }
 
   function runAndClose(action) {
@@ -216,7 +260,7 @@ function Message({
     <>
       {isEdited && <span className="italic">edited</span>}
       {formatTime(message.createdAt)}
-      {isMine && !isDeleted && <MessageTicks message={message} />}
+      {isMine && !isDeleted && <MessageTicks message={message} onBrand={!imageOnly && !isVideoNote && !bare} />}
     </>
   );
 
@@ -226,6 +270,16 @@ function Message({
       className={`flex rounded-lg ${isMine ? 'justify-end' : 'justify-start'} ${isGrouped ? 'mt-0.5' : 'mt-2.5'} ${hasReactions ? 'mb-4' : ''}`}
     >
       <div className="group relative max-w-[85%] md:max-w-[65%]">
+        {/* ↩️ Appears from under the bubble while it's dragged across */}
+        {swipeX > 0 && (
+          <span
+            className="absolute top-1/2 -left-9 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-hover text-muted"
+            style={{ opacity: Math.min(1, swipeX / SWIPE_REPLY_AT) }}
+            aria-hidden="true"
+          >
+            <Reply size={15} className={swipeX >= SWIPE_REPLY_AT ? 'text-brand' : ''} />
+          </span>
+        )}
         <div
           ref={bubbleRef}
           onContextMenu={(e) => {
@@ -233,10 +287,17 @@ function Message({
             openMenu();
           }}
           onTouchStart={handleTouchStart}
-          onTouchEnd={cancelLongPress}
-          onTouchMove={cancelLongPress}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
+          onTouchMove={handleTouchMove}
+          // Follows the finger, then slides back when it's let go
+          style={{ transform: `translateX(${swipeX}px)`, transition: swipeX ? 'none' : 'transform 0.18s ease-out' }}
           className={`relative rounded-2xl select-none [-webkit-touch-callout:none] md:select-text ${
-            isVideoNote || bare ? '' : `shadow-[0_1px_1px_rgba(0,0,0,0.08)] ${isMine ? 'bg-bubble-out' : 'bg-bubble-in'}`
+            isVideoNote || bare
+              ? ''
+              : `shadow-[0_1px_2px_rgba(16,49,46,0.10)] ${
+                  isMine ? 'bg-bubble-out text-bubble-out-fg' : 'bg-bubble-in text-bubble-in-fg'
+                }`
           } ${isGrouped ? '' : isMine ? 'rounded-tr-md' : 'rounded-tl-md'} ${isVideoNote || bare ? '' : imageOnly ? 'p-1' : 'px-2.5 py-1.5'} ${
             message.pending ? 'opacity-80' : ''
           } ${request ? 'border border-sky-400/40' : ''}`}
@@ -261,7 +322,7 @@ function Message({
             <button
               type="button"
               onClick={() => onJumpTo(replyTo._id)}
-              className={`mb-1 flex w-full min-w-40 items-center gap-2 overflow-hidden rounded-lg border-l-4 border-brand bg-black/5 text-left dark:bg-white/5 ${imageOnly ? '' : '-mx-0.5'}`}
+              className={`mb-1 flex w-full min-w-40 items-center gap-2 overflow-hidden rounded-lg border-l-4 text-left ${isMine ? 'border-white/70 bg-white/15' : 'border-brand bg-black/5 dark:bg-white/5'} ${imageOnly ? '' : '-mx-0.5'}`}
             >
               <span className="min-w-0 flex-1 px-2.5 py-1.5">
                 <span className="block text-xs font-semibold text-brand">
@@ -368,13 +429,13 @@ function Message({
           )}
 
           {bare && (
-            <span className={`flex items-center gap-1 pt-0.5 text-[11px] text-muted ${isMine ? 'justify-end' : ''}`}>
+            <span className={`flex items-center gap-1 pt-0.5 text-[11px] ${isMine ? 'justify-end text-white/75' : 'text-muted'}`}>
               {time}
             </span>
           )}
 
           {!imageOnly && !isVideoNote && !bare && (
-            <span className="absolute right-2.5 bottom-1 flex items-center gap-1 text-[11px] text-muted">
+            <span className={`absolute right-2.5 bottom-1 flex items-center gap-1 text-[11px] ${isMine && !imageOnly && !isVideoNote ? 'text-white/75' : 'text-muted'}`}>
               {time}
             </span>
           )}

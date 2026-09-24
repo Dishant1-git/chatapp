@@ -5,11 +5,18 @@ Express + Socket.IO + MongoDB, each in its own folder.
 It's inspired by the feel of WhatsApp on mobile: a full-screen chat list, full-screen
 conversations, and a clean two-column layout on desktop.
 
+**The look:** a teal gradient behind everything, with the chat list and the conversation as white
+cards floating on top of it — on a phone they fill the screen, on a computer they sit side by side
+with rounded corners. Headers, the message box and your own bubbles are teal; the other person's
+are a pale mint. Every colour is a token in `frontend/app/globals.css` (`--brand-*`, `--panel`,
+`--bubble-in/out`, …), so the whole palette — light and dark — changes in that one file.
+
 **Features:** register/login, profiles with photos, user search, private conversations,
 **group chats** (admins, add/remove members, rename, group photo), **end-to-end encrypted**
 messages and photos, **voice and video calls** (one-to-one and groups of up to 6),
 real-time messages, online status and last seen, typing indicator, sent/delivered/read ticks,
-photo sharing, reactions, replies, in-app notifications with unread counts, delete for
+photo sharing, reactions, replies (swipe a message to the right), editing your own messages,
+in-app notifications with unread counts, delete for
 me/everyone, message pagination, and light/dark mode.
 
 ```

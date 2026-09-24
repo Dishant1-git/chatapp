@@ -122,7 +122,7 @@ export function SidePanel({ title, onClose, children }) {
 
   return (
     <motion.div
-      className="absolute inset-0 z-20 flex flex-col bg-panel"
+      className="absolute inset-0 z-20 flex flex-col bg-panel text-fg"
       initial={{ x: '-100%' }}
       animate={{ x: 0 }}
       exit={{ x: '-100%' }}
