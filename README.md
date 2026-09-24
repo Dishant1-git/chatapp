@@ -318,9 +318,12 @@ frontend/
 | GET    | `/api/conversations/:id/insights?tz=`      | Vibe stats + connection streak                |
 | POST   | `/api/conversations/:id/miss-you`          | Tell them you miss them                       |
 | POST   | `/api/conversations/:id/buzz`              | Buzz (vibrate) their phone                    |
-| POST   | `/api/conversations/:id/block`             | Block the other person (DELETE to unblock)    |
+| DELETE | `/api/conversations/:id/block`             | Unblock a chat blocked earlier                |
 | PUT    | `/api/conversations/:id/nickname`          | Nickname the other person `{ nickname }` (`''` removes it) |
 | POST   | `/api/conversations/:id/clear`             | Clear the chat, only for me                   |
+| GET    | `/api/scheduled`                           | My scheduled messages (upcoming + last 7 days) |
+| POST   | `/api/scheduled`                           | Schedule `{ sendAt, items: [{ conversationId, ciphertext, iv, senderKey, keys }] }` |
+| DELETE | `/api/scheduled/:id`                       | Cancel a scheduled message that hasn't gone out |
 | DELETE | `/api/conversations/:id`                   | Delete the chat for me (back with the next message) |
 | POST   | `/api/messages/:id/reveal`                 | Reveal anonymous reactions (3 a day)          |
 | POST   | `/api/messages/:id/opened`                 | Open a view-once Ghost Click photo or video (once per person) |

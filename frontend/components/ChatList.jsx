@@ -1,15 +1,18 @@
 'use client';
 
-import { memo, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { AnimatePresence } from 'framer-motion';
-import { BellOff, Ghost, MessageCirclePlus, Search, Users, WifiOff, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Bell, BellOff, Clock, Ghost, MessageCirclePlus, Search, Star, Trash2, Users, WifiOff, X } from 'lucide-react';
 import { useChat } from './ChatProvider';
+import { ConfirmDialog } from './ChatDialogs';
+import { api } from '@/lib/client';
 import Avatar, { ChatAvatar } from './Avatar';
 import ThemeToggle from './ThemeToggle';
 import UserSearch from './UserSearch';
 import NewGroup from './NewGroup';
 import Profile from './Profile';
+import ScheduledMessages from './ScheduledMessages';
 import { MessageTicks } from './Message';
 import { formatListDate, messagePreview } from '@/lib/format';
 import { conversationTitle, isGroup, makeNameOf, typingText } from '@/lib/conversations';
@@ -24,8 +27,64 @@ export default function ChatList() {
     isConnected,
     sidebarPanel,
     setSidebarPanel,
+    updateConversation,
+    removeConversation,
+    toggleTrusted,
   } = useChat();
   const [query, setQuery] = useState('');
+  // Right-click (or long-press) menu on a chat: { conversationId, x, y }
+  const [menu, setMenu] = useState(null);
+  const [deleting, setDeleting] = useState(null); // the chat waiting for "Delete chat?" confirmation
+  const [notice, setNotice] = useState('');
+  const noticeTimer = useRef(null);
+
+  // 🗑️ The one row swiped aside to show its bin: { conversationId, side }
+  const [swiped, setSwiped] = useState(null);
+  const handleSwipe = useCallback(
+    (conversationId, side) => setSwiped(side ? { conversationId, side } : null),
+    []
+  );
+  const askToDelete = useCallback((conversation) => {
+    setSwiped(null);
+    setDeleting(conversation);
+  }, []);
+  const swipeSideOf = (conversation) => (swiped?.conversationId === conversation._id ? swiped.side : 0);
+
+  const openMenu = useCallback((conversationId, x, y) => setMenu({ conversationId, x, y }), []);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  const menuConversation = menu && conversations.find((c) => c._id === menu.conversationId);
+
+  function showNotice(text) {
+    setNotice(text);
+    clearTimeout(noticeTimer.current);
+    noticeTimer.current = setTimeout(() => setNotice(''), 3000);
+  }
+
+  async function setMuted(conversation, muted) {
+    try {
+      const data = await api(`/api/conversations/${conversation._id}/mute`, { method: 'POST', body: { muted } });
+      updateConversation(conversation._id, { isMuted: data.isMuted });
+    } catch (err) {
+      showNotice(err.message);
+    }
+  }
+
+  async function toggleTrustedGhost(conversation) {
+    try {
+      await toggleTrusted(conversation.otherUser._id);
+    } catch (err) {
+      showNotice(err.message);
+    }
+  }
+
+  async function deleteChat(conversation) {
+    try {
+      await api(`/api/conversations/${conversation._id}`, { method: 'DELETE' });
+      removeConversation(conversation._id);
+    } catch (err) {
+      showNotice(err.message);
+    }
+  }
 
   // Conversation search happens in the browser — the list is already loaded
   const filtered = useMemo(() => {
@@ -34,7 +93,8 @@ export default function ChatList() {
     return conversations.filter(
       (c) =>
         conversationTitle(c).toLowerCase().includes(q) ||
-        (!isGroup(c) && c.otherUser?.email?.toLowerCase().includes(q))
+        // Their real name too, when I gave them a nickname
+        (!isGroup(c) && c.otherUser?.name?.toLowerCase().includes(q))
     );
   }, [conversations, query]);
 
@@ -52,6 +112,14 @@ export default function ChatList() {
           <span className="hidden md:inline">Chats</span>
         </h1>
         <div className="flex items-center">
+          <button
+            onClick={() => setSidebarPanel('scheduled')}
+            className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
+            aria-label="Scheduled messages"
+            title="Scheduled messages"
+          >
+            <Clock size={20} />
+          </button>
           <button
             onClick={() => setSidebarPanel('newGroup')}
             className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
@@ -118,6 +186,10 @@ export default function ChatList() {
             isActive={conversation._id === activeConversationId}
             typingUsers={typingIn[conversation._id]}
             isTrusted
+            onMenu={openMenu}
+            swipeSide={swipeSideOf(conversation)}
+            onSwipe={handleSwipe}
+            onDelete={askToDelete}
           />
         ))}
         {trustedChats.length > 0 && otherChats.length > 0 && (
@@ -130,6 +202,10 @@ export default function ChatList() {
             myId={user._id}
             isActive={conversation._id === activeConversationId}
             typingUsers={typingIn[conversation._id]}
+            onMenu={openMenu}
+            swipeSide={swipeSideOf(conversation)}
+            onSwipe={handleSwipe}
+            onDelete={askToDelete}
           />
         ))}
 
@@ -159,21 +235,226 @@ export default function ChatList() {
         )}
       </ul>
 
+      {menuConversation && (
+        <ChatContextMenu
+          conversation={menuConversation}
+          x={menu.x}
+          y={menu.y}
+          isTrusted={isTrustedChat(menuConversation)}
+          onMute={(muted) => setMuted(menuConversation, muted)}
+          onToggleTrusted={() => toggleTrustedGhost(menuConversation)}
+          onClose={closeMenu}
+        />
+      )}
+
+      {notice && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-6 z-30 flex justify-center px-4">
+          <p className="rounded-full bg-fg px-4 py-2 text-center text-sm text-panel shadow-lg">{notice}</p>
+        </div>
+      )}
+
       {/* Slide-over panels, like WhatsApp: they cover the list, not the chat */}
       <AnimatePresence>
+        {deleting && (
+          <ConfirmDialog
+            key="delete-chat"
+            title="Delete this chat?"
+            text={`All messages with ${conversationTitle(deleting)} disappear for you and the chat leaves your list. It comes back if a new message arrives.`}
+            confirmLabel="Delete chat"
+            onConfirm={() => deleteChat(deleting)}
+            onClose={() => setDeleting(null)}
+          />
+        )}
         {sidebarPanel === 'newChat' && (
           <UserSearch key="search" initialQuery={query} onClose={() => setSidebarPanel(null)} />
         )}
         {sidebarPanel === 'newGroup' && <NewGroup key="group" onClose={() => setSidebarPanel(null)} />}
         {sidebarPanel === 'profile' && <Profile key="profile" onClose={() => setSidebarPanel(null)} />}
+        {sidebarPanel === 'scheduled' && <ScheduledMessages key="scheduled" onClose={() => setSidebarPanel(null)} />}
       </AnimatePresence>
     </div>
   );
 }
 
+const LONG_PRESS_MS = 450;
+const MENU_WIDTH = 232; // px
+
+// The options for one chat, opened where it was right-clicked or long-pressed
+// (Deleting a chat is done by swiping the row — see SwipeBin.)
+function ChatContextMenu({ conversation, x, y, isTrusted, onMute, onToggleTrusted, onClose }) {
+  const menuRef = useRef(null);
+  const [position, setPosition] = useState({ left: x, top: y });
+  const isDirect = !isGroup(conversation) && conversation.otherUser;
+
+  // Keep the whole menu on screen: open to the left / upwards near the edges
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (!el) return;
+    const margin = 8;
+    const left = Math.max(margin, Math.min(x, window.innerWidth - el.offsetWidth - margin));
+    const top = y + el.offsetHeight + margin > window.innerHeight ? Math.max(margin, y - el.offsetHeight) : y;
+    setPosition({ left, top });
+  }, [x, y]);
+
+  // Close when tapping anywhere else, pressing Escape or scrolling the list
+  useEffect(() => {
+    function handlePointerDown(event) {
+      if (!menuRef.current?.contains(event.target)) onClose();
+    }
+    function handleKey(event) {
+      if (event.key === 'Escape') onClose();
+    }
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKey);
+    window.addEventListener('scroll', onClose, true);
+    window.addEventListener('resize', onClose);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKey);
+      window.removeEventListener('scroll', onClose, true);
+      window.removeEventListener('resize', onClose);
+    };
+  }, [onClose]);
+
+  function run(action) {
+    onClose();
+    action();
+  }
+
+  return (
+    <motion.div
+      ref={menuRef}
+      role="menu"
+      aria-label={`Options for ${conversationTitle(conversation)}`}
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.12 }}
+      className="fixed z-40 overflow-hidden rounded-2xl border border-line bg-panel py-1 text-sm shadow-xl"
+      style={{ ...position, width: MENU_WIDTH }}
+      // A right-click on the menu itself shouldn't open the browser's menu
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      {conversation.isMuted ? (
+        <ContextMenuItem icon={Bell} label="Unmute" onClick={() => run(() => onMute(false))} />
+      ) : (
+        <ContextMenuItem icon={BellOff} label="Mute" onClick={() => run(() => onMute(true))} />
+      )}
+      {isDirect && (
+        <ContextMenuItem
+          icon={Star}
+          label={isTrusted ? 'Remove from Trusted Ghosts' : '⭐ Add to Trusted Ghosts'}
+          onClick={() => run(onToggleTrusted)}
+        />
+      )}
+    </motion.div>
+  );
+}
+
+function ContextMenuItem({ icon: Icon, label, onClick }) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-hover"
+    >
+      <Icon size={17} className="shrink-0" />
+      <span className="truncate">{label}</span>
+    </button>
+  );
+}
+
+const SWIPE_REVEAL = 80; // px the row slides aside to show the bin
+
+function SwipeBin({ visible, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      tabIndex={visible ? 0 : -1}
+      aria-hidden={!visible}
+      aria-label="Delete chat"
+      className={`flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${visible ? '' : 'invisible'}`}
+      style={{ width: SWIPE_REVEAL }}
+    >
+      <Trash2 size={20} />
+      Delete
+    </button>
+  );
+}
+
 // memo: a row only re-renders when its own conversation changes
-const ConversationItem = memo(function ConversationItem({ conversation, myId, isActive, typingUsers, isTrusted = false }) {
+const ConversationItem = memo(function ConversationItem({
+  conversation,
+  myId,
+  isActive,
+  typingUsers,
+  isTrusted = false,
+  onMenu,
+  // 🗑️ Swipe: 1 = swiped right (bin on the left), -1 = swiped left (bin on the right), 0 = closed
+  swipeSide = 0,
+  onSwipe,
+  onDelete,
+}) {
   const { lastMessage, lastMessageAt, unreadCount, isMuted, ghost, streak = 0 } = conversation;
+  const longPress = useRef({ timer: null, fired: false });
+  const touch = useRef({ startX: 0, startY: 0, axis: null, moved: false });
+  const [dragX, setDragX] = useState(null); // how far the row follows the finger, while swiping
+  const openX = swipeSide * SWIPE_REVEAL;
+  const x = dragX ?? openX;
+
+  // Right-click on a computer, long-press on a phone: the chat's options menu
+  function handleContextMenu(event) {
+    event.preventDefault();
+    onMenu(conversation._id, event.clientX, event.clientY);
+  }
+  function handleTouchStart(event) {
+    const point = event.touches[0];
+    touch.current = { startX: point.clientX, startY: point.clientY, axis: null, moved: false };
+    longPress.current.fired = false;
+    longPress.current.timer = setTimeout(() => {
+      longPress.current.fired = true;
+      navigator.vibrate?.(10);
+      onMenu(conversation._id, point.clientX, point.clientY);
+    }, LONG_PRESS_MS);
+  }
+  function cancelLongPress() {
+    clearTimeout(longPress.current.timer);
+  }
+  // Sideways moves slide the row; up/down moves are left to the list's scrolling
+  function handleTouchMove(event) {
+    const point = event.touches[0];
+    const t = touch.current;
+    const dx = point.clientX - t.startX;
+    const dy = point.clientY - t.startY;
+    if (!t.axis && Math.max(Math.abs(dx), Math.abs(dy)) > 8) {
+      t.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      cancelLongPress();
+    }
+    if (t.axis === 'x') {
+      t.moved = true;
+      const limit = SWIPE_REVEAL * 1.25;
+      setDragX(Math.max(-limit, Math.min(limit, openX + dx)));
+    }
+  }
+  // Let go past halfway: the bin stays showing. Otherwise the row slides back.
+  function handleTouchEnd() {
+    cancelLongPress();
+    if (touch.current.axis !== 'x' || dragX === null) return;
+    const side = dragX <= -SWIPE_REVEAL / 2 ? -1 : dragX >= SWIPE_REVEAL / 2 ? 1 : 0;
+    setDragX(null);
+    onSwipe(conversation._id, side);
+  }
+  function handleClick(event) {
+    // The tap that ends a long press or a swipe shouldn't also open the chat,
+    // and tapping a row with its bin showing just slides it back
+    if (longPress.current.fired || touch.current.moved || swipeSide !== 0) {
+      event.preventDefault();
+      longPress.current.fired = false;
+      touch.current.moved = false;
+      if (swipeSide !== 0) onSwipe(conversation._id, 0);
+    }
+  }
   const isMine = lastMessage?.senderId === myId;
   const showUnread = unreadCount > 0 && !isMuted;
   const nameOf = makeNameOf(conversation, myId);
@@ -192,11 +473,29 @@ const ConversationItem = memo(function ConversationItem({ conversation, myId, is
   const isDead = isDeadChat(conversation);
 
   return (
-    <li>
+    <li className="relative mx-2 overflow-hidden rounded-xl">
+      {/* 🗑️ Behind the row: a red bin on whichever side the row slid away from */}
+      {x !== 0 && (
+        <div className="absolute inset-0 flex items-stretch justify-between bg-red-600 text-white">
+          <SwipeBin visible={x > 0} onClick={() => onDelete(conversation)} />
+          <SwipeBin visible={x < 0} onClick={() => onDelete(conversation)} />
+        </div>
+      )}
       <Link
         href={`/chat/${conversation._id}`}
-        className={`mx-2 flex items-center gap-3 rounded-xl px-2.5 py-2.5 transition ${
-          isActive ? 'bg-brand-soft' : 'hover:bg-hover active:bg-hover'
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        style={{ transform: x ? `translateX(${x}px)` : undefined }}
+        // touch-action: pan-y lets the list scroll up and down while we handle sideways swipes
+        className={`relative flex touch-pan-y items-center gap-3 rounded-xl px-2.5 py-2.5 select-none [-webkit-touch-callout:none] ${
+          dragX === null ? 'transition-[transform,background-color] duration-200' : ''
+        } ${
+          // Solid while slid aside, so the red doesn't show through
+          x !== 0 ? 'bg-panel' : isActive ? 'bg-brand-soft' : 'hover:bg-hover active:bg-hover'
         }`}
       >
         <ChatAvatar conversation={conversation} size={50} showStatus viewable />

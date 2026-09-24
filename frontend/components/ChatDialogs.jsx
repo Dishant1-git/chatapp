@@ -402,15 +402,23 @@ export function NicknameDialog({ conversation, onClose, onError }) {
           if (nickname.trim() && nickname.trim() !== current) save(nickname);
         }}
       >
+        <label htmlFor="nickname-input" className="mb-1.5 flex items-baseline justify-between text-sm font-medium">
+          Type any nickname you like
+          <span className="text-xs font-normal text-muted">
+            {nickname.length}/{MAX_NICKNAME}
+          </span>
+        </label>
         <input
+          id="nickname-input"
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
           maxLength={MAX_NICKNAME}
           autoFocus
-          placeholder="e.g. Cutie 🥰"
+          placeholder={`Your nickname for ${firstName}…`}
           className="w-full rounded-xl border border-line bg-panel-soft px-3.5 py-2.5 text-base outline-none focus:border-brand md:text-sm"
         />
-        <div className="mt-2 flex flex-wrap gap-1.5">
+        <p className="mt-3 mb-1.5 text-xs text-muted">Need an idea? Tap one, then change it however you want:</p>
+        <div className="flex flex-wrap gap-1.5">
           {NICKNAME_IDEAS.map((idea) => (
             <button
               key={idea}

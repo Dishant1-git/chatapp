@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Mail, Users, X } from 'lucide-react';
+import { Users, X } from 'lucide-react';
 import Avatar from './Avatar';
 import { ImageLightbox } from './ImagePreview';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
@@ -103,11 +103,6 @@ function ProfileCard({ profile, onClose }) {
           {mood && (
             <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-panel-soft px-3 py-1 text-sm">
               <span>{mood.emoji}</span> {mood.label}
-            </p>
-          )}
-          {user?.email && (
-            <p className="mt-3 flex items-center gap-2 text-sm text-muted">
-              <Mail size={15} className="shrink-0" /> <span className="truncate">{user.email}</span>
             </p>
           )}
         </div>

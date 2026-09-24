@@ -5,6 +5,7 @@ import { connectDB } from './config/db.js';
 import { migrate } from './config/migrate.js';
 import { setupSocket } from './socket/index.js';
 import User from './models/User.js';
+import { startScheduler } from './utils/scheduler.js';
 
 dotenv.config({ quiet: true });
 
@@ -41,3 +42,5 @@ await connectDB();
 await migrate();
 // If the server crashed earlier, some users may still be marked online
 await User.updateMany({ isOnline: true }, { isOnline: false });
+// ⏰ Send scheduled messages when their time comes
+startScheduler();

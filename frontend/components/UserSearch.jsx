@@ -6,6 +6,7 @@ import { ArrowLeft, Loader2, Search } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import Avatar from './Avatar';
 import { api } from '@/lib/client';
+import { formatLastSeen } from '@/lib/format';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 // "New chat" panel: search all users by name or email and open a conversation
@@ -67,7 +68,7 @@ export default function UserSearch({ initialQuery = '', onClose }) {
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name or email"
+            placeholder="Search by name or full email"
             className="w-full rounded-full bg-panel-soft py-2.5 pr-4 pl-10 text-base outline-none placeholder:text-muted focus:ring-2 focus:ring-brand/25 md:text-sm"
           />
         </div>
@@ -86,7 +87,9 @@ export default function UserSearch({ initialQuery = '', onClose }) {
               <Avatar user={person} size={46} showStatus viewable />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{person.name}</p>
-                <p className="truncate text-sm text-muted">{person.email}</p>
+                <p className={`truncate text-sm ${person.isOnline ? 'text-brand' : 'text-muted'}`}>
+                  {person.isOnline ? 'online' : formatLastSeen(person.lastSeen)}
+                </p>
               </div>
               {openingId === person._id && <Loader2 size={18} className="animate-spin text-muted" />}
             </button>
@@ -105,7 +108,7 @@ export default function UserSearch({ initialQuery = '', onClose }) {
 
         {!query.trim() && (
           <li className="px-8 py-10 text-center text-sm text-muted">
-            Type a name or email address to find someone.
+            Type a name, or their full email address, to find someone.
           </li>
         )}
       </ul>

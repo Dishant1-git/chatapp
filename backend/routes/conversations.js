@@ -17,7 +17,8 @@ import { leaveCallsFor } from '../socket/calls.js';
 const router = Router();
 router.use(requireAuth);
 
-export const PARTICIPANT_FIELDS = 'name email profileImage isOnline lastSeen publicKey keyId mood';
+// What others see about the people they chat with. No email: only its owner sees that.
+export const PARTICIPANT_FIELDS = 'name profileImage isOnline lastSeen publicKey keyId mood';
 const PAGE_SIZE = 30;
 
 export function badRequest(res, error) {

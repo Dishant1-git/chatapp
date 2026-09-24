@@ -1,4 +1,4 @@
-// Chat options from the ⋮ menu: 🚫 block / unblock, 🧹 clear chat,
+// Chat options: unblock (for chats blocked before blocking was removed), 🧹 clear chat,
 // 🗑️ delete chat and 💖 nicknames.
 import { Router } from 'express';
 import Conversation, { formatNicknames } from '../models/Conversation.js';
@@ -8,7 +8,6 @@ import { groupLimiter } from '../middleware/rateLimits.js';
 import { badRequest, findMyConversation } from './conversations.js';
 import { publishEvent } from '../utils/publish.js';
 import { getIO, emitToConversation, userRoom } from '../socket/io.js';
-import { leaveCallsFor } from '../socket/calls.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -31,21 +30,10 @@ function emitToMe(userId, event, data) {
   getIO()?.to(userRoom(userId)).emit(event, data);
 }
 
-// ---- 🚫 Block ----
+// ---- 🚫 Unblock ----
 
-// POST /api/conversations/:id/block — nobody can message, react or call in this chat
-// until I unblock. The other person isn't told; they just can't send anymore.
-router.post('/:id/block', async (req, res) => {
-  const conversation = await findMyDirectChat(req, res);
-  if (!conversation) return;
-
-  await Conversation.updateOne({ _id: conversation._id }, { $addToSet: { blockedBy: req.userId } });
-  leaveCallsFor(conversation._id, req.userId);
-  emitToMe(req.userId, 'conversation:updated', { conversation: { _id: String(conversation._id), blockedByMe: true } });
-  res.json({ blockedByMe: true });
-});
-
-// DELETE /api/conversations/:id/block — unblock
+// DELETE /api/conversations/:id/block — unblock. Blocking itself was removed from
+// the app; this lets chats that were blocked before that be opened up again.
 router.delete('/:id/block', async (req, res) => {
   const conversation = await findMyDirectChat(req, res);
   if (!conversation) return;

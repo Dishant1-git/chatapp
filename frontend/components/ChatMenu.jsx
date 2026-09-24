@@ -2,41 +2,20 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import {
-  Ban,
-  Bell,
-  BellOff,
-  Brain,
-  DoorOpen,
-  EllipsisVertical,
-  Eraser,
-  Ghost,
-  Heart,
-  Image,
-  Puzzle,
-  ShieldCheck,
-  Sparkles,
-  Star,
-  Trash2,
-  Vibrate,
-} from 'lucide-react';
-import { useChat } from './ChatProvider';
-import { api } from '@/lib/client';
+import { Brain, DoorOpen, EllipsisVertical, Eraser, Ghost, Heart, Image, Puzzle, Vibrate } from 'lucide-react';
 import { GHOST_LEVEL_INFO } from '@/lib/ghost';
 
-// The ⋮ menu in the chat header. Mute, 💕 miss you, 📳 buzz and unblock work here;
-// the rest opens a dialog owned by ChatWindow
-// (onOpen('ghost' | 'vibe' | 'badge' | 'leave' | 'nickname' | 'clear' | 'deleteChat' | 'block')).
-export default function ChatMenu({ conversation, myId, onError, onOpen, onMissYou, onBuzz, onUnblock, isBusy }) {
-  const { updateConversation, user, toggleTrusted } = useChat();
+// The ⋮ menu in the chat header. 💕 Miss you and 📳 buzz work here; the rest
+// opens a dialog owned by ChatWindow (onOpen('ghost' | 'vibe' | 'badge' | 'leave' | 'clear')).
+// Mute, Trusted Ghosts and Delete chat are in the chat list's right-click menu.
+export default function ChatMenu({ conversation, myId, onOpen, onMissYou, onBuzz, isBusy }) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
 
-  const { _id: conversationId, isMuted, ghost, otherUser, blockedByMe } = conversation;
+  const { ghost, otherUser } = conversation;
   const isDirect = conversation.type !== 'group';
   const ghostedByMe = ghost?.by === myId;
   const ghostedByThem = Boolean(ghost) && !ghostedByMe;
-  const isTrusted = Boolean(otherUser && (user?.trusted || []).includes(otherUser._id));
 
   // Close the menu when tapping anywhere else
   useEffect(() => {
@@ -54,25 +33,6 @@ export default function ChatMenu({ conversation, myId, onError, onOpen, onMissYo
       document.removeEventListener('keydown', handleKey);
     };
   }, [isOpen]);
-
-  async function setMuted(muted) {
-    setIsOpen(false);
-    try {
-      const data = await api(`/api/conversations/${conversationId}/mute`, { method: 'POST', body: { muted } });
-      updateConversation(conversationId, { isMuted: data.isMuted });
-    } catch (err) {
-      onError(err.message);
-    }
-  }
-
-  async function toggleTrustedGhost() {
-    setIsOpen(false);
-    try {
-      await toggleTrusted(otherUser._id);
-    } catch (err) {
-      onError(err.message);
-    }
-  }
 
   function open(dialog) {
     setIsOpen(false);
@@ -120,11 +80,6 @@ export default function ChatMenu({ conversation, myId, onError, onOpen, onMissYo
               onClick={() => run(onBuzz)}
             />
           )}
-          {isMuted ? (
-            <MenuItem icon={Bell} label="Unmute" onClick={() => setMuted(false)} />
-          ) : (
-            <MenuItem icon={BellOff} label="Mute" onClick={() => setMuted(true)} />
-          )}
           {isDirect && otherUser && (
             <MenuItem
               icon={Ghost}
@@ -134,42 +89,17 @@ export default function ChatMenu({ conversation, myId, onError, onOpen, onMissYo
               onClick={() => open('ghost')}
             />
           )}
-          {isDirect && otherUser && (
-            <MenuItem
-              icon={Star}
-              label={isTrusted ? 'Remove from Trusted Ghosts' : '⭐ Add to Trusted Ghosts'}
-              hint={isTrusted ? '' : 'Pinned at the top of your chats'}
-              onClick={toggleTrustedGhost}
-            />
-          )}
           <MenuItem
             icon={Image}
             label="🖼️ Chat background"
             hint="Just for this chat, on this device"
             onClick={() => open('background')}
           />
-          {isDirect && otherUser && (
-            <MenuItem
-              icon={Sparkles}
-              label={conversation.nicknames?.[otherUser._id] ? '💖 Change nickname' : '💖 Give a nickname'}
-              hint="You both see it"
-              disabled={blockedByMe}
-              onClick={() => open('nickname')}
-            />
-          )}
           <MenuItem icon={Brain} label="Read the vibe" onClick={() => open('vibe')} />
           <MenuItem icon={Puzzle} label="Add inside joke" onClick={() => open('badge')} />
           {isDirect && <MenuItem icon={DoorOpen} label="Leave conversation" onClick={() => open('leave')} />}
           <div className="my-1 border-t border-line" />
           <MenuItem icon={Eraser} label="Clear chat" hint="Only for you" onClick={() => open('clear')} />
-          <MenuItem icon={Trash2} label="Delete chat" danger onClick={() => open('deleteChat')} />
-          {isDirect &&
-            otherUser &&
-            (blockedByMe ? (
-              <MenuItem icon={ShieldCheck} label={`Unblock ${otherUser.name}`} onClick={() => run(onUnblock)} />
-            ) : (
-              <MenuItem icon={Ban} label={`Block ${otherUser.name}`} danger onClick={() => open('block')} />
-            ))}
         </motion.div>
       )}
     </div>
