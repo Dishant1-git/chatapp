@@ -60,7 +60,7 @@ npm start         # starts backend + frontend
 | `MONGODB_URI`      | `mongodb://127.0.0.1:27017/chat-app` | MongoDB connection string                              |
 | `JWT_SECRET`       | long random string                   | Signs the login cookie. Keep it secret.                |
 | `CLIENT_URL`       | `http://localhost:3000`              | Frontend URL(s), comma-separated. Used for CORS.       |
-| `UPLOAD_DIR`       | `uploads`                            | Folder where uploaded images are stored                |
+| `UPLOAD_DIR`       | `uploads`                            | Old upload folder, still read for files saved before uploads moved to MongoDB |
 | `TRUST_PROXY`      | `1`                                  | Optional. Set to `1` when the frontend runs on another server |
 | `COOKIE_SAME_SITE` | `none`                               | Optional. Only if the browser calls the API directly on another domain |
 | `STUN_URLS`        | `stun:stun.l.google.com:19302`       | Optional. STUN servers for calls, comma-separated      |
@@ -104,11 +104,12 @@ Browser ──► Next.js (frontend) ──/api, /socket.io, /uploads──► E
   is written when the last tab closes.
 - **Ticks:** a message is *delivered* if the receiver has the app open when it's sent (or as soon
   as they connect), and *read* when they open the conversation.
-- **Chat photos** are resized and encrypted in the browser, then stored as-is in `UPLOAD_DIR` and
-  served at `/uploads/<name>.bin`, so the server never sees them. **Profile and group photos** aren't
-  secret: they're checked, resized and converted to WEBP with `sharp` and served at `/uploads/<name>.webp`.
-  Only `backend/utils/storage.js` knows where files go, so switching to S3 or Cloudinary means
-  changing `saveImage()` and `saveEncryptedFile()` only.
+- **Chat photos** are resized and encrypted in the browser, then stored as-is in MongoDB (GridFS,
+  the `uploads` bucket) and served at `/uploads/<name>.bin`, so the server never sees them. **Profile
+  and group photos** aren't secret: they're checked, resized and converted to WEBP with `sharp` and
+  served at `/uploads/<name>.webp`. Files live in the database rather than on disk because hosts like
+  Render wipe the disk on every restart. Only `backend/utils/storage.js` knows where files go, so
+  switching to S3 or Cloudinary means changing that file only.
 
 ### End-to-end encryption
 
@@ -336,7 +337,8 @@ The frontend can run on the same server or elsewhere.
 2. Build and deploy the frontend with `BACKEND_URL` set to the backend's URL.
 3. If the frontend and backend are on **different servers**, set `TRUST_PROXY=1` on the backend
    so sign-up rate limiting sees visitors' real IP addresses.
-4. Make `UPLOAD_DIR` a persistent disk, or switch `backend/utils/storage.js` to S3/Cloudinary.
+4. Uploads are stored in MongoDB, so no persistent disk is needed. Keep an eye on the database size
+   (voice messages and video notes add up); switch `backend/utils/storage.js` to S3/Cloudinary if it grows.
 5. Point your host's health check (on Render: **Settings → Health Check Path**) at `/api/health`.
 
 6. Set `TURN_URL`, `TURN_USERNAME` and `TURN_CREDENTIAL` so calls work on every network.

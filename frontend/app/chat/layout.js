@@ -6,6 +6,7 @@ import ChatList from '@/components/ChatList';
 import Navbar from '@/components/Navbar';
 import Notifications from '@/components/Notifications';
 import Tour from '@/components/Tour';
+import ProfileViewer from '@/components/ProfileViewer';
 import CallProvider from '@/components/CallProvider';
 import { useViewportHeight } from '@/hooks/useViewportHeight';
 
@@ -74,6 +75,8 @@ function ChatShell({ children }) {
         </div>
 
         <Notifications />
+        {/* Tap anyone's picture to see it bigger, with their profile */}
+        <ProfileViewer />
         {/* First-time guided tour of the features */}
         <Tour />
       </div>

@@ -222,7 +222,7 @@ export default function GroupInfo({ conversation, onClose }) {
                 const isMe = member._id === myId;
                 return (
                   <li key={member._id} className="group flex items-center gap-3 px-5 py-2.5">
-                    <Avatar user={member} size={40} showStatus />
+                    <Avatar user={member} size={40} showStatus viewable />
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{isMe ? 'You' : member.name}</p>
                       <p className="truncate text-xs text-muted">{member.email}</p>

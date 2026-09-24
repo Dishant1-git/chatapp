@@ -1,5 +1,9 @@
+'use client';
+
+import { useState } from 'react';
 import { Users } from 'lucide-react';
 import { MOODS } from '@/lib/social';
+import { openProfileViewer } from './ProfileViewer';
 
 // Profile picture with a fallback to the person's initials
 const COLORS = ['#0d8a74', '#2563eb', '#9333ea', '#db2777', '#ea580c', '#0891b2', '#4f46e5', '#65a30d'];
@@ -15,17 +19,43 @@ function initials(name = '') {
   return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '?';
 }
 
-export default function Avatar({ user, size = 44, showStatus = false, isGroup = false }) {
+// viewable: tapping the picture opens it bigger with the person's profile (see ProfileViewer)
+export default function Avatar({ user, size = 44, showStatus = false, isGroup = false, viewable = false, onView }) {
   const name = user?.name || '';
+  // Remember which image failed, so a new picture gets its own chance to load
+  const [brokenImage, setBrokenImage] = useState('');
+  const showImage = user?.profileImage && user.profileImage !== brokenImage;
+
+  function view(event) {
+    // Avatars often sit inside a link or button (a chat in the list) — don't trigger that too
+    event.preventDefault();
+    event.stopPropagation();
+    (onView || (() => openProfileViewer({ user })))();
+  }
+
+  const viewProps = viewable
+    ? {
+        role: 'button',
+        tabIndex: 0,
+        'aria-label': `View ${name}'s profile`,
+        onClick: view,
+        onKeyDown: (event) => (event.key === 'Enter' || event.key === ' ') && view(event),
+      }
+    : {};
 
   return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      {user?.profileImage ? (
+    <div
+      className={`relative shrink-0 ${viewable ? 'cursor-pointer rounded-full focus-visible:outline-2 focus-visible:outline-brand' : ''}`}
+      style={{ width: size, height: size }}
+      {...viewProps}
+    >
+      {showImage ? (
         <img
           src={user.profileImage}
           alt={name}
           className="h-full w-full rounded-full object-cover"
           loading="lazy"
+          onError={() => setBrokenImage(user.profileImage)}
         />
       ) : (
         <div
@@ -54,9 +84,22 @@ export default function Avatar({ user, size = 44, showStatus = false, isGroup = 
 }
 
 // The picture for a chat: the other person, or the group's photo
-export function ChatAvatar({ conversation, size = 44, showStatus = false }) {
+export function ChatAvatar({ conversation, size = 44, showStatus = false, viewable = false }) {
   if (conversation?.type === 'group') {
-    return <Avatar user={{ name: conversation.name, profileImage: conversation.image }} size={size} isGroup />;
+    const group = {
+      name: conversation.name,
+      image: conversation.image,
+      memberCount: conversation.participants?.length || 0,
+    };
+    return (
+      <Avatar
+        user={{ name: group.name, profileImage: group.image }}
+        size={size}
+        isGroup
+        viewable={viewable}
+        onView={() => openProfileViewer({ group })}
+      />
+    );
   }
-  return <Avatar user={conversation?.otherUser} size={size} showStatus={showStatus} />;
+  return <Avatar user={conversation?.otherUser} size={size} showStatus={showStatus} viewable={viewable} />;
 }

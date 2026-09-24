@@ -915,7 +915,7 @@ export default function ChatWindow({ conversationId }) {
           className={`flex min-w-0 flex-1 items-center gap-2 rounded-xl py-1 text-left ${isGroupChat ? 'cursor-pointer' : 'cursor-default'}`}
           aria-label={isGroupChat ? 'Group info' : undefined}
         >
-          {conversation && <ChatAvatar conversation={conversation} size={40} />}
+          {conversation && <ChatAvatar conversation={conversation} size={40} viewable />}
           <div className="min-w-0 flex-1">
             <h2 className="min-w-0 truncate leading-tight font-semibold">
               {conversationTitle(conversation) || '…'}
