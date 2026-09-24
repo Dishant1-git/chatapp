@@ -1028,7 +1028,7 @@ export default function ChatWindow({ conversationId }) {
 
   function writeOwnReply() {
     setMissYouFrom(null);
-    rootRef.current?.querySelector('[role="textbox"]')?.focus();
+    rootRef.current?.querySelector('textarea')?.focus();
   }
 
   async function handleCall(video) {

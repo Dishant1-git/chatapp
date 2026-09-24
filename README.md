@@ -201,15 +201,16 @@ Routes live in `backend/routes/social.js`; labels in `frontend/lib/ghost.js` and
   leaving an empty bubble.
 - **🎞️ GIFs**: GIFs can be sent like any photo and stay animated — the browser sends them as they
   are (a canvas would keep one frame), and sticker packs made from GIFs are stored as animated
-  WEBP. **The phone keyboard's own GIF and sticker buttons work too**: whatever they put into the
-  message box (a paste carrying a picture) is sent as a photo, which also covers copy-paste and
-  dropping a file in. For that to be possible the message box is a rich-text field
-  (`contentEditable`, `role="textbox"`) rather than a `<textarea>` — Android and iOS only offer
-  those keyboard buttons for fields that can hold a picture, and a `<textarea>` gets
-  "This app does not support images here". Typing still behaves like a plain text box: pasted text
-  loses its formatting, and the text sent is `innerText`. With `GIPHY_API_KEY` set there's a 🎞️ GIF tab with search
+  WEBP. A picture **pasted** into the message box, or dropped on it, is sent as a photo — so a GIF
+  copied from anywhere can be sent that way. With `GIPHY_API_KEY` set there's a 🎞️ GIF tab with search
   (`backend/routes/gifs.js` proxies GIPHY so the key never reaches the browser); without a key the
   tab isn't shown.
+  **Not possible today:** the phone keyboard's own GIF and sticker buttons ("This app does not
+  support images here"). Chrome for Android doesn't pass keyboard media to web pages at all yet —
+  the work sits behind an unfinished `Enable IME media insertion` flag in Canary — so no website
+  can accept them. A rich-text message box was tried and reverted: it changed nothing for the
+  keyboard and a plain `<textarea>` types, autocorrects and swipes better. Use the in-app GIF tab
+  and sticker packs, or copy a GIF and paste it in.
 - **🌟 Stickers** (the emoji button → *Stickers*): two built-in packs — 👻 Ghosts and 🧸 Bear &
   Panda — drawn as original SVGs in `frontend/public/stickers` and listed in
   `frontend/lib/stickers.js`. A sticker message carries only the sticker's id, inside the encrypted

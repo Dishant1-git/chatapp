@@ -114,14 +114,6 @@ body {
   scrollbar-color: var(--line) transparent;
 }
 
-/* The message box is a rich-text field (so phone keyboards offer their GIF and
-   sticker buttons), which has no placeholder of its own */
-[contenteditable][data-empty='true']::before {
-  content: attr(data-placeholder);
-  color: var(--muted);
-  pointer-events: none;
-}
-
 /* Soft pattern behind messages so the chat area doesn't look flat */
 .chat-bg {
   background-color: var(--chat);

@@ -94,6 +94,14 @@ export default function MessageInput({
   // Leaving the chat counts as "stopped typing"
   useEffect(() => stopTyping, []);
 
+  // Grow the box with its content, up to about 5 lines
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+  }, [text]);
+
   // Focus the input when the user picks "Reply"
   useEffect(() => {
     if (replyingTo) boxRef.current?.focus();
@@ -114,13 +122,7 @@ export default function MessageInput({
   const showMic = canRecordVoice && !trimmed;
 
   function handleChange(event) {
-    const box = event.currentTarget;
-    let value = box.innerText.replace(/\n$/, ''); // the browser keeps a trailing newline
-    if (value.length > MAX_LENGTH) {
-      value = value.slice(0, MAX_LENGTH);
-      box.textContent = value;
-      placeCaretAtEnd(box);
-    }
+    const value = event.target.value;
     setText(value);
     if (value.trim()) {
       notifyTyping();
@@ -144,7 +146,6 @@ export default function MessageInput({
     if (!trimmed) return;
     if (!canSend) return onError('You can only send emojis.');
     onSendText(trimmed);
-    if (boxRef.current) boxRef.current.textContent = '';
     setText('');
     setShowEmojis(emojiOnly);
     stopTyping();
@@ -161,20 +162,8 @@ export default function MessageInput({
     }
   }
 
-  // Pasting into a rich-text box would bring formatting (and whole web pages)
-  // with it, so text is inserted plainly. A picture goes to the handler below.
-  function handlePaste(event) {
-    if (handleInsertedImage(event)) return;
-    const plain = event.clipboardData?.getData('text/plain');
-    if (plain === undefined) return;
-    event.preventDefault();
-    document.execCommand?.('insertText', false, plain.slice(0, MAX_LENGTH));
-    handleChange({ currentTarget: event.currentTarget });
-  }
-
-  // 🎞️ The phone keyboard's own GIF and sticker buttons (and copy-paste, and
-  // dropping a file) put a picture into the message box. Browsers deliver that
-  // as a paste / insertion event carrying a file, which we send as a photo.
+  // 🎞️ A picture pasted into the message box, or dropped on it, is sent as a
+  // photo — that covers copying a GIF and pasting it in.
   function handleInsertedImage(event) {
     const transfer = event.clipboardData || event.dataTransfer;
     const file = [...(transfer?.files || [])].find((f) => f.type.startsWith('image/'));
@@ -187,27 +176,15 @@ export default function MessageInput({
     return true;
   }
 
-  // Puts the cursor back at the end after the text was replaced
-  function placeCaretAtEnd(box) {
-    const range = document.createRange();
-    range.selectNodeContents(box);
-    range.collapse(false);
-    const selection = window.getSelection();
-    selection?.removeAllRanges();
-    selection?.addRange(range);
-  }
-
   function insertEmoji(emoji) {
-    const box = boxRef.current;
-    if (!box) return;
-    box.focus();
-    // Types it in at the cursor, and leaves an undo step behind
-    if (!document.execCommand?.('insertText', false, emoji)) {
-      box.textContent += emoji;
-      placeCaretAtEnd(box);
-    }
-    setText(box.innerText.replace(/\n$/, ''));
-    notifyTyping();
+    const el = boxRef.current;
+    const start = el?.selectionStart ?? text.length;
+    const end = el?.selectionEnd ?? text.length;
+    setText(text.slice(0, start) + emoji + text.slice(end));
+    // Put the cursor right after the inserted emoji
+    requestAnimationFrame(() => {
+      el?.setSelectionRange(start + emoji.length, start + emoji.length);
+    });
   }
 
   return (
@@ -371,26 +348,25 @@ export default function MessageInput({
             <Smile size={23} />
           </button>
 
-          {/* A rich-text box, not a <textarea>: phone keyboards only offer their
-              🎞️ GIF and sticker buttons for fields that can hold a picture.
-              Everything typed is still handled as plain text. */}
-          <div
+          {/* A plain text box on purpose. A rich-text one was tried so that phone
+              keyboards would offer their 🎞️ GIF and sticker buttons, but Chrome for
+              Android doesn't hand keyboard media to web pages at all yet (the
+              "Enable IME media insertion" flag is unfinished), and the native field
+              behaves better for typing, autocorrect and swiping.
+              Pictures still arrive here by paste or drag — see handleInsertedImage. */}
+          <textarea
             ref={boxRef}
-            role="textbox"
-            contentEditable
-            suppressContentEditableWarning
-            aria-multiline="true"
-            aria-label={placeholder}
-            data-placeholder={placeholder}
-            data-empty={text ? undefined : 'true'}
-            onInput={handleChange}
+            value={text}
+            onChange={handleChange}
             onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            onBeforeInput={handleInsertedImage}
+            onPaste={handleInsertedImage}
             onDrop={handleInsertedImage}
             onBlur={stopTyping}
+            rows={1}
+            maxLength={MAX_LENGTH}
+            placeholder={placeholder}
             // text-base (16px) stops iOS from zooming into the field
-            className="scroll-thin max-h-32 min-w-0 flex-1 overflow-y-auto rounded-3xl bg-panel-soft px-4 py-2.5 text-base leading-6 break-words whitespace-pre-wrap outline-none md:text-[15px]"
+            className="scroll-thin max-h-32 min-w-0 flex-1 resize-none rounded-3xl bg-panel-soft px-4 py-2.5 text-base leading-6 outline-none placeholder:text-muted md:text-[15px]"
           />
 
           {!emojiOnly && onCamera && (
