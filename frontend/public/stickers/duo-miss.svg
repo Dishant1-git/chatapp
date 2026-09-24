@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" fill="none">
+<g stroke-linecap="round" stroke-linejoin="round">
+<circle cx="174" cy="66" r="40" fill="#ffffff" stroke="#b9c2d0" stroke-width="5"/>
+<circle cx="132" cy="118" r="10" fill="#ffffff" stroke="#b9c2d0" stroke-width="4"/>
+<circle cx="117" cy="138" r="6" fill="#ffffff" stroke="#b9c2d0" stroke-width="4"/>
+<circle cx="157" cy="48" r="10" fill="#2f3a4a"/><circle cx="191" cy="48" r="10" fill="#2f3a4a"/>
+<circle cx="174" cy="66" r="23" fill="#ffffff" stroke="#b9c2d0" stroke-width="4"/>
+<ellipse cx="164" cy="61" rx="6.5" ry="8" fill="#2f3a4a"/><ellipse cx="184" cy="61" rx="6.5" ry="8" fill="#2f3a4a"/>
+<circle cx="164" cy="59" r="2.4" fill="#ffffff"/><circle cx="184" cy="59" r="2.4" fill="#ffffff"/>
+<ellipse cx="174" cy="74" rx="4.5" ry="3.5" fill="#2f3a4a"/>
+<path d="M168 80q6 5 12 0" stroke="#2f3a4a" stroke-width="4"/>
+<circle cx="48" cy="130" r="16" fill="#d6a06a" stroke="#b9c2d0" stroke-width="5"/><circle cx="112" cy="130" r="16" fill="#d6a06a" stroke="#b9c2d0" stroke-width="5"/><circle cx="48" cy="127" r="7" fill="#c0834a"/><circle cx="112" cy="127" r="7" fill="#c0834a"/><ellipse cx="80" cy="168" rx="46" ry="44" fill="#d6a06a" stroke="#b9c2d0" stroke-width="5"/><ellipse cx="84" cy="165" rx="20" ry="14" fill="#f6e2c6"/><ellipse cx="45" cy="169" rx="9" ry="5.5" fill="#ffd2d8"/><ellipse cx="115" cy="169" rx="9" ry="5.5" fill="#ffd2d8"/><path d="M59 137q8 10 16 0" stroke="#2f3a4a" stroke-width="5"/><path d="M93 137q8 10 16 0" stroke="#2f3a4a" stroke-width="5"/><ellipse cx="84" cy="159" rx="6.5" ry="5" fill="#2f3a4a"/><path d="M77 168q7 6 14 0" stroke="#2f3a4a" stroke-width="5"/>
+<path d="M0 9C-11 1-16-6-16-11a8 8 0 0 1 16-1 8 8 0 0 1 16 1c0 5-5 12-16 20z" fill="#e0384a" transform="translate(80 212) scale(1.35)"/>
+<path d="M46 188q2 16 22 26" stroke="#b9c2d0" stroke-width="21"/><path d="M46 188q2 16 22 26" stroke="#d6a06a" stroke-width="13"/>
+<path d="M114 188q-2 16-22 26" stroke="#b9c2d0" stroke-width="21"/><path d="M114 188q-2 16-22 26" stroke="#d6a06a" stroke-width="13"/>
+</g>
+</svg>

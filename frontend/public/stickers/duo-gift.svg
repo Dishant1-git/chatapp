@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" fill="none">
+<g stroke-linecap="round" stroke-linejoin="round">
+<circle cx="30" cy="126" r="16" fill="#d6a06a" stroke="#b9c2d0" stroke-width="5"/><circle cx="94" cy="126" r="16" fill="#d6a06a" stroke="#b9c2d0" stroke-width="5"/><circle cx="30" cy="123" r="7" fill="#c0834a"/><circle cx="94" cy="123" r="7" fill="#c0834a"/><ellipse cx="62" cy="164" rx="46" ry="44" fill="#d6a06a" stroke="#b9c2d0" stroke-width="5"/><ellipse cx="68" cy="171" rx="20" ry="14" fill="#f6e2c6"/><ellipse cx="27" cy="165" rx="9" ry="5.5" fill="#ffd2d8"/><ellipse cx="97" cy="165" rx="9" ry="5.5" fill="#ffd2d8"/><path d="M43 150q8-10 16 0" stroke="#2f3a4a" stroke-width="5"/><path d="M77 150q8-10 16 0" stroke="#2f3a4a" stroke-width="5"/><ellipse cx="68" cy="165" rx="6.5" ry="5" fill="#2f3a4a"/><path d="M57 174q11 12 22 0" stroke="#2f3a4a" stroke-width="5.5"/>
+<circle cx="140" cy="122" r="16" fill="#2f3a4a" stroke="#b9c2d0" stroke-width="5"/><circle cx="204" cy="122" r="16" fill="#2f3a4a" stroke="#b9c2d0" stroke-width="5"/><ellipse cx="172" cy="160" rx="46" ry="44" fill="#ffffff" stroke="#b9c2d0" stroke-width="5"/><ellipse cx="137" cy="164" rx="9" ry="5.5" fill="#ffd2d8"/><ellipse cx="207" cy="164" rx="9" ry="5.5" fill="#ffd2d8"/><ellipse cx="146" cy="142" rx="12" ry="14.5" fill="#2f3a4a" transform="rotate(-16 146 142)"/><ellipse cx="182" cy="142" rx="12" ry="14.5" fill="#2f3a4a" transform="rotate(16 182 142)"/><ellipse cx="146" cy="142" rx="6" ry="7" fill="#ffffff"/><ellipse cx="182" cy="142" rx="6" ry="7" fill="#ffffff"/><ellipse cx="164" cy="164" rx="6.5" ry="5" fill="#2f3a4a"/><path d="M151 170q13 18 26 0z" fill="#2f3a4a"/>
+<rect x="98" y="152" width="46" height="46" rx="7" fill="#0f9d76" stroke="#b9c2d0" stroke-width="5"/>
+<path d="M121 154v42M100 174h42" stroke="#e0384a" stroke-width="9"/>
+<g fill="#e0384a"><ellipse cx="112" cy="146" rx="9" ry="6.5" transform="rotate(-25 112 146)"/><ellipse cx="130" cy="146" rx="9" ry="6.5" transform="rotate(25 130 146)"/><circle cx="121" cy="149" r="4.5"/></g>
+<path d="M84 190q14 8 24 4" stroke="#b9c2d0" stroke-width="21"/><path d="M84 190q14 8 24 4" stroke="#d6a06a" stroke-width="13"/>
+<path d="M158 188q-14 4-20 2" stroke="#b9c2d0" stroke-width="21"/><path d="M158 188q-14 4-20 2" stroke="#2f3a4a" stroke-width="13"/>
+<g stroke-width="6"><path d="M106 134l-5-8M120 126v-9M200 96l6-7M170 84v-9" stroke="#f5b301"/></g>
+</g>
+</svg>

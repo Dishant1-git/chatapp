@@ -56,6 +56,19 @@ const conversationSchema = new mongoose.Schema(
     lastMessageAt: { type: Date, default: Date.now },
     // Users who muted this chat (no notifications for them)
     mutedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    // 🖼️ A background picture for this chat, seen by everyone in it. Like the
+    // group photo, it isn't encrypted — the server stores and serves the file.
+    background: {
+      type: new mongoose.Schema(
+        {
+          url: { type: String, required: true },
+          dim: { type: Number, default: 0.25, min: 0, max: 0.6 },
+          by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
     ghost: { type: ghostSchema, default: null },
     pausedBy: { type: pauseSchema, default: null },
     badges: { type: [badgeSchema], default: [] },
@@ -102,6 +115,9 @@ export function formatConversation(conversation, userId, unreadCount = 0) {
     ghost: formatGhost(conv.ghost),
     pausedBy: formatPause(conv.pausedBy),
     badges: formatBadges(conv.badges),
+    background: conv.background?.url
+      ? { url: conv.background.url, dim: conv.background.dim, by: String(conv.background.by) }
+      : null,
   };
 
   if (result.type === 'group') {

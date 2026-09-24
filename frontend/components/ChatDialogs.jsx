@@ -6,7 +6,7 @@ import { ImagePlus, Loader2, X } from 'lucide-react';
 import { checkImageFile } from './ImagePreview';
 import { api } from '@/lib/client';
 import { prepareImage } from '@/lib/e2ee';
-import { backgroundStyle, removeBackground, saveBackground } from '@/lib/chatBackground';
+import { backgroundStyle } from '@/lib/chatBackground';
 import { GHOST_LEVEL_INFO } from '@/lib/ghost';
 import { PAUSE_REASONS, formatShortDuration, timezoneOffset } from '@/lib/social';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
@@ -202,8 +202,9 @@ export function BadgeDialog({ conversation, onClose, onError }) {
   );
 }
 
-// 🖼️ A background picture for THIS chat only, kept on this device
-export function BackgroundDialog({ conversation, current, onClose, onError, onChanged }) {
+// 🖼️ A background picture for THIS chat, seen by everyone in it
+export function BackgroundDialog({ conversation, onClose, onError }) {
+  const current = conversation.background;
   const [preview, setPreview] = useState(current?.url || '');
   const [dim, setDim] = useState(current?.dim ?? 0.25);
   const [blob, setBlob] = useState(null);
@@ -220,8 +221,8 @@ export function BackgroundDialog({ conversation, current, onClose, onError, onCh
     const problem = checkImageFile(file);
     if (problem) return onError(problem);
     try {
-      // Resized first, so a huge photo doesn't fill up this device's storage
-      const prepared = await prepareImage(file, 1600);
+      // Resized before uploading, so a huge photo doesn't take ages
+      const prepared = await prepareImage(file, 1400);
       setBlob(prepared.blob);
       setPreview(URL.createObjectURL(prepared.blob));
     } catch {
@@ -232,12 +233,13 @@ export function BackgroundDialog({ conversation, current, onClose, onError, onCh
   async function save() {
     setBusy(true);
     try {
-      if (blob) await saveBackground(conversation._id, blob, dim);
-      else if (current) await saveBackground(conversation._id, current.blob, dim); // only the fade changed
-      onChanged();
+      const formData = new FormData();
+      formData.append('dim', String(dim));
+      if (blob) formData.append('image', blob, 'background.webp');
+      await api(`/api/conversations/${conversation._id}/background`, { method: 'PUT', formData });
       onClose();
     } catch (err) {
-      onError(err.message || 'It could not be saved on this device.');
+      onError(err.message);
       setBusy(false);
     }
   }
@@ -245,8 +247,7 @@ export function BackgroundDialog({ conversation, current, onClose, onError, onCh
   async function remove() {
     setBusy(true);
     try {
-      await removeBackground(conversation._id);
-      onChanged();
+      await api(`/api/conversations/${conversation._id}/background`, { method: 'DELETE' });
       onClose();
     } catch (err) {
       onError(err.message);
@@ -286,7 +287,8 @@ export function BackgroundDialog({ conversation, current, onClose, onError, onCh
       )}
 
       <p className="mt-2 text-xs text-muted">
-        Only for this chat, and only on this device. {conversation.otherUser?.name || 'The others'} won’t see it.
+        Just for this chat, and {conversation.type === 'group' ? 'everyone in the group' : conversation.otherUser?.name || 'the other person'} sees it
+        too. Unlike your messages, a background isn’t end-to-end encrypted.
       </p>
 
       <div className="mt-4 flex gap-2">

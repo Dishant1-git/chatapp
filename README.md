@@ -184,7 +184,9 @@ Routes live in `backend/routes/social.js`; labels in `frontend/lib/ghost.js` and
 
 - **👻 Ghost Click** (the 📷 camera button next to the message box — the only one for photos and
   videos): **tap** the round button for a photo, **hold** it to record a video (up to 60 seconds,
-  with sound), or pick a photo from the device. Then choose *👻 View once* or *💾 Can be saved* and
+  with sound), or pick a photo **or video** from the device. A picked video can be up to a minute
+  and is re-encoded smaller first (`frontend/lib/videoCompress.js`: 640 px wide, ~700 kbps, sound
+  kept), with a progress bar while it works — a minute of phone footage ends up around 5 MB. Then choose *👻 View once* or *💾 Can be saved* and
   add a caption. Everything is encrypted like any chat photo. A view-once photo or video opens one
   time per person (`POST /api/messages/:id/opened`); after that the server stops sending its link,
   and once everyone has opened it the file is deleted. Savable photos and videos have a Save button
@@ -195,14 +197,16 @@ Routes live in `backend/routes/social.js`; labels in `frontend/lib/ghost.js` and
   encrypted message; the server only stores the file. If a saved message comes back without its
   recording — an out-of-date server drops it — sending fails with a clear message instead of
   leaving an empty bubble.
-- **🌟 Stickers** (the emoji button → *Stickers*): a built-in pack of ghost stickers, drawn as SVGs
-  in `frontend/public/stickers` and listed in `frontend/lib/stickers.js`. A sticker message carries
-  only the sticker's id, inside the encrypted message, so the server can't tell a sticker from any
-  other message. They're shown large, without a bubble. Emoji-only (ghosted) chats can't send them.
-- **🖼️ Chat background** (⋮ menu): a picture behind the messages of **one** chat. Other chats keep
-  the normal background. It's resized and kept on that device only (IndexedDB,
-  `frontend/lib/chatBackground.js`) — never uploaded, and the other person doesn't see it. A fade
-  slider keeps the messages readable, and *Remove* puts it back.
+- **🌟 Stickers** (the emoji button → *Stickers*): two built-in packs — 👻 Ghosts and 🧸 Bear &
+  Panda — drawn as original SVGs in `frontend/public/stickers` and listed in
+  `frontend/lib/stickers.js`. A sticker message carries only the sticker's id, inside the encrypted
+  message, so the server can't tell a sticker from any other message. They're shown large, without a
+  bubble. Emoji-only (ghosted) chats can't send them.
+- **🖼️ Chat background** (⋮ menu): a picture behind the messages of **one** chat, seen by everyone
+  in that chat — in a group, every member, and any member can change it. Other chats keep the normal
+  background. A fade slider keeps the messages readable, and *Remove* clears it for everyone.
+  The picture is resized in the browser, then stored and served by the server like a group photo, so
+  **a background is not end-to-end encrypted** (`PUT`/`DELETE /api/conversations/:id/background`).
 - **♿ Accessibility** (Profile): text size (4 steps), text colour (including high contrast),
   "Read new messages aloud", and *Read aloud* in every message's menu. The settings are stored on
   this device (`frontend/lib/accessibility.js`) and applied before the page is drawn.
@@ -291,6 +295,7 @@ frontend/
 | POST   | `/api/messages/:id/reveal`                 | Reveal anonymous reactions (3 a day)          |
 | POST   | `/api/messages/:id/opened`                 | Open a view-once Ghost Click photo or video (once per person) |
 | PUT    | `/api/users/me/trusted/:userId`            | Add a Trusted Ghost (DELETE to remove)        |
+| PUT    | `/api/conversations/:id/background`        | Set this chat's background (multipart: `image`, `dim`); DELETE removes it |
 | GET    | `/api/health`                              | Health check: server uptime + database status. 200 when healthy, 503 when the database is down |
 
 ### Socket events (server → browser)

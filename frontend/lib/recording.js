@@ -19,6 +19,11 @@ function pickType(kind) {
   return TYPES[kind].find((type) => MediaRecorder.isTypeSupported?.(type)) || '';
 }
 
+// The video format this browser can record (also used when shrinking a picked video)
+export function videoMimeType() {
+  return pickType('video');
+}
+
 // A friendly message for a getUserMedia() failure
 export function deviceError(err, kind) {
   const device = kind === 'video' ? 'camera and microphone' : 'microphone';
@@ -54,9 +59,9 @@ export function startRecording(stream, { kind, onLevel } = {}) {
   const mimeType = pickType(kind);
   const recorder = new MediaRecorder(stream, {
     ...(mimeType && { mimeType }),
-    // Low bitrates keep files small: voice ≈ 240 KB/min, video ≈ 7 MB/min
+    // Low bitrates keep files small: voice ≈ 240 KB/min, video ≈ 5 MB/min
     audioBitsPerSecond: kind === 'audio' ? 32000 : 64000,
-    ...(kind === 'video' && { videoBitsPerSecond: 850000 }),
+    ...(kind === 'video' && { videoBitsPerSecond: 650000 }),
   });
   const chunks = [];
   recorder.ondataavailable = (event) => event.data?.size && chunks.push(event.data);

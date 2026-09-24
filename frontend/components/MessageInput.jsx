@@ -7,7 +7,7 @@ import VoiceRecorder from './VoiceRecorder';
 import { messagePreview } from '@/lib/format';
 import { isOnlyEmoji } from '@/lib/ghost';
 import { canRecord } from '@/lib/recording';
-import { STICKERS, stickerUrl } from '@/lib/stickers';
+import { STICKER_PACKS, stickerUrl } from '@/lib/stickers';
 
 const EMOJIS = [
   '😀', '😂', '🤣', '😊', '😍', '🥰', '😘', '😎', '🤔', '😅', '😉', '🙂',
@@ -199,22 +199,29 @@ export default function MessageInput({
           )}
 
           {panel === 'stickers' && canSendStickers ? (
-            <div className="scroll-thin grid max-h-52 grid-cols-4 gap-1 overflow-y-auto px-3 sm:grid-cols-6">
-              {STICKERS.map((sticker) => (
-                <button
-                  key={sticker.id}
-                  type="button"
-                  onPointerDown={(e) => e.preventDefault()}
-                  onClick={() => {
-                    setShowEmojis(false);
-                    onSendSticker(sticker.id);
-                  }}
-                  className="flex items-center justify-center rounded-xl p-1.5 transition hover:bg-hover active:scale-95"
-                  aria-label={`Send sticker: ${sticker.label}`}
-                  title={sticker.label}
-                >
-                  <img src={stickerUrl(sticker.id)} alt="" className="h-16 w-16" draggable={false} />
-                </button>
+            <div className="scroll-thin max-h-52 overflow-y-auto px-3">
+              {STICKER_PACKS.map((pack) => (
+                <div key={pack.id}>
+                  <p className="pt-1 pb-0.5 text-[11px] font-semibold text-muted">{pack.name}</p>
+                  <div className="grid grid-cols-4 gap-1 sm:grid-cols-6">
+                    {pack.stickers.map((sticker) => (
+                      <button
+                        key={sticker.id}
+                        type="button"
+                        onPointerDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setShowEmojis(false);
+                          onSendSticker(sticker.id);
+                        }}
+                        className="flex items-center justify-center rounded-xl p-1.5 transition hover:bg-hover active:scale-95"
+                        aria-label={`Send sticker: ${sticker.label}`}
+                        title={sticker.label}
+                      >
+                        <img src={stickerUrl(sticker.id)} alt="" className="h-16 w-16" draggable={false} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           ) : (

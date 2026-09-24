@@ -6,8 +6,8 @@ import Message, { REPLY_FIELDS, REFRESH_TICKS, maskGhostClick, maskReactions } f
 import User from '../models/User.js';
 import { requireAuth } from '../middleware/auth.js';
 import { imageUpload } from '../middleware/upload.js';
-import { groupLimiter } from '../middleware/rateLimits.js';
-import { saveImage } from '../utils/storage.js';
+import { groupLimiter, uploadLimiter } from '../middleware/rateLimits.js';
+import { deleteImage, saveImage } from '../utils/storage.js';
 import { publishEvent } from '../utils/publish.js';
 import { ghostLevel } from '../utils/ghost.js';
 import { parseOffset, streaksFor } from '../utils/streak.js';
@@ -439,6 +439,52 @@ router.post('/:id/mute', async (req, res) => {
 
   res.json({ isMuted });
 });
+
+// 🖼️ PUT /api/conversations/:id/background — set the background everyone in this
+// chat sees (multipart: image, dim). DELETE removes it.
+// Like the group photo, it isn't encrypted: the server stores and serves the file.
+router.put('/:id/background', uploadLimiter, imageUpload.single('image'), async (req, res) => {
+  const conversation = await findMyConversation(req, res);
+  if (!conversation) return;
+
+  const dim = Math.min(0.6, Math.max(0, Number(req.body?.dim) || 0));
+  const previous = conversation.background?.url || '';
+
+  if (req.file) {
+    conversation.background = { url: await saveImage(req.file.buffer, { maxSize: 1400 }), dim, by: req.userId };
+  } else if (previous) {
+    conversation.background = { url: previous, dim, by: req.userId }; // only the fade changed
+  } else {
+    return badRequest(res, 'Please choose a picture.');
+  }
+
+  await conversation.save();
+  if (req.file && previous) deleteImage(previous);
+  broadcastBackground(conversation);
+  res.json({ background: formatConversation(conversation, req.userId).background });
+});
+
+router.delete('/:id/background', async (req, res) => {
+  const conversation = await findMyConversation(req, res);
+  if (!conversation) return;
+
+  const previous = conversation.background?.url || '';
+  conversation.background = null;
+  await conversation.save();
+  if (previous) deleteImage(previous);
+  broadcastBackground(conversation);
+  res.json({ background: null });
+});
+
+// Everyone in the chat gets the new background right away
+function broadcastBackground(conversation) {
+  emitToConversation(conversation._id, 'conversation:updated', {
+    conversation: {
+      _id: String(conversation._id),
+      background: formatConversation(conversation, null).background,
+    },
+  });
+}
 
 const MISS_YOU_COOLDOWN_MS = 60 * 1000;
 const BUZZ_COOLDOWN_MS = 15 * 1000;

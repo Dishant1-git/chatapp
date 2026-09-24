@@ -19,7 +19,7 @@ import { loadAccessibility, speak } from '@/lib/accessibility';
 import Celebration from './Celebration';
 import { BackgroundDialog, BadgeDialog, GhostDialog, LeaveDialog, VibePanel } from './ChatDialogs';
 import { ImageLightbox } from './ImagePreview';
-import { backgroundStyle, loadBackground } from '@/lib/chatBackground';
+import { backgroundStyle } from '@/lib/chatBackground';
 import { api } from '@/lib/client';
 import { MOODS, PAUSE_REASONS, REVIVE_ANSWERS, isDeadChat, shakeElement, timezoneOffset } from '@/lib/social';
 import { describeEvent, formatDayDivider, formatLastSeen, formatTime, isDifferentDay } from '@/lib/format';
@@ -122,8 +122,6 @@ export default function ChatWindow({ conversationId }) {
   const [isSendingBuzz, setIsSendingBuzz] = useState(false);
   const [celebration, setCelebration] = useState(null); // { emojis, title, subtitle }
   const [dialog, setDialog] = useState(null); // ghost | vibe | badge | leave | background
-  const [background, setBackground] = useState(null); // 🖼️ this chat's own background
-  const [backgroundKey, setBackgroundKey] = useState(0); // bump after it's changed
   const [almostSaid, setAlmostSaid] = useState(false);
   const [undoSeen, setUndoSeen] = useState(0); // how many new messages I just saw (0 = hide "Undo seen")
   const rootRef = useRef(null);
@@ -239,21 +237,6 @@ export default function ChatWindow({ conversationId }) {
     const timer = setTimeout(() => setUndoSeen(0), UNDO_SEEN_MS);
     return () => clearTimeout(timer);
   }, [undoSeen]);
-
-  // 🖼️ This chat's own background picture, kept on this device
-  useEffect(() => {
-    let cancelled = false;
-    let url = '';
-    loadBackground(conversationId).then((saved) => {
-      if (cancelled || !saved) return setBackground(null);
-      url = URL.createObjectURL(saved.blob);
-      setBackground({ ...saved, url });
-    });
-    return () => {
-      cancelled = true;
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, [conversationId, backgroundKey]);
 
   // 🔥 Opening a chat refreshes its streak, which is shown next to the name
   // in the chat list (the list loads them all in one go)
@@ -1042,7 +1025,7 @@ export default function ChatWindow({ conversationId }) {
         ref={listRef}
         onScroll={handleScroll}
         className="chat-bg scroll-thin relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-3 pb-4 md:px-[5%] lg:px-[8%]"
-        style={backgroundStyle(background?.url, background?.dim)}
+        style={backgroundStyle(conversation?.background?.url, conversation?.background?.dim)}
       >
         {status === 'loading' && (
           <div className="flex h-full items-center justify-center text-muted">
@@ -1267,14 +1250,7 @@ export default function ChatWindow({ conversationId }) {
         )}
         {dialog === 'vibe' && conversation && <VibePanel key="vibe" conversation={conversation} onClose={closeDialog} />}
         {dialog === 'background' && conversation && (
-          <BackgroundDialog
-            key="background-dialog"
-            conversation={conversation}
-            current={background}
-            onClose={closeDialog}
-            onError={showNotice}
-            onChanged={() => setBackgroundKey((n) => n + 1)}
-          />
+          <BackgroundDialog key="background-dialog" conversation={conversation} onClose={closeDialog} onError={showNotice} />
         )}
         {ghostCamera && (
           <GhostClickCamera

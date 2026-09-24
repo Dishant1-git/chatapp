@@ -6,6 +6,7 @@ import { Download, ImagePlus, Loader2, RotateCcw, SendHorizontal, SwitchCamera, 
 import { checkImageFile } from './ImagePreview';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { MAX_VIDEO_SECONDS, deviceError, startRecording, stopStream } from '@/lib/recording';
+import { VIDEO_TYPES, compressVideo, isVideoFile } from '@/lib/videoCompress';
 
 // 👻 Ghost Click: one camera for both photos and videos. Tap the round button
 // for a photo, hold it to record a video. Then send it as "view once" (opens one
@@ -32,6 +33,7 @@ export function GhostClickCamera({ onSend, onCancel, onError }) {
   const [cameraError, setCameraError] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
+  const [progress, setProgress] = useState(null); // 0–1 while a picked video is shrunk
   // What was captured: { kind: 'image' | 'video', file?, blob?, url, duration?, mirrored? }
   const [shot, setShot] = useState(null);
   const [mode, setMode] = useState('once');
@@ -176,10 +178,33 @@ export function GhostClickCamera({ onSend, onCancel, onError }) {
     else if (isReady && !shot && streamRef.current) takePhoto();
   }
 
-  function pickFile(event) {
+  async function pickFile(event) {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+
+    // 📹 A video from the device: up to a minute, shrunk before it's sent
+    if (isVideoFile(file)) {
+      stopCamera();
+      setProgress(0);
+      try {
+        const done = await compressVideo(file, { onProgress: setProgress });
+        setShot({
+          kind: 'video',
+          blob: done.blob,
+          url: URL.createObjectURL(done.blob),
+          duration: done.duration,
+          mirrored: false,
+        });
+      } catch (err) {
+        onError(err.message);
+        restartCamera();
+      } finally {
+        setProgress(null);
+      }
+      return;
+    }
+
     const problem = checkImageFile(file);
     if (problem) return onError(problem);
     stopCamera();
@@ -229,7 +254,16 @@ export function GhostClickCamera({ onSend, onCancel, onError }) {
       </div>
 
       <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-3">
-        {shot ? (
+        {progress !== null ? (
+          // A picked video is being made smaller; it plays through once to do it
+          <div className="flex w-full max-w-xs flex-col items-center gap-3 text-center">
+            <p className="text-sm">Making the video smaller…</p>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/20">
+              <div className="h-full rounded-full bg-brand transition-[width]" style={{ width: `${Math.round(progress * 100)}%` }} />
+            </div>
+            <p className="text-xs text-white/50 tabular-nums">{Math.round(progress * 100)}%</p>
+          </div>
+        ) : shot ? (
           shot.kind === 'video' ? (
             <video
               src={shot.url}
@@ -246,7 +280,7 @@ export function GhostClickCamera({ onSend, onCancel, onError }) {
           <div className="flex flex-col items-center gap-3 text-center">
             <p className="max-w-xs text-sm text-white/70">{cameraError}</p>
             <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm hover:bg-white/25">
-              <ImagePlus size={18} /> Pick a photo
+              <ImagePlus size={18} /> Pick a photo or video
             </button>
           </div>
         ) : (
@@ -259,7 +293,13 @@ export function GhostClickCamera({ onSend, onCancel, onError }) {
             className={`h-full w-full rounded-2xl object-contain ${facing === 'user' ? '-scale-x-100' : ''}`}
           />
         )}
-        <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={pickFile} className="hidden" />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={['image/jpeg', 'image/png', 'image/webp', ...VIDEO_TYPES].join(',')}
+          onChange={pickFile}
+          className="hidden"
+        />
       </div>
 
       {shot ? (
@@ -311,15 +351,15 @@ export function GhostClickCamera({ onSend, onCancel, onError }) {
           </div>
         </form>
       ) : (
-        !cameraError && (
+        !cameraError && progress === null && (
           <div className="flex flex-col items-center gap-2 p-5">
             <p className="text-[11px] text-white/50">{isRecording ? 'Let go to stop' : 'Tap for a photo · hold to record a video'}</p>
             <div className="flex items-center justify-center gap-10">
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className={`flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/10 ${isRecording ? 'invisible' : ''}`}
-                aria-label="Pick a photo instead"
-                title="Pick a photo"
+                aria-label="Pick a photo or video"
+                title="Pick a photo or video (up to 1 minute)"
               >
                 <ImagePlus size={22} />
               </button>
