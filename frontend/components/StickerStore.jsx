@@ -237,7 +237,7 @@ function CreatePack({ onDone, onError }) {
           </div>
         ))}
       </div>
-      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={pick} className="hidden" />
+      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={pick} className="hidden" />
 
       <p className="mt-3 rounded-xl bg-panel-soft px-3.5 py-2.5 text-xs text-muted">
         ⚠️ A pack is public: <span className="font-medium">everyone using Ghosted can see and add it</span>. Your name

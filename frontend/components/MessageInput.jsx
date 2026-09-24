@@ -4,9 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Camera, Mic, Plus, SendHorizontal, Smile, X } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import VoiceRecorder from './VoiceRecorder';
+import { checkImageFile } from './ImagePreview';
+import GifPicker from './GifPicker';
 import { messagePreview } from '@/lib/format';
 import { isOnlyEmoji } from '@/lib/ghost';
 import { canRecord } from '@/lib/recording';
+import { gifsAvailable } from '@/lib/gifs';
 import { STICKER_PACKS, stickerUrl } from '@/lib/stickers';
 
 const EMOJIS = [
@@ -21,6 +24,7 @@ const TYPING_IDLE_MS = 2000; // send "stopTyping" after 2s without a keystroke
 // "Almost said": a draft typed for at least 8s and 10 characters, then deleted
 const ALMOST_SAID_MS = 8000;
 const ALMOST_SAID_CHARS = 10;
+const MAX_LENGTH = 4000;
 
 export default function MessageInput({
   conversationId,
@@ -30,6 +34,7 @@ export default function MessageInput({
   onCancelReply,
   onSendText,
   onCamera, // 📷 opens the camera (tap = photo, hold = video)
+  onPickImage, // 🎞️ (file) a picture pasted in, or added by the keyboard's GIF/sticker buttons
   onSendSticker, // 🌟 (id) sends a built-in sticker
   onSendCustomSticker, // 🌟 (url) sends a sticker from an installed pack
   onOpenStickerStore, // 🌟 opens the sticker packs screen
@@ -39,11 +44,12 @@ export default function MessageInput({
   const { socket, stickerPacks } = useChat();
   const [text, setText] = useState('');
   const [showEmojis, setShowEmojis] = useState(emojiOnly);
-  const [panel, setPanel] = useState('emoji'); // emoji | stickers
+  const [panel, setPanel] = useState('emoji'); // emoji | stickers | gifs
+  const [hasGifs, setHasGifs] = useState(false); // shown only if the server has a GIF key
   const [isRecording, setIsRecording] = useState(false);
   // Checked after mounting, since the server render has no MediaRecorder
   const [recordingSupported, setRecordingSupported] = useState(false);
-  const textareaRef = useRef(null);
+  const boxRef = useRef(null);
   const typing = useRef({ active: false, lastSent: 0, timer: null });
   const draftRef = useRef({ startedAt: 0, longest: 0 });
   const socketRef = useRef(socket);
@@ -53,6 +59,15 @@ export default function MessageInput({
   }, [socket]);
 
   useEffect(() => setRecordingSupported(canRecord()), []);
+
+  // 🎞️ The GIF tab only exists when the server can search GIFs
+  useEffect(() => {
+    let cancelled = false;
+    gifsAvailable().then((available) => !cancelled && setHasGifs(available));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function stopTyping() {
     const t = typing.current;
@@ -79,17 +94,9 @@ export default function MessageInput({
   // Leaving the chat counts as "stopped typing"
   useEffect(() => stopTyping, []);
 
-  // Grow the textarea with its content, up to about 5 lines
-  useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
-  }, [text]);
-
   // Focus the input when the user picks "Reply"
   useEffect(() => {
-    if (replyingTo) textareaRef.current?.focus();
+    if (replyingTo) boxRef.current?.focus();
   }, [replyingTo]);
 
   // Just got ghosted: open the emoji picker, since that's all that can be sent
@@ -103,10 +110,17 @@ export default function MessageInput({
   const canRecordVoice = recordingSupported && !emojiOnly && Boolean(onSendVoice);
   // Being ghosted means emojis only — no stickers until that's over
   const canSendStickers = !emojiOnly && Boolean(onSendSticker);
+  const placeholder = emojiOnly ? 'Emojis only' : 'Type a message';
   const showMic = canRecordVoice && !trimmed;
 
   function handleChange(event) {
-    const value = event.target.value;
+    const box = event.currentTarget;
+    let value = box.innerText.replace(/\n$/, ''); // the browser keeps a trailing newline
+    if (value.length > MAX_LENGTH) {
+      value = value.slice(0, MAX_LENGTH);
+      box.textContent = value;
+      placeCaretAtEnd(box);
+    }
     setText(value);
     if (value.trim()) {
       notifyTyping();
@@ -130,6 +144,7 @@ export default function MessageInput({
     if (!trimmed) return;
     if (!canSend) return onError('You can only send emojis.');
     onSendText(trimmed);
+    if (boxRef.current) boxRef.current.textContent = '';
     setText('');
     setShowEmojis(emojiOnly);
     stopTyping();
@@ -146,15 +161,53 @@ export default function MessageInput({
     }
   }
 
+  // Pasting into a rich-text box would bring formatting (and whole web pages)
+  // with it, so text is inserted plainly. A picture goes to the handler below.
+  function handlePaste(event) {
+    if (handleInsertedImage(event)) return;
+    const plain = event.clipboardData?.getData('text/plain');
+    if (plain === undefined) return;
+    event.preventDefault();
+    document.execCommand?.('insertText', false, plain.slice(0, MAX_LENGTH));
+    handleChange({ currentTarget: event.currentTarget });
+  }
+
+  // 🎞️ The phone keyboard's own GIF and sticker buttons (and copy-paste, and
+  // dropping a file) put a picture into the message box. Browsers deliver that
+  // as a paste / insertion event carrying a file, which we send as a photo.
+  function handleInsertedImage(event) {
+    const transfer = event.clipboardData || event.dataTransfer;
+    const file = [...(transfer?.files || [])].find((f) => f.type.startsWith('image/'));
+    if (!file || !onPickImage) return false;
+
+    event.preventDefault(); // don't also drop the file name into the box
+    const problem = checkImageFile(file);
+    if (problem) onError(problem);
+    else onPickImage(file);
+    return true;
+  }
+
+  // Puts the cursor back at the end after the text was replaced
+  function placeCaretAtEnd(box) {
+    const range = document.createRange();
+    range.selectNodeContents(box);
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+
   function insertEmoji(emoji) {
-    const el = textareaRef.current;
-    const start = el?.selectionStart ?? text.length;
-    const end = el?.selectionEnd ?? text.length;
-    setText(text.slice(0, start) + emoji + text.slice(end));
-    // Put the cursor right after the inserted emoji
-    requestAnimationFrame(() => {
-      el?.setSelectionRange(start + emoji.length, start + emoji.length);
-    });
+    const box = boxRef.current;
+    if (!box) return;
+    box.focus();
+    // Types it in at the cursor, and leaves an undo step behind
+    if (!document.execCommand?.('insertText', false, emoji)) {
+      box.textContent += emoji;
+      placeCaretAtEnd(box);
+    }
+    setText(box.innerText.replace(/\n$/, ''));
+    notifyTyping();
   }
 
   return (
@@ -177,17 +230,20 @@ export default function MessageInput({
 
       {showEmojis && (
         <div className="pt-2">
-          {/* 😀 Emoji and 🌟 stickers share one panel */}
+          {/* 😀 Emoji, 🌟 stickers and 🎞️ GIFs share one panel */}
           {canSendStickers && (
             <div className="flex gap-1 px-3 pb-1.5">
               {[
                 ['emoji', '😀 Emoji'],
                 ['stickers', '🌟 Stickers'],
+                ...(hasGifs ? [['gifs', '🎞️ GIF']] : []),
               ].map(([key, label]) => (
                 <button
                   key={key}
                   type="button"
-                  onPointerDown={(e) => e.preventDefault()}
+                  // mousedown, not pointerdown: preventing the default here keeps
+                  // the keyboard open on desktop without swallowing taps on phones
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => setPanel(key)}
                   aria-pressed={panel === key}
                   className={`rounded-full px-3 py-1 text-xs font-medium transition ${
@@ -200,7 +256,19 @@ export default function MessageInput({
             </div>
           )}
 
-          {panel === 'stickers' && canSendStickers ? (
+          {panel === 'gifs' && canSendStickers && hasGifs ? (
+            <GifPicker
+              onPick={(file) => {
+                setShowEmojis(false);
+                onPickImage?.(file);
+              }}
+              onError={onError}
+              onUnavailable={() => {
+                setHasGifs(false);
+                setPanel('emoji');
+              }}
+            />
+          ) : panel === 'stickers' && canSendStickers ? (
             <div className="scroll-thin max-h-52 overflow-y-auto px-3">
               {/* 🌟 Packs I installed from the sticker packs screen */}
               <div className="flex items-center justify-between pt-1 pb-1">
@@ -209,7 +277,7 @@ export default function MessageInput({
                 </p>
                 <button
                   type="button"
-                  onPointerDown={(e) => e.preventDefault()}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={onOpenStickerStore}
                   className="flex items-center gap-1 rounded-full bg-brand-soft px-2.5 py-1 text-[11px] font-medium text-brand"
                 >
@@ -225,7 +293,7 @@ export default function MessageInput({
                       <button
                         key={sticker._id}
                         type="button"
-                        onPointerDown={(e) => e.preventDefault()}
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => {
                           setShowEmojis(false);
                           onSendCustomSticker(sticker.url);
@@ -248,7 +316,7 @@ export default function MessageInput({
                       <button
                         key={sticker.id}
                         type="button"
-                        onPointerDown={(e) => e.preventDefault()}
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => {
                           setShowEmojis(false);
                           onSendSticker(sticker.id);
@@ -271,7 +339,7 @@ export default function MessageInput({
                   key={emoji}
                   type="button"
                   // Keep the keyboard open on mobile
-                  onPointerDown={(e) => e.preventDefault()}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => insertEmoji(emoji)}
                   className="flex h-10 items-center justify-center rounded-lg text-2xl hover:bg-hover"
                 >
@@ -303,17 +371,26 @@ export default function MessageInput({
             <Smile size={23} />
           </button>
 
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={handleChange}
+          {/* A rich-text box, not a <textarea>: phone keyboards only offer their
+              🎞️ GIF and sticker buttons for fields that can hold a picture.
+              Everything typed is still handled as plain text. */}
+          <div
+            ref={boxRef}
+            role="textbox"
+            contentEditable
+            suppressContentEditableWarning
+            aria-multiline="true"
+            aria-label={placeholder}
+            data-placeholder={placeholder}
+            data-empty={text ? undefined : 'true'}
+            onInput={handleChange}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            onBeforeInput={handleInsertedImage}
+            onDrop={handleInsertedImage}
             onBlur={stopTyping}
-            rows={1}
-            maxLength={4000}
-            placeholder={emojiOnly ? 'Emojis only' : 'Type a message'}
             // text-base (16px) stops iOS from zooming into the field
-            className="scroll-thin max-h-32 min-w-0 flex-1 resize-none rounded-3xl bg-panel-soft px-4 py-2.5 text-base leading-6 outline-none placeholder:text-muted md:text-[15px]"
+            className="scroll-thin max-h-32 min-w-0 flex-1 overflow-y-auto rounded-3xl bg-panel-soft px-4 py-2.5 text-base leading-6 break-words whitespace-pre-wrap outline-none md:text-[15px]"
           />
 
           {!emojiOnly && onCamera && (
@@ -345,7 +422,7 @@ export default function MessageInput({
           ) : (
             <button
               type="button"
-              onPointerDown={(e) => e.preventDefault()} // don't close the mobile keyboard
+              onMouseDown={(e) => e.preventDefault()} // don't close the mobile keyboard
               onClick={send}
               disabled={!canSend}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-white transition hover:bg-brand-strong disabled:opacity-40"

@@ -67,6 +67,7 @@ npm start         # starts backend + frontend
 | `TURN_URL`         | `turn:turn.example.com:3478`         | Optional but recommended in production. TURN relay for calls |
 | `TURN_USERNAME`    |                                      | TURN username                                          |
 | `TURN_CREDENTIAL`  |                                      | TURN password                                          |
+| `GIPHY_API_KEY`    |                                      | Optional. Turns on 🎞️ GIF search (free key from developers.giphy.com). Without it the GIF tab is hidden |
 
 Generate a secret with:
 
@@ -198,6 +199,17 @@ Routes live in `backend/routes/social.js`; labels in `frontend/lib/ghost.js` and
   encrypted message; the server only stores the file. If a saved message comes back without its
   recording — an out-of-date server drops it — sending fails with a clear message instead of
   leaving an empty bubble.
+- **🎞️ GIFs**: GIFs can be sent like any photo and stay animated — the browser sends them as they
+  are (a canvas would keep one frame), and sticker packs made from GIFs are stored as animated
+  WEBP. **The phone keyboard's own GIF and sticker buttons work too**: whatever they put into the
+  message box (a paste carrying a picture) is sent as a photo, which also covers copy-paste and
+  dropping a file in. For that to be possible the message box is a rich-text field
+  (`contentEditable`, `role="textbox"`) rather than a `<textarea>` — Android and iOS only offer
+  those keyboard buttons for fields that can hold a picture, and a `<textarea>` gets
+  "This app does not support images here". Typing still behaves like a plain text box: pasted text
+  loses its formatting, and the text sent is `innerText`. With `GIPHY_API_KEY` set there's a 🎞️ GIF tab with search
+  (`backend/routes/gifs.js` proxies GIPHY so the key never reaches the browser); without a key the
+  tab isn't shown.
 - **🌟 Stickers** (the emoji button → *Stickers*): two built-in packs — 👻 Ghosts and 🧸 Bear &
   Panda — drawn as original SVGs in `frontend/public/stickers` and listed in
   `frontend/lib/stickers.js`. A sticker message carries only the sticker's id, inside the encrypted
@@ -309,6 +321,7 @@ frontend/
 | POST   | `/api/messages/:id/reveal`                 | Reveal anonymous reactions (3 a day)          |
 | POST   | `/api/messages/:id/opened`                 | Open a view-once Ghost Click photo or video (once per person) |
 | PUT    | `/api/users/me/trusted/:userId`            | Add a Trusted Ghost (DELETE to remove)        |
+| GET    | `/api/gifs?q=`                             | 🎞️ GIF search (trending when `q` is empty); `/api/gifs/config` says whether it's set up, `/api/gifs/file?url=` fetches one |
 | GET    | `/api/stickers/packs`                      | Every sticker pack (never says who made one)  |
 | GET    | `/api/stickers/installed`                  | The packs in my sticker picker                |
 | POST   | `/api/stickers/packs`                      | Publish a pack (multipart: `name`, `images`)  |

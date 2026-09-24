@@ -363,7 +363,28 @@ export function openMessages(messages, conversationId) {
 
 // Shrinks the photo (like the server used to) and removes its metadata,
 // since the server can no longer do that for encrypted images
+// How big a picture is, without giving up if the browser can't decode it
+function imageSize(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    const done = (size) => {
+      URL.revokeObjectURL(url);
+      resolve(size);
+    };
+    image.onload = () => done({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = () => done({ width: 0, height: 0 });
+    image.src = url;
+  });
+}
+
 export async function prepareImage(file, maxSize = 1600) {
+  // 🎞️ A GIF is sent as it is: drawing it on a canvas would leave one frame.
+  // Its size is only used for the bubble's shape, so it isn't worth failing over.
+  if (file.type === 'image/gif') {
+    return { blob: file, type: file.type, ...(await imageSize(file)) };
+  }
+
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
   const width = Math.round(bitmap.width * scale);

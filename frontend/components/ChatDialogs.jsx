@@ -268,7 +268,7 @@ export function BackgroundDialog({ conversation, onClose, onError }) {
           {preview ? 'Choose another picture' : 'Choose a picture'}
         </span>
       </button>
-      <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={pick} className="hidden" />
+      <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={pick} className="hidden" />
 
       {preview && (
         <label className="mt-3 block text-sm">
