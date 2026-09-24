@@ -5,11 +5,11 @@ import { X } from 'lucide-react';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 const MAX_SIZE = 5 * 1024 * 1024;
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 // Same rules as the backend (backend/utils/storage.js), checked early for instant feedback
 export function checkImageFile(file) {
-  if (!ALLOWED_TYPES.includes(file.type)) return 'Only JPG, PNG and WEBP images are allowed.';
+  if (!ALLOWED_TYPES.includes(file.type)) return 'Only JPG, PNG, WEBP and GIF images are allowed.';
   if (file.size > MAX_SIZE) return 'Image is too large. The maximum size is 5 MB.';
   return null;
 }

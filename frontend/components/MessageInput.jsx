@@ -4,9 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Camera, Mic, Plus, SendHorizontal, Smile, X } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import VoiceRecorder from './VoiceRecorder';
+import { checkImageFile } from './ImagePreview';
+import GifPicker from './GifPicker';
 import { messagePreview } from '@/lib/format';
 import { isOnlyEmoji } from '@/lib/ghost';
 import { canRecord } from '@/lib/recording';
+import { gifsAvailable } from '@/lib/gifs';
 import { STICKER_PACKS, stickerUrl } from '@/lib/stickers';
 
 const EMOJIS = [
@@ -21,6 +24,7 @@ const TYPING_IDLE_MS = 2000; // send "stopTyping" after 2s without a keystroke
 // "Almost said": a draft typed for at least 8s and 10 characters, then deleted
 const ALMOST_SAID_MS = 8000;
 const ALMOST_SAID_CHARS = 10;
+const MAX_LENGTH = 4000;
 
 export default function MessageInput({
   conversationId,
@@ -30,6 +34,7 @@ export default function MessageInput({
   onCancelReply,
   onSendText,
   onCamera, // 📷 opens the camera (tap = photo, hold = video)
+  onPickImage, // 🎞️ (file) a picture pasted in, or added by the keyboard's GIF/sticker buttons
   onSendSticker, // 🌟 (id) sends a built-in sticker
   onSendCustomSticker, // 🌟 (url) sends a sticker from an installed pack
   onOpenStickerStore, // 🌟 opens the sticker packs screen
@@ -39,11 +44,12 @@ export default function MessageInput({
   const { socket, stickerPacks } = useChat();
   const [text, setText] = useState('');
   const [showEmojis, setShowEmojis] = useState(emojiOnly);
-  const [panel, setPanel] = useState('emoji'); // emoji | stickers
+  const [panel, setPanel] = useState('emoji'); // emoji | stickers | gifs
+  const [hasGifs, setHasGifs] = useState(false); // shown only if the server has a GIF key
   const [isRecording, setIsRecording] = useState(false);
   // Checked after mounting, since the server render has no MediaRecorder
   const [recordingSupported, setRecordingSupported] = useState(false);
-  const textareaRef = useRef(null);
+  const boxRef = useRef(null);
   const typing = useRef({ active: false, lastSent: 0, timer: null });
   const draftRef = useRef({ startedAt: 0, longest: 0 });
   const socketRef = useRef(socket);
@@ -53,6 +59,15 @@ export default function MessageInput({
   }, [socket]);
 
   useEffect(() => setRecordingSupported(canRecord()), []);
+
+  // 🎞️ The GIF tab only exists when the server can search GIFs
+  useEffect(() => {
+    let cancelled = false;
+    gifsAvailable().then((available) => !cancelled && setHasGifs(available));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function stopTyping() {
     const t = typing.current;
@@ -79,9 +94,9 @@ export default function MessageInput({
   // Leaving the chat counts as "stopped typing"
   useEffect(() => stopTyping, []);
 
-  // Grow the textarea with its content, up to about 5 lines
+  // Grow the box with its content, up to about 5 lines
   useEffect(() => {
-    const el = textareaRef.current;
+    const el = boxRef.current;
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
@@ -89,7 +104,7 @@ export default function MessageInput({
 
   // Focus the input when the user picks "Reply"
   useEffect(() => {
-    if (replyingTo) textareaRef.current?.focus();
+    if (replyingTo) boxRef.current?.focus();
   }, [replyingTo]);
 
   // Just got ghosted: open the emoji picker, since that's all that can be sent
@@ -103,6 +118,7 @@ export default function MessageInput({
   const canRecordVoice = recordingSupported && !emojiOnly && Boolean(onSendVoice);
   // Being ghosted means emojis only — no stickers until that's over
   const canSendStickers = !emojiOnly && Boolean(onSendSticker);
+  const placeholder = emojiOnly ? 'Emojis only' : 'Type a message';
   const showMic = canRecordVoice && !trimmed;
 
   function handleChange(event) {
@@ -146,8 +162,22 @@ export default function MessageInput({
     }
   }
 
+  // 🎞️ A picture pasted into the message box, or dropped on it, is sent as a
+  // photo — that covers copying a GIF and pasting it in.
+  function handleInsertedImage(event) {
+    const transfer = event.clipboardData || event.dataTransfer;
+    const file = [...(transfer?.files || [])].find((f) => f.type.startsWith('image/'));
+    if (!file || !onPickImage) return false;
+
+    event.preventDefault(); // don't also drop the file name into the box
+    const problem = checkImageFile(file);
+    if (problem) onError(problem);
+    else onPickImage(file);
+    return true;
+  }
+
   function insertEmoji(emoji) {
-    const el = textareaRef.current;
+    const el = boxRef.current;
     const start = el?.selectionStart ?? text.length;
     const end = el?.selectionEnd ?? text.length;
     setText(text.slice(0, start) + emoji + text.slice(end));
@@ -177,17 +207,20 @@ export default function MessageInput({
 
       {showEmojis && (
         <div className="pt-2">
-          {/* 😀 Emoji and 🌟 stickers share one panel */}
+          {/* 😀 Emoji, 🌟 stickers and 🎞️ GIFs share one panel */}
           {canSendStickers && (
             <div className="flex gap-1 px-3 pb-1.5">
               {[
                 ['emoji', '😀 Emoji'],
                 ['stickers', '🌟 Stickers'],
+                ...(hasGifs ? [['gifs', '🎞️ GIF']] : []),
               ].map(([key, label]) => (
                 <button
                   key={key}
                   type="button"
-                  onPointerDown={(e) => e.preventDefault()}
+                  // mousedown, not pointerdown: preventing the default here keeps
+                  // the keyboard open on desktop without swallowing taps on phones
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => setPanel(key)}
                   aria-pressed={panel === key}
                   className={`rounded-full px-3 py-1 text-xs font-medium transition ${
@@ -200,7 +233,19 @@ export default function MessageInput({
             </div>
           )}
 
-          {panel === 'stickers' && canSendStickers ? (
+          {panel === 'gifs' && canSendStickers && hasGifs ? (
+            <GifPicker
+              onPick={(file) => {
+                setShowEmojis(false);
+                onPickImage?.(file);
+              }}
+              onError={onError}
+              onUnavailable={() => {
+                setHasGifs(false);
+                setPanel('emoji');
+              }}
+            />
+          ) : panel === 'stickers' && canSendStickers ? (
             <div className="scroll-thin max-h-52 overflow-y-auto px-3">
               {/* 🌟 Packs I installed from the sticker packs screen */}
               <div className="flex items-center justify-between pt-1 pb-1">
@@ -209,7 +254,7 @@ export default function MessageInput({
                 </p>
                 <button
                   type="button"
-                  onPointerDown={(e) => e.preventDefault()}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={onOpenStickerStore}
                   className="flex items-center gap-1 rounded-full bg-brand-soft px-2.5 py-1 text-[11px] font-medium text-brand"
                 >
@@ -225,7 +270,7 @@ export default function MessageInput({
                       <button
                         key={sticker._id}
                         type="button"
-                        onPointerDown={(e) => e.preventDefault()}
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => {
                           setShowEmojis(false);
                           onSendCustomSticker(sticker.url);
@@ -248,7 +293,7 @@ export default function MessageInput({
                       <button
                         key={sticker.id}
                         type="button"
-                        onPointerDown={(e) => e.preventDefault()}
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => {
                           setShowEmojis(false);
                           onSendSticker(sticker.id);
@@ -271,7 +316,7 @@ export default function MessageInput({
                   key={emoji}
                   type="button"
                   // Keep the keyboard open on mobile
-                  onPointerDown={(e) => e.preventDefault()}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => insertEmoji(emoji)}
                   className="flex h-10 items-center justify-center rounded-lg text-2xl hover:bg-hover"
                 >
@@ -303,15 +348,23 @@ export default function MessageInput({
             <Smile size={23} />
           </button>
 
+          {/* A plain text box on purpose. A rich-text one was tried so that phone
+              keyboards would offer their 🎞️ GIF and sticker buttons, but Chrome for
+              Android doesn't hand keyboard media to web pages at all yet (the
+              "Enable IME media insertion" flag is unfinished), and the native field
+              behaves better for typing, autocorrect and swiping.
+              Pictures still arrive here by paste or drag — see handleInsertedImage. */}
           <textarea
-            ref={textareaRef}
+            ref={boxRef}
             value={text}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
+            onPaste={handleInsertedImage}
+            onDrop={handleInsertedImage}
             onBlur={stopTyping}
             rows={1}
-            maxLength={4000}
-            placeholder={emojiOnly ? 'Emojis only' : 'Type a message'}
+            maxLength={MAX_LENGTH}
+            placeholder={placeholder}
             // text-base (16px) stops iOS from zooming into the field
             className="scroll-thin max-h-32 min-w-0 flex-1 resize-none rounded-3xl bg-panel-soft px-4 py-2.5 text-base leading-6 outline-none placeholder:text-muted md:text-[15px]"
           />
@@ -345,7 +398,7 @@ export default function MessageInput({
           ) : (
             <button
               type="button"
-              onPointerDown={(e) => e.preventDefault()} // don't close the mobile keyboard
+              onMouseDown={(e) => e.preventDefault()} // don't close the mobile keyboard
               onClick={send}
               disabled={!canSend}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-white transition hover:bg-brand-strong disabled:opacity-40"

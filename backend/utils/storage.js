@@ -12,7 +12,7 @@ import sharp from 'sharp';
 // To move to Cloudinary or S3 later, only this file needs to change.
 
 export const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5 MB
-export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 // Matches the URLs saveImage() produces. Used to reject image URLs we didn't create.
 export const UPLOAD_URL_PATTERN = /^\/uploads\/[a-f0-9]{32}\.webp$/;
@@ -34,6 +34,24 @@ function bucket() {
   return new mongoose.mongo.GridFSBucket(mongoose.connection.db, { bucketName: 'uploads' });
 }
 
+// A GIF with more than one frame, or an animated WEBP. Both start with a
+// fixed signature, so this only reads the first bytes.
+function isAnimated(buffer) {
+  const head = buffer.subarray(0, 4).toString('latin1');
+  if (head === 'GIF8') return buffer.includes(Buffer.from('NETSCAPE2.0')) || countGifFrames(buffer) > 1;
+  if (head === 'RIFF') return buffer.subarray(0, 64).includes(Buffer.from('ANMF'));
+  return false;
+}
+
+// Counts image descriptors, enough to tell a still GIF from a moving one
+function countGifFrames(buffer) {
+  let frames = 0;
+  for (let i = 0; i < buffer.length - 1 && frames < 2; i++) {
+    if (buffer[i] === 0x00 && buffer[i + 1] === 0x2c) frames += 1;
+  }
+  return frames;
+}
+
 async function store(buffer, extension) {
   const fileName = `${crypto.randomBytes(16).toString('hex')}.${extension}`;
   await pipeline(Readable.from([buffer]), bucket().openUploadStream(fileName));
@@ -46,8 +64,11 @@ async function store(buffer, extension) {
 export async function saveImage(buffer, { maxSize = 1600 } = {}) {
   let output;
   try {
-    output = await sharp(buffer)
-      .rotate() // respect the phone camera's orientation
+    // animated: keeps every frame of a GIF (or animated WEBP), so 🎞️ stickers move.
+    // .rotate() would flatten them, so it's only used for still pictures.
+    const animated = isAnimated(buffer);
+    const image = sharp(buffer, { animated });
+    output = await (animated ? image : image.rotate())
       .resize({ width: maxSize, height: maxSize, fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 80 })
       .toBuffer();

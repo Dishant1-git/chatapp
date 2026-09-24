@@ -296,7 +296,7 @@ export function GhostClickCamera({ onSend, onCancel, onError }) {
         <input
           ref={fileInputRef}
           type="file"
-          accept={['image/jpeg', 'image/png', 'image/webp', ...VIDEO_TYPES].join(',')}
+          accept={['image/jpeg', 'image/png', 'image/webp', 'image/gif', ...VIDEO_TYPES].join(',')}
           onChange={pickFile}
           className="hidden"
         />

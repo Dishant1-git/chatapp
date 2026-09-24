@@ -28,3 +28,5 @@ export const messageLimiter = limiter(1, 60, 'You are sending messages too quick
 export const uploadLimiter = limiter(10, 30, 'You are uploading too many images. Please wait a bit.', (req) => req.userId);
 export const keyLimiter = limiter(60, 10, 'Too many encryption key changes. Please try again later.', (req) => req.userId);
 export const groupLimiter = limiter(10, 60, 'Too many group changes. Please wait a bit.', (req) => req.userId);
+// 🎞️ GIF search: typing in the search box fires a request per pause
+export const searchLimiter = limiter(1, 60, 'Too many searches. Please slow down a little.', (req) => req.userId);

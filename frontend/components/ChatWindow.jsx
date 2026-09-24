@@ -1407,6 +1407,7 @@ export default function ChatWindow({ conversationId }) {
           onCancelReply={() => setReplyingTo(null)}
           onSendText={sendMessage}
           onCamera={() => setGhostCamera(true)}
+          onPickImage={(file) => sendMessage('', file)}
           onSendSticker={(sticker) => sendMessage('', null, { sticker })}
           onSendCustomSticker={sendCustomSticker}
           onOpenStickerStore={() => setDialog('stickers')}
