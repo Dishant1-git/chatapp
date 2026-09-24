@@ -31,6 +31,7 @@ export default function ProfileViewer() {
 
 function ProfileCard({ profile, onClose }) {
   const [showFullImage, setShowFullImage] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
   const closeCard = useCallback(() => !showFullImage && onClose(), [showFullImage, onClose]);
   useEscapeKey(closeCard);
 
@@ -65,18 +66,23 @@ function ProfileCard({ profile, onClose }) {
           <X size={20} />
         </button>
 
-        {person.profileImage ? (
+        {person.profileImage && !imageFailed ? (
           <button
             type="button"
             onClick={() => setShowFullImage(true)}
             className="block aspect-square w-full bg-black/5"
             aria-label="View full photo"
           >
-            <img src={person.profileImage} alt={person.name} className="h-full w-full object-cover" />
+            <img
+              src={person.profileImage}
+              alt={person.name}
+              className="h-full w-full object-cover"
+              onError={() => setImageFailed(true)}
+            />
           </button>
         ) : (
           <div className="flex aspect-square w-full items-center justify-center bg-panel-soft">
-            <Avatar user={person} size={180} isGroup={Boolean(group)} />
+            <Avatar user={{ ...person, profileImage: '' }} size={180} isGroup={Boolean(group)} />
           </div>
         )}
 
