@@ -315,7 +315,7 @@ frontend/
 | GET    | `/api/conversations/:id/insights?tz=`      | Vibe stats + connection streak                |
 | POST   | `/api/conversations/:id/miss-you`          | Tell them you miss them                       |
 | POST   | `/api/conversations/:id/buzz`              | Buzz (vibrate) their phone                    |
-| POST   | `/api/conversations/:id/block`             | Block the other person (DELETE to unblock)    |
+| DELETE | `/api/conversations/:id/block`             | Unblock a chat blocked earlier                |
 | PUT    | `/api/conversations/:id/nickname`          | Nickname the other person `{ nickname }` (`''` removes it) |
 | POST   | `/api/conversations/:id/clear`             | Clear the chat, only for me                   |
 | DELETE | `/api/conversations/:id`                   | Delete the chat for me (back with the next message) |

@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, ChevronsDown, X, Heart, Loader2, Lock, MessageSquareOff, Phone, PhoneCall, Video } from 'lucide-react';
+import { ArrowLeft, ChevronsDown, X, Heart, Loader2, Lock, MessageSquareOff, Pencil, Phone, PhoneCall, Video } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import { useCalls } from './CallProvider';
 import { ChatAvatar } from './Avatar';
@@ -95,7 +95,6 @@ export default function ChatWindow({ conversationId }) {
     typingIn,
     addConversation,
     updateConversation,
-    removeConversation,
     markAsRead,
     goBackToList,
   } = useChat();
@@ -141,7 +140,7 @@ export default function ChatWindow({ conversationId }) {
   const [isSendingMissYou, setIsSendingMissYou] = useState(false);
   const [isSendingBuzz, setIsSendingBuzz] = useState(false);
   const [celebration, setCelebration] = useState(null); // { emojis, title, subtitle }
-// ghost | vibe | badge | leave | background | stickers | nickname | clear | deleteChat | block
+// ghost | vibe | badge | leave | background | stickers | nickname | clear
   const [dialog, setDialog] = useState(null);
   const [editing, setEditing] = useState(null); // ✏️ the message being edited
   const [almostSaid, setAlmostSaid] = useState(false);
@@ -833,24 +832,14 @@ export default function ChatWindow({ conversationId }) {
     }
   }
 
-  // 🗑️ Clear it and take it off my list (it comes back with the next message)
-  async function deleteChat() {
-    try {
-      await api(`/api/conversations/${conversationId}`, { method: 'DELETE' });
-      removeConversation(conversationId);
-    } catch (err) {
-      showNotice(err.message);
-    }
-  }
 
-  // 🚫 Block / unblock
-  async function setBlocked(block) {
+  // 🚫 Blocking was taken out of the menu; this only lets a chat that was
+  // blocked before that be unblocked again
+  async function unblock() {
     try {
-      const { blockedByMe: blocked } = await api(`/api/conversations/${conversationId}/block`, {
-        method: block ? 'POST' : 'DELETE',
-      });
-      updateConversation(conversationId, { blockedByMe: blocked });
-      showNotice(blocked ? `🚫 Blocked ${otherUser?.name}` : `✅ Unblocked ${otherUser?.name}`);
+      await api(`/api/conversations/${conversationId}/block`, { method: 'DELETE' });
+      updateConversation(conversationId, { blockedByMe: false });
+      showNotice(`✅ Unblocked ${otherUser?.name}`);
     } catch (err) {
       showNotice(err.message);
     }
@@ -1084,16 +1073,22 @@ export default function ChatWindow({ conversationId }) {
         </button>
         <button
           type="button"
-          onClick={() => isGroupChat && setShowInfo(true)}
-          className={`flex min-w-0 flex-1 items-center gap-2 rounded-xl py-1 text-left ${isGroupChat ? 'cursor-pointer' : 'cursor-default'}`}
-          aria-label={isGroupChat ? 'Group info' : undefined}
+          // Groups: group info. One-to-one chats: 💖 give them a nickname.
+          onClick={() => {
+            if (isGroupChat) setShowInfo(true);
+            else if (otherUser && !blockedByMe) setDialog('nickname');
+          }}
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-xl py-1 text-left"
+          aria-label={isGroupChat ? 'Group info' : `Give ${otherUser?.name || 'them'} a nickname`}
+          title={isGroupChat ? undefined : 'Tap to give a nickname'}
         >
           {conversation && <ChatAvatar conversation={conversation} size={40} viewable />}
           <div className="min-w-0 flex-1">
-            <h2 className="min-w-0 truncate leading-tight font-semibold">
-              {conversationTitle(conversation) || '…'}
+            <h2 className="flex min-w-0 items-center gap-1 leading-tight font-semibold">
+              <span className="truncate">{conversationTitle(conversation) || '…'}</span>
               {/* 💖 Their real name next to the nickname I gave them */}
-              {theirNickname && <span className="ml-1.5 text-xs font-normal text-muted">{otherUser?.name}</span>}
+              {theirNickname && <span className="shrink-0 text-xs font-normal text-muted">{otherUser?.name}</span>}
+              {!isGroupChat && otherUser && !blockedByMe && <Pencil size={12} className="shrink-0 text-muted" aria-hidden />}
             </h2>
             <p className={`truncate text-xs ${statusIsHighlighted ? 'text-brand' : 'text-muted'}`}>{statusText}</p>
           </div>
@@ -1115,11 +1110,9 @@ export default function ChatWindow({ conversationId }) {
           <ChatMenu
             conversation={conversation}
             myId={myId}
-            onError={showNotice}
             onOpen={setDialog}
             onMissYou={sendMissYou}
             onBuzz={sendBuzz}
-            onUnblock={() => setBlocked(false)}
             isBusy={isSendingMissYou || isSendingBuzz}
           />
         )}
@@ -1367,7 +1360,7 @@ export default function ChatWindow({ conversationId }) {
         <div className="flex shrink-0 items-center gap-3 border-t border-line bg-panel-soft px-4 py-3 pb-[max(0.75rem,var(--safe-bottom))] text-sm">
           <p className="min-w-0 flex-1">🚫 You blocked {otherUser?.name}. Neither of you can message or call.</p>
           <button
-            onClick={() => setBlocked(false)}
+            onClick={unblock}
             className="shrink-0 rounded-full bg-brand px-4 py-1.5 font-medium text-white hover:bg-brand-strong"
           >
             Unblock
@@ -1460,26 +1453,6 @@ export default function ChatWindow({ conversationId }) {
             text="All messages disappear for you. The other person keeps their copy."
             confirmLabel="Clear chat"
             onConfirm={clearChat}
-            onClose={closeDialog}
-          />
-        )}
-        {dialog === 'deleteChat' && (
-          <ConfirmDialog
-            key="delete-chat-dialog"
-            title="Delete this chat?"
-            text="All messages disappear for you and the chat leaves your list. It comes back if a new message arrives."
-            confirmLabel="Delete chat"
-            onConfirm={deleteChat}
-            onClose={closeDialog}
-          />
-        )}
-        {dialog === 'block' && otherUser && (
-          <ConfirmDialog
-            key="block-dialog"
-            title={`Block ${otherUser.name}?`}
-            text="Neither of you will be able to message, react or call in this chat until you unblock them. They won't be told."
-            confirmLabel="Block"
-            onConfirm={() => setBlocked(true)}
             onClose={closeDialog}
           />
         )}

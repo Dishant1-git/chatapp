@@ -9,6 +9,7 @@ import { PeoplePicker } from './NewGroup';
 import { checkImageFile } from './ImagePreview';
 import { api } from '@/lib/client';
 import { isAdmin } from '@/lib/conversations';
+import { formatLastSeen } from '@/lib/format';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 // Slide-over panel with a group's details. Admins can rename it, change the
@@ -225,7 +226,11 @@ export default function GroupInfo({ conversation, onClose }) {
                     <Avatar user={member} size={40} showStatus viewable />
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{isMe ? 'You' : member.name}</p>
-                      <p className="truncate text-xs text-muted">{member.email}</p>
+                      {!isMe && (
+                        <p className={`truncate text-xs ${member.isOnline ? 'text-brand' : 'text-muted'}`}>
+                          {member.isOnline ? 'online' : formatLastSeen(member.lastSeen)}
+                        </p>
+                      )}
                     </div>
                     {memberIsAdmin && (
                       <span className="shrink-0 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand">

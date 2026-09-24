@@ -194,7 +194,7 @@ export function PeoplePicker({ selected, onChange, exclude = [] }) {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name or email"
+            placeholder="Search by name or full email"
             className="w-full rounded-full bg-panel-soft py-2.5 pr-4 pl-10 text-base outline-none placeholder:text-muted focus:ring-2 focus:ring-brand/25 md:text-sm"
           />
         </div>
@@ -216,7 +216,6 @@ export function PeoplePicker({ selected, onChange, exclude = [] }) {
               <Avatar user={person} size={44} />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{person.name}</p>
-                <p className="truncate text-sm text-muted">{person.email}</p>
               </div>
               <span
                 className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition ${
@@ -238,7 +237,7 @@ export function PeoplePicker({ selected, onChange, exclude = [] }) {
           <li className="px-8 py-10 text-center text-sm text-muted">No people found for “{query.trim()}”.</li>
         )}
         {!query.trim() && people.length === 0 && (
-          <li className="px-8 py-10 text-center text-sm text-muted">Type a name or email address to find people.</li>
+          <li className="px-8 py-10 text-center text-sm text-muted">Type a name, or their full email address, to find people.</li>
         )}
       </ul>
     </>
