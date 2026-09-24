@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { api, logoutAndRedirect } from '@/lib/client';
 import { messagePreview } from '@/lib/format';
 import { clearDeviceKeys, getSessionKeyId, openMessage, restoreSession } from '@/lib/e2ee';
-import { makeNameOf, markDeliveredTo, markReadBy, openConversation } from '@/lib/conversations';
+import { conversationTitle, makeNameOf, markDeliveredTo, markReadBy, openConversation } from '@/lib/conversations';
 import { playNotificationSound, unlockAudio } from '@/lib/sounds';
 import { buzzPhone, timezoneOffset } from '@/lib/social';
 import { useSocket } from '@/hooks/useSocket';
@@ -109,6 +109,15 @@ export default function ChatProvider({ children }) {
     );
   }, []);
 
+  // 🗑️ Deleted chat (or I was removed from a group): out of the list, and out of view if it's open
+  const removeConversation = useCallback(
+    (conversationId) => {
+      setConversations((prev) => prev.filter((c) => c._id !== conversationId));
+      if (activeIdRef.current === conversationId) router.replace('/chat');
+    },
+    [router]
+  );
+
   const addConversation = useCallback(async (conversation) => {
     const opened = await openConversation(conversation);
     setConversations((prev) => (prev.some((c) => c._id === opened._id) ? prev : [opened, ...prev]));
@@ -185,7 +194,7 @@ export default function ChatProvider({ children }) {
         id: message._id,
         conversationId: message.conversationId,
         conversation,
-        title: isGroupChat ? conversation.name : conversation.otherUser?.name,
+        title: conversationTitle(conversation),
         text: isGroupChat && message.messageType !== 'event' ? `${nameOf(message.senderId)}: ${preview}` : preview,
       };
       setToasts((prev) => [...prev.slice(-2), toast]); // show at most 3
@@ -282,10 +291,14 @@ export default function ChatProvider({ children }) {
       updateConversation(conversationId, { isMuted });
     }
 
-    // Someone's mood changed (maybe mine, from another tab)
-    function handleMood({ userId, mood }) {
-      updateMember(userId, { mood });
-      if (userId === userRef.current?._id) setUser((u) => ({ ...u, mood }));
+    // Someone changed their name, picture or mood (maybe me, from another tab)
+    function handleUserUpdated({ userId, changes }) {
+      const { name, profileImage, mood } = changes || {};
+      const allowed = Object.fromEntries(
+        Object.entries({ name, profileImage, mood }).filter(([, value]) => value !== undefined)
+      );
+      updateMember(userId, allowed);
+      if (userId === userRef.current?._id) setUser((u) => ({ ...u, ...allowed }));
     }
 
     // "Exit without drama": if I stepped away (maybe in another tab), the chat leaves my list
@@ -365,10 +378,25 @@ export default function ChatProvider({ children }) {
       updateConversation(conversation._id, conversation);
     }
 
-    // I was removed from a group
+    // I was removed from a group, or deleted the chat (maybe in another tab)
     function handleConversationRemoved({ conversationId }) {
-      setConversations((prev) => prev.filter((c) => c._id !== conversationId));
-      if (activeIdRef.current === conversationId) router.replace('/chat');
+      removeConversation(conversationId);
+    }
+
+    // 🧹 I cleared the chat (maybe in another tab)
+    function handleConversationCleared({ conversationId }) {
+      updateConversation(conversationId, { lastMessage: null, unreadCount: 0 });
+    }
+
+    // ✏️ The last message was edited: decrypt its new text for the preview
+    function handleMessageUpdated({ conversationId, messageId, changes }) {
+      const conv = conversationsRef.current.find((c) => c._id === conversationId);
+      if (!changes?.ciphertext || conv?.lastMessage?._id !== messageId) return;
+      openMessage({ ...conv.lastMessage, ...changes }, conversationId)
+        .then((lastMessage) =>
+          updateConversation(conversationId, (c) => (c.lastMessage?._id === messageId ? { lastMessage } : {}))
+        )
+        .catch(() => {});
     }
 
     socket.on('connect', handleConnect);
@@ -383,9 +411,11 @@ export default function ChatProvider({ children }) {
     socket.on('conversation:mute', handleMute);
     socket.on('conversation:ghost', handleGhost);
     socket.on('conversation:pause', handlePause);
-    socket.on('user:mood', handleMood);
+    socket.on('user:updated', handleUserUpdated);
     socket.on('conversation:updated', handleConversationUpdated);
     socket.on('conversation:removed', handleConversationRemoved);
+    socket.on('conversation:cleared', handleConversationCleared);
+    socket.on('message:updated', handleMessageUpdated);
 
     return () => {
       socket.off('connect', handleConnect);
@@ -400,11 +430,13 @@ export default function ChatProvider({ children }) {
       socket.off('conversation:mute', handleMute);
       socket.off('conversation:ghost', handleGhost);
       socket.off('conversation:pause', handlePause);
-      socket.off('user:mood', handleMood);
+      socket.off('user:updated', handleUserUpdated);
       socket.off('conversation:updated', handleConversationUpdated);
       socket.off('conversation:removed', handleConversationRemoved);
+      socket.off('conversation:cleared', handleConversationCleared);
+      socket.off('message:updated', handleMessageUpdated);
     };
-  }, [socket, router, loadConversations, updateConversation, showNotification, setTyping]);
+  }, [socket, router, loadConversations, updateConversation, removeConversation, showNotification, setTyping]);
 
   // Show the unread count in the browser tab, e.g. "(3) Ghosted". Muted chats don't count.
   const totalUnread = conversations.reduce((sum, c) => sum + (c.isMuted ? 0 : c.unreadCount || 0), 0);
@@ -483,6 +515,7 @@ export default function ChatProvider({ children }) {
       setSidebarPanel,
       addConversation,
       updateConversation,
+      removeConversation,
       markAsRead,
       openChatWith,
       createGroup,
@@ -511,6 +544,7 @@ export default function ChatProvider({ children }) {
       sidebarPanel,
       addConversation,
       updateConversation,
+      removeConversation,
       markAsRead,
       openChatWith,
       createGroup,

@@ -72,6 +72,14 @@ const conversationSchema = new mongoose.Schema(
     ghost: { type: ghostSchema, default: null },
     pausedBy: { type: pauseSchema, default: null },
     badges: { type: [badgeSchema], default: [] },
+    // 🚫 One-to-one chats: who blocked the other person. Nobody can message,
+    // react or call while anyone here has blocked.
+    blockedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    // 🗑️ "Delete chat": hidden from these people's lists until a new message arrives
+    hiddenFor: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    // 💖 One-to-one chats: nicknames, userId → the nickname the other person gave them.
+    // Both people see it.
+    nicknames: { type: Map, of: String, default: {} },
   },
   { timestamps: true }
 );
@@ -127,9 +135,34 @@ export function formatConversation(conversation, userId, unreadCount = 0) {
     result.createdBy = conv.createdBy ? String(conv.createdBy) : null;
   } else {
     result.otherUser = participants.find((p) => String(p._id) !== String(userId)) || participants[0];
+    result.nicknames = formatNicknames(conv.nicknames);
+    // Only the person who blocked is told; the other one just can't send
+    const blockedBy = (conv.blockedBy || []).map(String);
+    result.blockedByMe = blockedBy.includes(String(userId));
+    // Someone who blocked me doesn't show me when they're online
+    const otherId = result.otherUser?._id && String(result.otherUser._id);
+    if (otherId && blockedBy.includes(otherId)) {
+      const hidden = { isOnline: false, lastSeen: null, mood: '' };
+      result.otherUser = { ...result.otherUser, ...hidden };
+      result.participants = participants.map((p) => (String(p._id) === otherId ? { ...p, ...hidden } : p));
+    }
   }
 
   return result;
+}
+
+export function formatNicknames(nicknames) {
+  if (!nicknames) return {};
+  return nicknames instanceof Map ? Object.fromEntries(nicknames) : { ...nicknames };
+}
+
+// 🚫 Why this user can't send anything in a one-to-one chat right now, or null
+export function blockError(conversation, userId) {
+  const blockedBy = (conversation.blockedBy || []).map(String);
+  if (!blockedBy.length) return null;
+  return blockedBy.includes(String(userId))
+    ? 'You blocked this person. Unblock them to send messages.'
+    : "You can't message this person.";
 }
 
 const Conversation = mongoose.model('Conversation', conversationSchema);

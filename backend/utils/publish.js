@@ -1,5 +1,6 @@
 import Message, { REPLY_FIELDS } from '../models/Message.js';
 import User from '../models/User.js';
+import Conversation from '../models/Conversation.js';
 import { getIO, conversationRoom, userRoom, isUserOnline } from '../socket/io.js';
 
 // Saves a message, makes it the conversation's last message and pushes it to
@@ -18,6 +19,8 @@ export async function publishMessage(conversation, fields, clientId = null) {
   conversation.lastMessage = message._id;
   conversation.lastMessageAt = message.createdAt;
   await conversation.save();
+  // 🗑️ A chat someone deleted comes back to their list with the new message
+  await Conversation.updateOne({ _id: conversation._id, 'hiddenFor.0': { $exists: true } }, { hiddenFor: [] });
 
   // Emitting to several rooms at once still sends each socket only one copy.
   // The user rooms cover sockets that haven't joined the conversation room yet.
@@ -63,7 +66,7 @@ export function bumpStat(userId, stat) {
 
 // Events that should stand out like a message: unread badge and a notification.
 // Group changes ("Ann added Bob") don't.
-const UNREAD_EVENTS = ['call', 'missYou', 'buzz','forgiven', 'stillGhosted', 'paused', 'returned', 'revive'];
+const UNREAD_EVENTS = ['call', 'missYou', 'buzz', 'forgiven', 'stillGhosted', 'paused', 'returned', 'revive', 'nickname'];
 
 // Group changes, call logs and "miss you" nudges, shown as small notes in the chat.
 export async function publishEvent(conversation, actorId, event) {

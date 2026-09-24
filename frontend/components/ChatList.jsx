@@ -199,7 +199,7 @@ const ConversationItem = memo(function ConversationItem({ conversation, myId, is
           isActive ? 'bg-brand-soft' : 'hover:bg-hover active:bg-hover'
         }`}
       >
-        <ChatAvatar conversation={conversation} size={50} showStatus />
+        <ChatAvatar conversation={conversation} size={50} showStatus viewable />
 
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">

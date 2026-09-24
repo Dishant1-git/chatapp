@@ -368,3 +368,148 @@ export function VibePanel({ conversation, onClose }) {
     </Modal>
   );
 }
+
+const NICKNAME_IDEAS = ['Cutie 🥰', 'Bestie 💫', 'Sunshine ☀️', 'Chotu 🐣', 'Drama Queen 👑', 'Panda 🐼'];
+const MAX_NICKNAME = 30;
+
+// 💖 Give the other person a nickname. They see it too, with a cute popup.
+export function NicknameDialog({ conversation, onClose, onError }) {
+  const otherUser = conversation.otherUser;
+  const current = conversation.nicknames?.[otherUser?._id] || '';
+  const [nickname, setNickname] = useState(current);
+  const [busy, setBusy] = useState(false);
+  const firstName = otherUser?.name?.split(' ')[0] || 'them';
+
+  async function save(value) {
+    setBusy(true);
+    try {
+      await api(`/api/conversations/${conversation._id}/nickname`, { method: 'PUT', body: { nickname: value.trim() } });
+      onClose();
+    } catch (err) {
+      onError(err.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title={`💖 Nickname for ${firstName}`} onClose={onClose}>
+      <p className="mb-3 text-sm text-muted">
+        You’ll both see it, and {firstName} gets a little surprise telling them what you named them.
+      </p>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (nickname.trim() && nickname.trim() !== current) save(nickname);
+        }}
+      >
+        <input
+          value={nickname}
+          onChange={(e) => setNickname(e.target.value)}
+          maxLength={MAX_NICKNAME}
+          autoFocus
+          placeholder="e.g. Cutie 🥰"
+          className="w-full rounded-xl border border-line bg-panel-soft px-3.5 py-2.5 text-base outline-none focus:border-brand md:text-sm"
+        />
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {NICKNAME_IDEAS.map((idea) => (
+            <button
+              key={idea}
+              type="button"
+              onClick={() => setNickname(idea)}
+              className="rounded-full border border-line px-2.5 py-1 text-xs hover:bg-hover"
+            >
+              {idea}
+            </button>
+          ))}
+        </div>
+        <button
+          type="submit"
+          disabled={busy || !nickname.trim() || nickname.trim() === current}
+          className="mt-4 w-full rounded-full bg-brand py-2.5 font-medium text-white hover:bg-brand-strong disabled:opacity-60"
+        >
+          {busy ? 'Saving…' : 'Save nickname'}
+        </button>
+      </form>
+      {current && (
+        <button
+          onClick={() => save('')}
+          disabled={busy}
+          className="mt-2 w-full rounded-full py-2 text-sm text-muted hover:bg-hover disabled:opacity-60"
+        >
+          Remove nickname
+        </button>
+      )}
+    </Modal>
+  );
+}
+
+// A yes/no question before something that can't be undone (block, clear chat, delete chat)
+export function ConfirmDialog({ title, text, confirmLabel, onConfirm, onClose }) {
+  const [busy, setBusy] = useState(false);
+
+  async function confirm() {
+    setBusy(true);
+    // onConfirm reports its own errors; the dialog closes either way
+    await onConfirm();
+    onClose();
+  }
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      <p className="mb-4 text-sm text-muted">{text}</p>
+      <div className="flex gap-2">
+        <button onClick={onClose} className="flex-1 rounded-full border border-line py-2.5 font-medium hover:bg-hover">
+          Cancel
+        </button>
+        <button
+          onClick={confirm}
+          disabled={busy}
+          className="flex flex-1 items-center justify-center gap-2 rounded-full bg-red-600 py-2.5 font-medium text-white hover:bg-red-700 disabled:opacity-60"
+        >
+          {busy && <Loader2 size={16} className="animate-spin" />} {confirmLabel}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ✏️ Edit one of my text messages
+export function EditMessageDialog({ message, onSave, onClose }) {
+  const [text, setText] = useState(message.text);
+  const [busy, setBusy] = useState(false);
+  const trimmed = text.trim();
+
+  async function save(event) {
+    event.preventDefault();
+    if (!trimmed || trimmed === message.text) return;
+    setBusy(true);
+    if (await onSave(message, trimmed)) onClose();
+    else setBusy(false);
+  }
+
+  return (
+    <Modal title="Edit message" onClose={onClose}>
+      <form onSubmit={save}>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            // Enter saves, Shift+Enter adds a new line (like sending)
+            if (e.key === 'Enter' && !e.shiftKey) save(e);
+          }}
+          autoFocus
+          rows={3}
+          maxLength={4000}
+          className="scroll-thin w-full resize-none rounded-xl border border-line bg-panel-soft px-3.5 py-2.5 text-base outline-none focus:border-brand md:text-sm"
+        />
+        <button
+          type="submit"
+          disabled={busy || !trimmed || trimmed === message.text}
+          className="mt-3 w-full rounded-full bg-brand py-2.5 font-medium text-white hover:bg-brand-strong disabled:opacity-60"
+        >
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+      </form>
+    </Modal>
+  );
+}

@@ -2,19 +2,37 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Bell, BellOff, Brain, DoorOpen, EllipsisVertical, Ghost, Heart, Image, Puzzle, Star, Vibrate } from 'lucide-react';
+import {
+  Ban,
+  Bell,
+  BellOff,
+  Brain,
+  DoorOpen,
+  EllipsisVertical,
+  Eraser,
+  Ghost,
+  Heart,
+  Image,
+  Puzzle,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Trash2,
+  Vibrate,
+} from 'lucide-react';
 import { useChat } from './ChatProvider';
 import { api } from '@/lib/client';
 import { GHOST_LEVEL_INFO } from '@/lib/ghost';
 
-// The ⋮ menu in the chat header. Mute, 💕 miss you and 📳 buzz work here;
-// the rest opens a dialog owned by ChatWindow (onOpen('ghost' | 'vibe' | 'badge' | 'leave')).
-export default function ChatMenu({ conversation, myId, onError, onOpen, onMissYou, onBuzz, isBusy }) {
+// The ⋮ menu in the chat header. Mute, 💕 miss you, 📳 buzz and unblock work here;
+// the rest opens a dialog owned by ChatWindow
+// (onOpen('ghost' | 'vibe' | 'badge' | 'leave' | 'nickname' | 'clear' | 'deleteChat' | 'block')).
+export default function ChatMenu({ conversation, myId, onError, onOpen, onMissYou, onBuzz, onUnblock, isBusy }) {
   const { updateConversation, user, toggleTrusted } = useChat();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
 
-  const { _id: conversationId, isMuted, ghost, otherUser } = conversation;
+  const { _id: conversationId, isMuted, ghost, otherUser, blockedByMe } = conversation;
   const isDirect = conversation.type !== 'group';
   const ghostedByMe = ghost?.by === myId;
   const ghostedByThem = Boolean(ghost) && !ghostedByMe;
@@ -82,7 +100,7 @@ export default function ChatMenu({ conversation, myId, onError, onOpen, onMissYo
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.12 }}
-          className="absolute top-full right-0 z-30 mt-1 w-64 origin-top-right overflow-hidden rounded-2xl border border-line bg-panel py-1 text-sm shadow-xl"
+          className="scroll-thin absolute top-full right-0 z-30 mt-1 max-h-[calc(var(--app-height,100dvh)-6rem)] w-64 origin-top-right overflow-y-auto rounded-2xl border border-line bg-panel py-1 text-sm shadow-xl"
         >
           {isDirect && onMissYou && (
             <MenuItem
@@ -130,22 +148,43 @@ export default function ChatMenu({ conversation, myId, onError, onOpen, onMissYo
             hint="Just for this chat, on this device"
             onClick={() => open('background')}
           />
+          {isDirect && otherUser && (
+            <MenuItem
+              icon={Sparkles}
+              label={conversation.nicknames?.[otherUser._id] ? '💖 Change nickname' : '💖 Give a nickname'}
+              hint="You both see it"
+              disabled={blockedByMe}
+              onClick={() => open('nickname')}
+            />
+          )}
           <MenuItem icon={Brain} label="Read the vibe" onClick={() => open('vibe')} />
           <MenuItem icon={Puzzle} label="Add inside joke" onClick={() => open('badge')} />
           {isDirect && <MenuItem icon={DoorOpen} label="Leave conversation" onClick={() => open('leave')} />}
+          <div className="my-1 border-t border-line" />
+          <MenuItem icon={Eraser} label="Clear chat" hint="Only for you" onClick={() => open('clear')} />
+          <MenuItem icon={Trash2} label="Delete chat" danger onClick={() => open('deleteChat')} />
+          {isDirect &&
+            otherUser &&
+            (blockedByMe ? (
+              <MenuItem icon={ShieldCheck} label={`Unblock ${otherUser.name}`} onClick={() => run(onUnblock)} />
+            ) : (
+              <MenuItem icon={Ban} label={`Block ${otherUser.name}`} danger onClick={() => open('block')} />
+            ))}
         </motion.div>
       )}
     </div>
   );
 }
 
-function MenuItem({ icon: Icon, label, hint, disabled, onClick }) {
+function MenuItem({ icon: Icon, label, hint, disabled, danger, onClick }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-hover disabled:opacity-50 disabled:hover:bg-transparent"
+      className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-hover disabled:opacity-50 disabled:hover:bg-transparent ${
+        danger ? 'text-red-600 dark:text-red-400' : ''
+      }`}
     >
       <Icon size={17} className="shrink-0" />
       <span className="min-w-0">

@@ -11,9 +11,10 @@ import keyRoutes from './routes/keys.js';
 import callRoutes from './routes/calls.js';
 import socialRoutes from './routes/social.js';
 import stickerRoutes from './routes/stickers.js';
+import chatActionRoutes from './routes/chatActions.js';
 import healthRoutes from './routes/health.js';
 import { requireDatabase, notFound, errorHandler } from './middleware/errors.js';
-import { getUploadDir } from './utils/storage.js';
+import { serveUpload } from './utils/storage.js';
 
 export function createApp(allowedOrigins) {
   const app = express();
@@ -35,8 +36,8 @@ export function createApp(allowedOrigins) {
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
 
-  // Uploaded images. File names are random and never reused, so cache them for a year.
-  app.use('/uploads', express.static(getUploadDir(), { maxAge: '365d', immutable: true, fallthrough: false }));
+  // Uploaded images, voice messages and video notes (stored in MongoDB)
+  app.get('/uploads/:name', requireDatabase, serveUpload);
 
   // Before requireDatabase, so it can report a database problem instead of being blocked by it
   app.use('/api/health', healthRoutes);
@@ -47,6 +48,8 @@ export function createApp(allowedOrigins) {
   app.use('/api/conversations', conversationRoutes);
   // Ghost levels, forgiveness, pause, revive, inside jokes, undo seen, vibe stats
   app.use('/api/conversations', socialRoutes);
+  // Block, clear chat, delete chat and nicknames
+  app.use('/api/conversations', chatActionRoutes);
   app.use('/api/messages', messageRoutes);
   app.use('/api/upload', uploadRoutes);
   app.use('/api/stickers', stickerRoutes);

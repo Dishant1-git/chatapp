@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { isValidObjectId } from 'mongoose';
-import Conversation from '../models/Conversation.js';
+import Conversation, { blockError } from '../models/Conversation.js';
 import Message, { maskReactions } from '../models/Message.js';
 import User from '../models/User.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -8,7 +8,7 @@ import { messageLimiter } from '../middleware/rateLimits.js';
 import { UPLOAD_URL_PATTERN, ENCRYPTED_URL_PATTERN, deleteImage } from '../utils/storage.js';
 import { REACTIONS } from '../utils/reactions.js';
 import { FORGIVE_COOLDOWN_MS, formatGhost, ghostLevel, isOnlyEmoji } from '../utils/ghost.js';
-import { bumpStat, publishMessage, useDailyAllowance } from '../utils/publish.js';
+import { bumpStat, emitMessageUpdate, publishMessage, useDailyAllowance } from '../utils/publish.js';
 import { resumeConversation } from './conversations.js';
 import { getIO, isUserOnline, emitToConversation, conversationRoom, userRoom } from '../socket/io.js';
 
@@ -18,6 +18,57 @@ const router = Router();
 router.use(requireAuth);
 
 const BASE64 = /^[A-Za-z0-9+/]+=*$/;
+
+// Checks an encrypted message's shape, and that its key was locked for every
+// member of the chat with their current public key (nobody left out).
+// Returns { keys } to store, or { status, error, code }.
+async function checkEncrypted(conversation, body, userId) {
+  const ciphertext = String(body.ciphertext || '');
+  const iv = String(body.iv || '');
+  const senderKey = String(body.senderKey || '');
+
+  if (!ciphertext || ciphertext.length > 40000 || !BASE64.test(ciphertext)) {
+    return { status: 400, error: 'Message is empty or too long.' };
+  }
+  if (!BASE64.test(iv) || iv.length > 32) return { status: 400, error: 'Invalid message.' };
+
+  const members = await User.find({ _id: { $in: conversation.participants } }).select('name publicKey keyId');
+  const me = members.find((m) => String(m._id) === String(userId));
+  if (!me?.publicKey || senderKey !== me.publicKey) {
+    return { status: 409, error: 'Your encryption key changed. Please reload the page.', code: 'KEYS_CHANGED' };
+  }
+
+  const withoutKeys = members.filter((m) => !m.publicKey);
+  if (withoutKeys.length) {
+    const names = withoutKeys.map((m) => m.name).join(', ');
+    return {
+      status: 409,
+      error: `${names} ${withoutKeys.length > 1 ? "haven't" : "hasn't"} set up encryption yet. They'll be able to receive messages after their next login.`,
+      code: 'NO_KEYS',
+    };
+  }
+
+  // Every member needs a copy of the message key, locked with their current public key
+  const keys = Array.isArray(body.keys) ? body.keys : [];
+  const keyFor = new Map(keys.map((k) => [String(k?.userId), k]));
+  const complete =
+    keys.length === members.length &&
+    members.every((m) => {
+      const entry = keyFor.get(String(m._id));
+      return (
+        entry &&
+        entry.keyId === m.keyId &&
+        typeof entry.key === 'string' &&
+        entry.key.length <= 200 &&
+        BASE64.test(entry.key)
+      );
+    });
+  if (!complete) {
+    return { status: 409, error: 'The members of this chat changed. Please try again.', code: 'KEYS_CHANGED' };
+  }
+
+  return { keys: members.map((m) => ({ userId: m._id, keyId: m.keyId, key: keyFor.get(String(m._id)).key })) };
+}
 
 // Loads a message only if the logged-in user sent it or was one of its recipients
 async function findMyMessage(req, res) {
@@ -73,6 +124,10 @@ router.post('/', messageLimiter, async (req, res) => {
 
   const receiverId = conversation.type === 'group' ? null : recipients[0];
 
+  // 🚫 Blocked (either way)
+  const blocked = conversation.type !== 'group' && blockError(conversation, req.userId);
+  if (blocked) return res.status(403).json({ error: blocked });
+
   // They stepped away from the chat ("exit without drama"). If I'm the one
   // who stepped away, writing again means I'm back.
   if (conversation.pausedBy?.by) {
@@ -118,44 +173,8 @@ router.post('/', messageLimiter, async (req, res) => {
     return res.status(201).json({ message });
   }
 
-  if (!ciphertext || ciphertext.length > 40000 || !BASE64.test(ciphertext)) {
-    return res.status(400).json({ error: 'Message is empty or too long.' });
-  }
-  if (!BASE64.test(iv) || iv.length > 32) return res.status(400).json({ error: 'Invalid message.' });
-
-  const members = await User.find({ _id: { $in: conversation.participants } }).select('name publicKey keyId');
-  const me = members.find((m) => String(m._id) === req.userId);
-  if (!me?.publicKey || senderKey !== me.publicKey) {
-    return res.status(409).json({ error: 'Your encryption key changed. Please reload the page.', code: 'KEYS_CHANGED' });
-  }
-
-  const withoutKeys = members.filter((m) => !m.publicKey);
-  if (withoutKeys.length) {
-    const names = withoutKeys.map((m) => m.name).join(', ');
-    return res.status(409).json({
-      error: `${names} ${withoutKeys.length > 1 ? "haven't" : "hasn't"} set up encryption yet. They'll be able to receive messages after their next login.`,
-      code: 'NO_KEYS',
-    });
-  }
-
-  // Every member needs a copy of the message key, locked with their current public key
-  const keys = Array.isArray(body.keys) ? body.keys : [];
-  const keyFor = new Map(keys.map((k) => [String(k?.userId), k]));
-  const complete =
-    keys.length === members.length &&
-    members.every((m) => {
-      const entry = keyFor.get(String(m._id));
-      return (
-        entry &&
-        entry.keyId === m.keyId &&
-        typeof entry.key === 'string' &&
-        entry.key.length <= 200 &&
-        BASE64.test(entry.key)
-      );
-    });
-  if (!complete) {
-    return res.status(409).json({ error: 'The members of this chat changed. Please try again.', code: 'KEYS_CHANGED' });
-  }
+  const checked = await checkEncrypted(conversation, body, req.userId);
+  if (checked.error) return res.status(checked.status).json({ error: checked.error, code: checked.code });
 
   if (isForgivenessRequest) {
     // One request at a time, and 24 hours between requests. Claimed atomically
@@ -186,7 +205,7 @@ router.post('/', messageLimiter, async (req, res) => {
       ciphertext,
       iv,
       senderKey,
-      keys: members.map((m) => ({ userId: m._id, keyId: m.keyId, key: keyFor.get(String(m._id)).key })),
+      keys: checked.keys,
       image,
       media,
       replyTo,
@@ -220,6 +239,42 @@ router.post('/', messageLimiter, async (req, res) => {
   }
 
   res.status(201).json({ message });
+});
+
+// ✏️ PATCH /api/messages/:id { ciphertext, iv, senderKey, keys } — edit my own text message.
+// The browser encrypts the new text for every member, like a new message.
+router.patch('/:id', messageLimiter, async (req, res) => {
+  const message = await findMyMessage(req, res);
+  if (!message) return;
+
+  const editable =
+    String(message.senderId) === req.userId &&
+    message.messageType === 'text' &&
+    message.ciphertext &&
+    !message.isDeleted &&
+    !message.forgiveness &&
+    !message.ghostClick;
+  if (!editable) return res.status(403).json({ error: 'You can only edit your own text messages.' });
+
+  const conversation = await Conversation.findOne({ _id: message.conversationId, participants: req.userId });
+  if (!conversation) return res.status(404).json({ error: 'Conversation not found.' });
+  const blocked = conversation.type !== 'group' && blockError(conversation, req.userId);
+  if (blocked) return res.status(403).json({ error: blocked });
+
+  const body = req.body || {};
+  const checked = await checkEncrypted(conversation, body, req.userId);
+  if (checked.error) return res.status(checked.status).json({ error: checked.error, code: checked.code });
+
+  message.ciphertext = String(body.ciphertext);
+  message.iv = String(body.iv);
+  message.senderKey = String(body.senderKey);
+  message.keys = checked.keys;
+  message.editedAt = new Date();
+  await message.save();
+
+  const { ciphertext, iv, senderKey, keys, editedAt } = message.toJSON();
+  emitMessageUpdate(message.conversationId, message._id, { ciphertext, iv, senderKey, keys, editedAt });
+  res.json({ message });
 });
 
 // DELETE /api/messages/:id?for=me        — hide it only for me
@@ -292,7 +347,9 @@ router.post('/:id/reaction', async (req, res) => {
   if (message.isDeleted || message.messageType === 'event') return res.status(404).json({ error: 'Message not found.' });
 
   // Permanently ghosted or paused chats: no reactions either (emoji reactions are fine otherwise)
-  const conversation = await Conversation.findById(message.conversationId).select('ghost pausedBy');
+  const conversation = await Conversation.findById(message.conversationId).select('type ghost pausedBy blockedBy');
+  const blocked = conversation && conversation.type !== 'group' && blockError(conversation, req.userId);
+  if (blocked) return res.status(403).json({ error: blocked });
   const ghostedByOther = conversation?.ghost?.by && String(conversation.ghost.by) !== req.userId;
   if (ghostedByOther && ghostLevel(conversation.ghost) === 'permanent') {
     return res.status(403).json({ error: "You've been ghosted. You can't react here." });

@@ -18,7 +18,16 @@ import { GhostClickCamera, GhostClickViewer } from './GhostClick';
 import StickerStore from './StickerStore';
 import { loadAccessibility, speak } from '@/lib/accessibility';
 import Celebration from './Celebration';
-import { BackgroundDialog, BadgeDialog, GhostDialog, LeaveDialog, VibePanel } from './ChatDialogs';
+import {
+  BackgroundDialog,
+  BadgeDialog,
+  ConfirmDialog,
+  EditMessageDialog,
+  GhostDialog,
+  LeaveDialog,
+  NicknameDialog,
+  VibePanel,
+} from './ChatDialogs';
 import { ImageLightbox } from './ImagePreview';
 import { backgroundStyle } from '@/lib/chatBackground';
 import { api } from '@/lib/client';
@@ -33,6 +42,7 @@ import {
   markReadBy,
   markUnreadBy,
   memberSummary,
+  nicknameOf,
   typingText,
 } from '@/lib/conversations';
 
@@ -57,7 +67,7 @@ function addOrReplace(list, message, clientId, { keepExisting = false } = {}) {
 }
 
 // Notes that get a little moment on screen the first time I see them
-const MOMENT_EVENTS = ['missYou', 'buzz', 'forgiven', 'stillGhosted'];
+const MOMENT_EVENTS = ['missYou', 'buzz', 'forgiven', 'stillGhosted', 'nickname'];
 
 // One of those notes from the other person that I haven't seen yet
 function isNewMoment(message, myId) {
@@ -78,8 +88,17 @@ function mergeLatest(list, latest) {
 }
 
 export default function ChatWindow({ conversationId }) {
-  const { user, socket, conversations, typingIn, addConversation, updateConversation, markAsRead, goBackToList } =
-    useChat();
+  const {
+    user,
+    socket,
+    conversations,
+    typingIn,
+    addConversation,
+    updateConversation,
+    removeConversation,
+    markAsRead,
+    goBackToList,
+  } = useChat();
   const { startCall, joinCall, activeCalls, currentCall } = useCalls();
 
   const conversation = conversations.find((c) => c._id === conversationId);
@@ -122,7 +141,9 @@ export default function ChatWindow({ conversationId }) {
   const [isSendingMissYou, setIsSendingMissYou] = useState(false);
   const [isSendingBuzz, setIsSendingBuzz] = useState(false);
   const [celebration, setCelebration] = useState(null); // { emojis, title, subtitle }
-  const [dialog, setDialog] = useState(null); // ghost | vibe | badge | leave | background | stickers
+// ghost | vibe | badge | leave | background | stickers | nickname | clear | deleteChat | block
+  const [dialog, setDialog] = useState(null);
+  const [editing, setEditing] = useState(null); // ✏️ the message being edited
   const [almostSaid, setAlmostSaid] = useState(false);
   const [undoSeen, setUndoSeen] = useState(0); // how many new messages I just saw (0 = hide "Undo seen")
   const rootRef = useRef(null);
@@ -138,7 +159,9 @@ export default function ChatWindow({ conversationId }) {
   const emojiOnly = iAmGhosted && ['ghosted', 'deep'].includes(ghost.level);
   // "Exit without drama": one of us stepped away from the chat
   const pausedBy = isGroupChat ? null : conversation?.pausedBy || null;
-  const canType = !pausedBy && !(iAmGhosted && ghost.level === 'permanent');
+  // 🚫 I blocked them (if they blocked me, sending just fails with a short note)
+  const blockedByMe = !isGroupChat && Boolean(conversation?.blockedByMe);
+  const canType = !pausedBy && !blockedByMe && !(iAmGhosted && ghost.level === 'permanent');
   const isDead = status === 'ready' && isDeadChat(conversation);
   // Read by deliver(), which is a stable callback
   const emojiOnlyRef = useRef(emojiOnly);
@@ -183,6 +206,14 @@ export default function ChatWindow({ conversationId }) {
     if (type === 'buzz') shakeElement(rootRef.current); // 📳 the phone vibrates too (ChatProvider)
     if (type === 'forgiven') setCelebration({ emojis: ['🕊️', '✨', '🤍'], title: "✨ You're unghosted", subtitle: `${name} forgave you` });
     if (type === 'stillGhosted') setCelebration({ emojis: ['👻'], title: '👻 Still ghosted', subtitle: `${name} isn't ready yet` });
+    // 💖 They gave me a nickname
+    if (type === 'nickname' && message.event.name) {
+      setCelebration({
+        emojis: ['💖', '🥰', '✨', '💕'],
+        title: `💖 ${name} named you “${message.event.name}”`,
+        subtitle: 'Aww, someone thinks you’re special',
+      });
+    }
   }, []);
 
   // Opened from a link or a brand-new chat: fetch the conversation if we don't have it
@@ -351,7 +382,35 @@ export default function ChatWindow({ conversationId }) {
     // A forgiveness request was answered, a revive got a reply, "character development"…
     function onUpdated({ messageId, conversationId: id, changes }) {
       if (id !== conversationId) return;
+      if (changes?.ciphertext) return applyEdit(messageId, changes);
       setMessages((prev) => prev.map((m) => (m._id === messageId ? { ...m, ...changes } : m)));
+    }
+
+    // ✏️ A message was edited: decrypt its new text (and any quotes of it)
+    function applyEdit(messageId, changes) {
+      incomingQueue.current = incomingQueue.current
+        .then(async () => {
+          const current = messagesRef.current.find((m) => m._id === messageId);
+          const quoting = messagesRef.current.find((m) => m.replyTo?._id === messageId);
+          const base = current || quoting?.replyTo;
+          if (!base) return;
+          const edited = await openMessage({ ...base, ...changes, replyTo: null }, conversationId);
+          const { text, editedAt, ciphertext, iv, senderKey, keys, undecryptable } = edited;
+          const fresh = { text, editedAt, ciphertext, iv, senderKey, keys, undecryptable };
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m._id === messageId) return { ...m, ...fresh };
+              if (m.replyTo?._id === messageId) return { ...m, replyTo: { ...m.replyTo, ...fresh } };
+              return m;
+            })
+          );
+        })
+        .catch(() => {});
+    }
+
+    // 🧹 I cleared this chat (maybe in another tab)
+    function onCleared({ conversationId: id }) {
+      if (id === conversationId) setMessages([]);
     }
 
     // They used "undo seen": my ticks go back to delivered
@@ -391,6 +450,7 @@ export default function ChatWindow({ conversationId }) {
     socket.on('message:deleted', onDeleted);
     socket.on('message:reaction', onReaction);
     socket.on('message:updated', onUpdated);
+    socket.on('conversation:cleared', onCleared);
     socket.on('messages:read', onRead);
     socket.on('messages:unread', onUnread);
     socket.on('messages:delivered', onDelivered);
@@ -402,6 +462,7 @@ export default function ChatWindow({ conversationId }) {
       socket.off('message:deleted', onDeleted);
       socket.off('message:reaction', onReaction);
       socket.off('message:updated', onUpdated);
+      socket.off('conversation:cleared', onCleared);
       socket.off('messages:read', onRead);
       socket.off('messages:unread', onUnread);
       socket.off('messages:delivered', onDelivered);
@@ -707,6 +768,82 @@ export default function ChatWindow({ conversationId }) {
     }
   }
 
+  // ✏️ Encrypts the new text for everyone in the chat, like a new message.
+  // Returns true when it was saved (the edit dialog then closes).
+  const saveEdit = useCallback(
+    async (message, text) => {
+      async function encryptAndSave(members) {
+        const { encrypted } = await encryptMessage({ conversationId, members, payload: { text } });
+        return api(`/api/messages/${message._id}`, { method: 'PATCH', body: encrypted });
+      }
+      try {
+        let result;
+        try {
+          result = await encryptAndSave(conversationRef.current?.participants || []);
+        } catch (err) {
+          if (err.code !== 'KEYS_CHANGED') throw err;
+          // Someone joined, left or got new keys: refresh and try once more
+          const { conversation: fresh } = await api(`/api/conversations/${conversationId}`);
+          updateConversation(conversationId, { participants: fresh.participants, otherUser: fresh.otherUser });
+          result = await encryptAndSave(fresh.participants);
+        }
+        const { ciphertext, iv, senderKey, keys, editedAt } = result.message;
+        const changes = { text, ciphertext, iv, senderKey, keys, editedAt };
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m._id === message._id) return { ...m, ...changes };
+            if (m.replyTo?._id === message._id) return { ...m, replyTo: { ...m.replyTo, ...changes } };
+            return m;
+          })
+        );
+        if (conversationRef.current?.lastMessage?._id === message._id) {
+          updateConversation(conversationId, (c) => ({ lastMessage: { ...c.lastMessage, ...changes } }));
+        }
+        return true;
+      } catch (err) {
+        showNotice(err.message);
+        return false;
+      }
+    },
+    [conversationId, updateConversation, showNotice]
+  );
+
+  // 🧹 Empty the chat for me
+  async function clearChat() {
+    try {
+      await api(`/api/conversations/${conversationId}/clear`, { method: 'POST' });
+      setMessages([]);
+      setHasMore(false);
+      updateConversation(conversationId, { lastMessage: null, unreadCount: 0 });
+      showNotice('🧹 Chat cleared');
+    } catch (err) {
+      showNotice(err.message);
+    }
+  }
+
+  // 🗑️ Clear it and take it off my list (it comes back with the next message)
+  async function deleteChat() {
+    try {
+      await api(`/api/conversations/${conversationId}`, { method: 'DELETE' });
+      removeConversation(conversationId);
+    } catch (err) {
+      showNotice(err.message);
+    }
+  }
+
+  // 🚫 Block / unblock
+  async function setBlocked(block) {
+    try {
+      const { blockedByMe: blocked } = await api(`/api/conversations/${conversationId}/block`, {
+        method: block ? 'POST' : 'DELETE',
+      });
+      updateConversation(conversationId, { blockedByMe: blocked });
+      showNotice(blocked ? `🚫 Blocked ${otherUser?.name}` : `✅ Unblocked ${otherUser?.name}`);
+    } catch (err) {
+      showNotice(err.message);
+    }
+  }
+
   // Clicking a quoted message scrolls to the original, loading older pages if needed
   const jumpTo = useCallback(
     async (messageId) => {
@@ -840,6 +977,7 @@ export default function ChatWindow({ conversationId }) {
   const closeCelebration = useCallback(() => setCelebration(null), []);
   const closeDialog = useCallback(() => setDialog(null), []);
   const closeDeleteDialog = useCallback(() => setDeleting(null), []);
+  const closeEditDialog = useCallback(() => setEditing(null), []);
 
   async function sendMissYou() {
     setIsSendingMissYou(true);
@@ -917,6 +1055,9 @@ export default function ChatWindow({ conversationId }) {
         : presence;
   const statusIsHighlighted = Boolean(typing) || (!isGroupChat && otherUser?.isOnline);
   const badges = conversation?.badges || [];
+  // 💖 Nicknames: the one I gave them, and the one they gave me
+  const theirNickname = isGroupChat ? '' : nicknameOf(conversation, otherUser?._id);
+  const myNickname = isGroupChat ? '' : nicknameOf(conversation, myId);
   const hasPendingRevive = messages.some((m) => m.event?.type === 'revive' && !m.event.answer);
 
   return (
@@ -935,10 +1076,12 @@ export default function ChatWindow({ conversationId }) {
           className={`flex min-w-0 flex-1 items-center gap-2 rounded-xl py-1 text-left ${isGroupChat ? 'cursor-pointer' : 'cursor-default'}`}
           aria-label={isGroupChat ? 'Group info' : undefined}
         >
-          {conversation && <ChatAvatar conversation={conversation} size={40} />}
+          {conversation && <ChatAvatar conversation={conversation} size={40} viewable />}
           <div className="min-w-0 flex-1">
             <h2 className="min-w-0 truncate leading-tight font-semibold">
               {conversationTitle(conversation) || '…'}
+              {/* 💖 Their real name next to the nickname I gave them */}
+              {theirNickname && <span className="ml-1.5 text-xs font-normal text-muted">{otherUser?.name}</span>}
             </h2>
             <p className={`truncate text-xs ${statusIsHighlighted ? 'text-brand' : 'text-muted'}`}>{statusText}</p>
           </div>
@@ -964,14 +1107,20 @@ export default function ChatWindow({ conversationId }) {
             onOpen={setDialog}
             onMissYou={sendMissYou}
             onBuzz={sendBuzz}
+            onUnblock={() => setBlocked(false)}
             isBusy={isSendingMissYou || isSendingBuzz}
           />
         )}
       </header>
 
-      {/* 🧩 Inside jokes */}
-      {badges.length > 0 && (
+      {/* 🧩 Inside jokes, and 💖 the nickname they gave me */}
+      {(badges.length > 0 || myNickname) && (
         <div className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-line bg-panel px-3 py-1.5 md:px-4">
+          {myNickname && (
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-pink-100 px-2.5 py-0.5 text-xs font-medium text-pink-700 dark:bg-pink-400/15 dark:text-pink-300">
+              💖 {otherUser?.name?.split(' ')[0]} calls you “{myNickname}”
+            </span>
+          )}
           {badges.map((badge) => (
             <span
               key={badge._id}
@@ -1126,6 +1275,7 @@ export default function ChatWindow({ conversationId }) {
                     registerRef={registerRef}
                     onReply={setReplyingTo}
                     onReact={react}
+                    onEdit={setEditing}
                     onDelete={requestDelete}
                     onRetry={retry}
                     onJumpTo={jumpTo}
@@ -1200,8 +1350,21 @@ export default function ChatWindow({ conversationId }) {
         </div>
       )}
 
+      {/* 🚫 I blocked them */}
+      {blockedByMe && !pausedBy && (
+        <div className="flex shrink-0 items-center gap-3 border-t border-line bg-panel-soft px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-sm">
+          <p className="min-w-0 flex-1">🚫 You blocked {otherUser?.name}. Neither of you can message or call.</p>
+          <button
+            onClick={() => setBlocked(false)}
+            className="shrink-0 rounded-full bg-brand px-4 py-1.5 font-medium text-white hover:bg-brand-strong"
+          >
+            Unblock
+          </button>
+        </div>
+      )}
+
       {/* 🪦 Dead chat */}
-      {isDead && !pausedBy && !hasPendingRevive && (
+      {isDead && !pausedBy && !blockedByMe && !hasPendingRevive && (
         <div className="flex shrink-0 items-center gap-3 border-t border-line bg-panel-soft px-4 py-2.5 text-sm">
           <p className="min-w-0 flex-1">🪦 This chat is officially dead.</p>
           <button onClick={sendRevive} className="shrink-0 rounded-full bg-brand px-4 py-1.5 font-medium text-white hover:bg-brand-strong">
@@ -1210,7 +1373,7 @@ export default function ChatWindow({ conversationId }) {
         </div>
       )}
 
-      {ghost && !pausedBy && (
+      {ghost && !pausedBy && !blockedByMe && (
         <GhostBanner
           ghost={ghost}
           myId={myId}
@@ -1274,6 +1437,40 @@ export default function ChatWindow({ conversationId }) {
         {dialog === 'background' && conversation && (
           <BackgroundDialog key="background-dialog" conversation={conversation} onClose={closeDialog} onError={showNotice} />
         )}
+        {dialog === 'nickname' && conversation && (
+          <NicknameDialog key="nickname-dialog" conversation={conversation} onClose={closeDialog} onError={showNotice} />
+        )}
+        {dialog === 'clear' && (
+          <ConfirmDialog
+            key="clear-dialog"
+            title="Clear this chat?"
+            text="All messages disappear for you. The other person keeps their copy."
+            confirmLabel="Clear chat"
+            onConfirm={clearChat}
+            onClose={closeDialog}
+          />
+        )}
+        {dialog === 'deleteChat' && (
+          <ConfirmDialog
+            key="delete-chat-dialog"
+            title="Delete this chat?"
+            text="All messages disappear for you and the chat leaves your list. It comes back if a new message arrives."
+            confirmLabel="Delete chat"
+            onConfirm={deleteChat}
+            onClose={closeDialog}
+          />
+        )}
+        {dialog === 'block' && otherUser && (
+          <ConfirmDialog
+            key="block-dialog"
+            title={`Block ${otherUser.name}?`}
+            text="Neither of you will be able to message, react or call in this chat until you unblock them. They won't be told."
+            confirmLabel="Block"
+            onConfirm={() => setBlocked(true)}
+            onClose={closeDialog}
+          />
+        )}
+        {editing && <EditMessageDialog key="edit-dialog" message={editing} onSave={saveEdit} onClose={closeEditDialog} />}
         {ghostCamera && (
           <GhostClickCamera
             key="ghost-camera"

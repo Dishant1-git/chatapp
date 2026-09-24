@@ -25,7 +25,9 @@ const STORE = 'keys';
 let session = null;
 // Caches so each thing is only worked out once
 const wrappingKeys = new Map(); // other user's public key → AES-KW key
-const openedMessages = new Map(); // message id → Promise<{ payload, contentKey } | null>
+// "message id:iv" → Promise<{ payload, contentKey } | null>. An edited message gets a new iv,
+// so it's decrypted again.
+const openedMessages = new Map();
 const imageUrls = new Map(); // encrypted file URL → Promise<object URL>
 
 // ---- Helpers ----
@@ -311,10 +313,11 @@ export async function openMessage(message, conversationId = message?.conversatio
     opened = { ...message, text: '', undecryptable: true };
   } else if (message.ciphertext) {
     const full = { ...message, conversationId: String(message.conversationId || conversationId) };
-    if (!openedMessages.has(message._id)) {
-      openedMessages.set(message._id, decryptPayload(full).catch(() => null));
+    const cacheKey = `${message._id}:${message.iv}`;
+    if (!openedMessages.has(cacheKey)) {
+      openedMessages.set(cacheKey, decryptPayload(full).catch(() => null));
     }
-    const result = await openedMessages.get(message._id);
+    const result = await openedMessages.get(cacheKey);
     opened = result
       ? {
           ...full,

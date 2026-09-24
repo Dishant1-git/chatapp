@@ -141,9 +141,15 @@ export function registerCallHandlers(io, socket) {
     if (userCalls.has(userId)) return reply({ error: "You're already in a call." });
 
     const conversation = await Conversation.findOne({ _id: conversationId, participants: userId }).select(
-      'participants ghost pausedBy'
+      'type participants ghost pausedBy blockedBy'
     );
     if (!conversation) return reply({ error: 'Conversation not found.' });
+
+    // 🚫 Blocked (either way): no calls
+    const blockedBy = (conversation.blockedBy || []).map(String);
+    if (conversation.type !== 'group' && blockedBy.length) {
+      return reply({ error: blockedBy.includes(userId) ? 'You blocked this person. Unblock them to call.' : "You can't call this person." });
+    }
 
     // Ghosted (anything but soft) or they stepped away: no calls
     const ghostedByOther = conversation.ghost?.by && String(conversation.ghost.by) !== userId;

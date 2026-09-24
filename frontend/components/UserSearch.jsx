@@ -83,7 +83,7 @@ export default function UserSearch({ initialQuery = '', onClose }) {
               disabled={Boolean(openingId)}
               className="mx-2 flex w-[calc(100%-1rem)] items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition hover:bg-hover disabled:opacity-60"
             >
-              <Avatar user={person} size={46} showStatus />
+              <Avatar user={person} size={46} showStatus viewable />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{person.name}</p>
                 <p className="truncate text-sm text-muted">{person.email}</p>
