@@ -234,7 +234,6 @@ export default function ChatList() {
           isTrusted={isTrustedChat(menuConversation)}
           onMute={(muted) => setMuted(menuConversation, muted)}
           onToggleTrusted={() => toggleTrustedGhost(menuConversation)}
-          onDelete={() => setDeleting(menuConversation)}
           onClose={closeMenu}
         />
       )}
@@ -271,7 +270,8 @@ const LONG_PRESS_MS = 450;
 const MENU_WIDTH = 232; // px
 
 // The options for one chat, opened where it was right-clicked or long-pressed
-function ChatContextMenu({ conversation, x, y, isTrusted, onMute, onToggleTrusted, onDelete, onClose }) {
+// (Deleting a chat is done by swiping the row — see SwipeBin.)
+function ChatContextMenu({ conversation, x, y, isTrusted, onMute, onToggleTrusted, onClose }) {
   const menuRef = useRef(null);
   const [position, setPosition] = useState({ left: x, top: y });
   const isDirect = !isGroup(conversation) && conversation.otherUser;
@@ -336,20 +336,17 @@ function ChatContextMenu({ conversation, x, y, isTrusted, onMute, onToggleTruste
           onClick={() => run(onToggleTrusted)}
         />
       )}
-      <ContextMenuItem icon={Trash2} label="Delete chat" danger onClick={() => run(onDelete)} />
     </motion.div>
   );
 }
 
-function ContextMenuItem({ icon: Icon, label, danger, onClick }) {
+function ContextMenuItem({ icon: Icon, label, onClick }) {
   return (
     <button
       type="button"
       role="menuitem"
       onClick={onClick}
-      className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-hover ${
-        danger ? 'text-red-600 dark:text-red-400' : ''
-      }`}
+      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-hover"
     >
       <Icon size={17} className="shrink-0" />
       <span className="truncate">{label}</span>
