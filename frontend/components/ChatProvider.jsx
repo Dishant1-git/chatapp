@@ -278,10 +278,14 @@ export default function ChatProvider({ children }) {
       updateConversation(conversationId, { isMuted });
     }
 
-    // Someone's mood changed (maybe mine, from another tab)
-    function handleMood({ userId, mood }) {
-      updateMember(userId, { mood });
-      if (userId === userRef.current?._id) setUser((u) => ({ ...u, mood }));
+    // Someone changed their name, picture or mood (maybe me, from another tab)
+    function handleUserUpdated({ userId, changes }) {
+      const { name, profileImage, mood } = changes || {};
+      const allowed = Object.fromEntries(
+        Object.entries({ name, profileImage, mood }).filter(([, value]) => value !== undefined)
+      );
+      updateMember(userId, allowed);
+      if (userId === userRef.current?._id) setUser((u) => ({ ...u, ...allowed }));
     }
 
     // "Exit without drama": if I stepped away (maybe in another tab), the chat leaves my list
@@ -379,7 +383,7 @@ export default function ChatProvider({ children }) {
     socket.on('conversation:mute', handleMute);
     socket.on('conversation:ghost', handleGhost);
     socket.on('conversation:pause', handlePause);
-    socket.on('user:mood', handleMood);
+    socket.on('user:updated', handleUserUpdated);
     socket.on('conversation:updated', handleConversationUpdated);
     socket.on('conversation:removed', handleConversationRemoved);
 
@@ -396,7 +400,7 @@ export default function ChatProvider({ children }) {
       socket.off('conversation:mute', handleMute);
       socket.off('conversation:ghost', handleGhost);
       socket.off('conversation:pause', handlePause);
-      socket.off('user:mood', handleMood);
+      socket.off('user:updated', handleUserUpdated);
       socket.off('conversation:updated', handleConversationUpdated);
       socket.off('conversation:removed', handleConversationRemoved);
     };

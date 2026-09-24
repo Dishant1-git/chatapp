@@ -85,11 +85,13 @@ router.patch('/me', imageUpload.single('profileImage'), async (req, res) => {
   const user = await User.findByIdAndUpdate(req.userId, updates, { returnDocument: 'after' });
   if (!user) return res.status(404).json({ error: 'User not found.' });
 
-  // Everyone I chat with sees the new mood next to my name
-  if (updates.mood !== undefined) {
+  // Everyone I chat with sees my new name, picture and mood straight away, without refreshing
+  if (Object.keys(updates).length) {
+    const changes = {};
+    for (const field of Object.keys(updates)) changes[field] = user[field];
     const conversations = await Conversation.find({ participants: req.userId }).select('_id');
     const rooms = conversations.map((c) => conversationRoom(c._id));
-    if (rooms.length) getIO()?.to(rooms).emit('user:mood', { userId: req.userId, mood: user.mood });
+    if (rooms.length) getIO()?.to(rooms).emit('user:updated', { userId: req.userId, changes });
   }
 
   res.json({ user });
