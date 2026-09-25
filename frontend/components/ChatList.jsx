@@ -9,11 +9,14 @@ import { ConfirmDialog } from './ChatDialogs';
 import { api } from '@/lib/client';
 import Avatar, { ChatAvatar } from './Avatar';
 import ThemeToggle from './ThemeToggle';
+import dynamic from 'next/dynamic';
 import UserSearch from './UserSearch';
-import NewGroup from './NewGroup';
-import Profile from './Profile';
-import ScheduledMessages from './ScheduledMessages';
-import Calls from './Calls';
+// Opened from a button, so they're fetched when they're first needed rather
+// than sitting in the download everyone pays for on the way in
+const NewGroup = dynamic(() => import('./NewGroup'), { ssr: false });
+const Profile = dynamic(() => import('./Profile'), { ssr: false });
+const ScheduledMessages = dynamic(() => import('./ScheduledMessages'), { ssr: false });
+const Calls = dynamic(() => import('./Calls'), { ssr: false });
 import { MessageTicks } from './Message';
 import { formatListDate, messagePreview } from '@/lib/format';
 import { conversationTitle, isGroup, makeNameOf, typingText } from '@/lib/conversations';
@@ -681,7 +684,7 @@ const ConversationItem = memo(function ConversationItem({
                     <MessageTicks message={lastMessage} />
                   )}
                   <span
-                    className={`truncate ${lastMessage?.isDeleted || lastMessage?.undecryptable ? 'italic' : ''}`}
+                    className={`private truncate ${lastMessage?.isDeleted || lastMessage?.undecryptable ? 'italic' : ''}`}
                   >
                     {showSender && `${nameOf(lastMessage.senderId)}: `}
                     {hiddenByGhost ? '👻 Ghosted' : lastMessage ? messagePreview(lastMessage, { nameOf, myId }) : 'Say hello 👋'}

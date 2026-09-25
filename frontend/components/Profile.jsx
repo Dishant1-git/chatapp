@@ -1,13 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Camera, Loader2, LogOut, Trash2 } from 'lucide-react';
+import { Camera, Check, Eye, EyeOff, KeyRound, Loader2, LogOut, Trash2 } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import Avatar from './Avatar';
 import ThemeToggle from './ThemeToggle';
 import { SidePanel } from './UserSearch';
 import { checkImageFile } from './ImagePreview';
 import { api } from '@/lib/client';
+import { moveKeysToNewPassword } from '@/lib/accountKeys';
+import { passwordIsValid, passwordRules } from '@/lib/password';
+import { privacyOn, setPrivacy } from '@/lib/privacy';
 import { MOODS } from '@/lib/social';
 import { FONT_SIZES, TEXT_COLORS, loadAccessibility, saveAccessibility, speak } from '@/lib/accessibility';
 
@@ -138,10 +141,22 @@ export default function Profile({ onClose }) {
         )}
 
         <div className="mt-6 px-5">
+          {user.username && (
+            <>
+              <p className="mb-1.5 text-sm font-medium text-brand">Username</p>
+              <p className="mb-4 rounded-xl bg-panel-soft px-3.5 py-2.5 text-sm text-muted">
+                @{user.username}
+                <span className="block text-xs">People can find you with this</span>
+              </p>
+            </>
+          )}
           <p className="mb-1.5 text-sm font-medium text-brand">Email</p>
           <p className="rounded-xl bg-panel-soft px-3.5 py-2.5 text-sm text-muted">{user.email}</p>
         </div>
 
+        <ChangePassword />
+
+        <PrivacyScreen />
         <MoodPicker />
         <SocialStats />
         <AccessibilitySettings />
@@ -314,6 +329,159 @@ function AccessibilitySettings() {
       >
         ▶ Test the voice
       </button>
+    </div>
+  );
+}
+
+// 🔑 Changing the password from inside the app. Because the current password is
+// known here, the encryption key is simply locked again with the new one — so
+// unlike a reset from the login page, nothing becomes unreadable.
+function ChangePassword() {
+  const { user } = useChat();
+  const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState({ type: '', text: '' });
+
+  async function save(event) {
+    event.preventDefault();
+    setMessage({ type: '', text: '' });
+
+    if (!passwordIsValid(next, user)) {
+      return setMessage({ type: 'error', text: 'Please pick a stronger password.' });
+    }
+
+    setBusy(true);
+    try {
+      await api('/api/auth/password/change', {
+        method: 'POST',
+        body: { currentPassword: current, newPassword: next },
+      });
+      // Move the encryption key across, so older messages stay readable
+      await moveKeysToNewPassword(user, current, next);
+      setMessage({ type: 'ok', text: 'Password changed. Your messages are still readable.' });
+      setCurrent('');
+      setNext('');
+      setOpen(false);
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-4 px-5">
+      {!open ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex w-full items-center gap-2 rounded-xl border border-line px-3.5 py-2.5 text-sm font-medium transition hover:bg-hover"
+        >
+          <KeyRound size={16} className="text-brand" /> Change password
+        </button>
+      ) : (
+        <form onSubmit={save} className="space-y-2.5 rounded-xl border border-line p-3.5">
+          <p className="text-sm font-medium">Change password</p>
+          <input
+            type="password"
+            value={current}
+            onChange={(e) => setCurrent(e.target.value)}
+            placeholder="Current password"
+            autoComplete="current-password"
+            className="w-full rounded-lg border border-line bg-panel-soft px-3 py-2 text-base outline-none focus:border-brand md:text-sm"
+            required
+          />
+          <input
+            type="password"
+            value={next}
+            onChange={(e) => setNext(e.target.value)}
+            placeholder="New password"
+            autoComplete="new-password"
+            className="w-full rounded-lg border border-line bg-panel-soft px-3 py-2 text-base outline-none focus:border-brand md:text-sm"
+            required
+          />
+          {next.length > 0 && (
+            <ul className="space-y-0.5">
+              {passwordRules(next, user).map((rule) => (
+                <li key={rule.label} className={`flex items-center gap-1.5 text-xs ${rule.ok ? 'text-muted' : 'text-fg'}`}>
+                  <Check size={12} className={rule.ok ? 'text-emerald-600 dark:text-emerald-400' : 'opacity-30'} />
+                  {rule.label}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex gap-2 pt-1">
+            <button
+              type="submit"
+              disabled={busy}
+              className="flex-1 rounded-lg bg-brand py-2 text-sm font-medium text-on-brand transition hover:bg-brand-strong disabled:opacity-60"
+            >
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="rounded-lg border border-line px-3 py-2 text-sm font-medium transition hover:bg-hover"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+      {message.text && (
+        <p className={`mt-2 text-sm ${message.type === 'error' ? 'text-red-600 dark:text-red-400' : 'text-brand'}`}>
+          {message.text}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// 🫣 Privacy screen: blurs messages so the person next to you can't read them.
+// Hovering (or tapping) one shows it, and only it.
+function PrivacyScreen() {
+  const [on, setOn] = useState(false);
+
+  // The class is put on <html> before the page paints (lib/privacy.js), so read
+  // the current state after mounting rather than guessing it
+  useEffect(() => setOn(privacyOn()), []);
+
+  function toggle() {
+    const next = !on;
+    setPrivacy(next);
+    setOn(next);
+  }
+
+  return (
+    <div className="mt-6 border-t border-line px-5 pt-4">
+      <p className="mb-1.5 text-sm font-medium text-brand">Privacy screen</p>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-pressed={on}
+        className="flex w-full items-center gap-3 rounded-xl border border-line px-3.5 py-3 text-left transition hover:bg-hover"
+      >
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${on ? 'bg-brand text-on-brand' : 'bg-panel-soft text-muted'}`}>
+          {on ? <EyeOff size={18} /> : <Eye size={18} />}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">{on ? 'On' : 'Off'}</span>
+          <span className="block text-xs text-muted">
+            Blurs messages, photos and previews. Hover or tap one to read it.
+          </span>
+        </span>
+        <span
+          className={`relative h-6 w-11 shrink-0 rounded-full transition ${on ? 'bg-brand' : 'bg-line'}`}
+          aria-hidden
+        >
+          <span
+            className={`absolute top-1 h-4 w-4 rounded-full bg-panel transition-all ${on ? 'left-6' : 'left-1'}`}
+          />
+        </span>
+      </button>
+      <p className="mt-1.5 text-xs text-muted">Kept on this device only — it doesn’t follow you to another one.</p>
     </div>
   );
 }

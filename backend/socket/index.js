@@ -138,7 +138,9 @@ async function joinRoomsAndGoOnline(io, socket, isFirstConnection) {
 
   // Messages sent to this user while they were offline are now delivered
   const me = new mongoose.Types.ObjectId(userId);
-  const undelivered = { recipients: me, deliveredTo: { $ne: me } };
+  // isDelivered: false first, so this uses the index rather than reading the
+  // whole inbox on every connection
+  const undelivered = { recipients: me, isDelivered: false, deliveredTo: { $ne: me } };
   const conversationIds = await Message.distinct('conversationId', undelivered);
   if (conversationIds.length) {
     await Message.updateMany(

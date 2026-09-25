@@ -388,12 +388,21 @@ function Message({
 
           {/* One of the sender's own stickers, decrypted like a photo */}
           {isStickerImage && (
-            <SecureImage message={message} onLoad={onImageLoad} alt="Sticker" className="h-32 w-32 object-contain sm:h-36 sm:w-36" />
+            <SecureImage
+              message={message}
+              onLoad={onImageLoad}
+              alt="Sticker"
+              className="private-image h-32 w-32 object-contain sm:h-36 sm:w-36"
+            />
           )}
 
           {isVoiceNote && <VoiceNote message={message} isMine={isMine} />}
           {isVideoNote && <VideoNote message={message} time={time} />}
-          {isDocument && <FileCard message={message} isMine={isMine} />}
+          {isDocument && (
+            <span className="private block" onClick={(event) => event.currentTarget.classList.toggle('revealed')}>
+              <FileCard message={message} isMine={isMine} />
+            </span>
+          )}
 
           {/* 👻 View-once Ghost Click: tap to open it, one time */}
           {isViewOnce && !isDeleted && (
@@ -429,8 +438,12 @@ function Message({
             </p>
           )}
 
+          {/* 😬 "private" is what the privacy screen blurs (lib/privacy.js) */}
           {hasText && (
-            <p className={`text-[15px] leading-snug break-words whitespace-pre-wrap ${hasImage ? 'px-1.5 pt-1' : ''}`}>
+            <p
+              onClick={(event) => event.currentTarget.classList.toggle('revealed')}
+              className={`private text-[15px] leading-snug break-words whitespace-pre-wrap ${hasImage ? 'px-1.5 pt-1' : ''}`}
+            >
               <Linkified text={message.text} />
               {/* Spacer so the time never overlaps the last line of text */}
               <span

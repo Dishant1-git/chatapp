@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Mic, Paperclip, Plus, SendHorizontal, Smile, X } from 'lucide-react';
 import { useChat } from './ChatProvider';
-import VoiceRecorder from './VoiceRecorder';
+import dynamic from 'next/dynamic';
+// Only needed once recording starts / the GIF tab is opened
+const VoiceRecorder = dynamic(() => import('./VoiceRecorder'), { ssr: false });
 import { checkImageFile } from './ImagePreview';
-import GifPicker from './GifPicker';
+const GifPicker = dynamic(() => import('./GifPicker'), { ssr: false });
 import { messagePreview } from '@/lib/format';
 import { isOnlyEmoji } from '@/lib/ghost';
 import { canRecord } from '@/lib/recording';

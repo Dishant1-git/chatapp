@@ -16,7 +16,8 @@ a pale blush. Dark mode is the same idea in near-black brown with salmon accents
 token in `frontend/app/globals.css` (`--brand`, `--panel`, `--header`, `--bubble-in/out`, `--on-brand`,
 …), so the whole palette — light and dark — changes in that one file.
 
-**Features:** register/login, profiles with photos, user search, private conversations,
+**Features:** register/login with **@usernames** (taken? it suggests free ones), **email verification**
+and **password reset** by code, profiles with photos, user search by name or handle, private conversations,
 **group chats** (admins, add/remove members, rename, group photo), **end-to-end encrypted**
 messages and photos, **voice and video calls** (one-to-one and groups of up to 6),
 real-time messages, online status and last seen, typing indicator, sent/delivered/read ticks,
@@ -120,6 +121,12 @@ Browser ──► Next.js (frontend) ──/api, /socket.io, /uploads──► E
   is written when the last tab closes.
 - **Ticks:** a message is *delivered* if the receiver has the app open when it's sent (or as soon
   as they connect), and *read* when they open the conversation.
+- **Order.** Messages are ordered by the moment the server saved them, and every screen keeps to
+  that order: the browser sends one message at a time (so a photo can't be overtaken by the line
+  typed after it), the server announces a message as soon as it's saved rather than after the
+  bookkeeping around it, and arriving messages are put in their place in the list rather than
+  simply added at the end. A message that arrives late therefore lands where it belongs instead of
+  at the bottom.
 - **📎 Documents** (the paperclip next to the message box) go the same way as photos: encrypted in
   the browser and stored as opaque bytes, up to 30 MB. The name, type and size travel *inside* the
   encryption, so the server can't tell a spreadsheet from a holiday photo — and the receiver's browser
@@ -145,6 +152,26 @@ Browser ──► Next.js (frontend) ──/api, /socket.io, /uploads──► E
   anything by calling the API directly.
 - Accounts made before this existed are marked verified by the migration in `backend/config/migrate.js`,
   so nobody is locked out by the update.
+
+### 🏷️ Usernames, passwords and forgotten passwords
+
+- Every account has a **@username**: 3–20 characters, letters, numbers and underscores. The sign-up
+  form fills one in from the name as you type, checks whether it's free
+  (`GET /api/auth/username?u=…`) and offers free alternatives when it isn't
+  (`backend/utils/username.js`). People can be found by handle as well as by name or full email.
+  Accounts made before this feature get one in the migration.
+- **Passwords** are checked the same way in the browser and on the server (`frontend/lib/password.js`
+  and `backend/utils/password.js`): at least 8 characters, a letter, a number or symbol, and not
+  their own name, email or something off a short list of obvious ones. The sign-up form shows the
+  rules ticking off as you type, with a strength bar.
+- **Forgot password** (`/forgot`) sends a code to the same address, then takes a new password.
+  The answer is the same whether or not the address has an account, so it can't be used to find out
+  who is registered. Entering the code also confirms the address.
+- **What happens to old messages.** The private key is locked with the password, so a reset from the
+  login page cannot unlock it: the account gets a fresh key and messages from before stay unreadable.
+  The reset screen says so before they go ahead. Someone who *knows* their password should use
+  **Change password** in their profile instead — that unlocks the key with the old password and locks
+  it again with the new one (`relockKeys` in `frontend/lib/e2ee.js`), so nothing is lost.
 
 **Sending the mail on free hosting.** Render's free tier (and most free hosts) block outbound SMTP
 ports 25/465/587, so Gmail SMTP can't work there. This sends over ordinary HTTPS through
@@ -291,6 +318,10 @@ Routes live in `backend/routes/social.js`; labels in `frontend/lib/ghost.js` and
 - **⭐ Trusted Ghosts**: favourite contacts from the chat menu, pinned at the top of the chat list.
   The list is private and only returned by `/api/auth/me`.
 - **✨ Reactions** burst and pop when added. This is off when the system asks for reduced motion.
+- **🫣 Privacy screen** (Profile → Privacy screen): blurs messages, photos, chat-list previews and
+  notifications so the person next to you can't read them. Hovering one message — or tapping it on a
+  phone — shows that one and nothing else. It's a per-device setting, applied before the page is
+  painted (`frontend/lib/privacy.js`), so nothing flashes up readable on the way in.
 - **👥 Friends / Groups**: two pills above the chat list split one-to-one chats from groups. A
   search looks through both, so nothing hides behind the other tab, and the pill you're not on shows
   a dot when unread messages are waiting there. The choice is remembered on the device; until you
@@ -352,6 +383,10 @@ frontend/
 | GET    | `/api/auth/me`                             | Current user                                  |
 | POST   | `/api/auth/verify`                         | ✉️ Confirm the account with `{ code }`        |
 | POST   | `/api/auth/verify/resend`                  | ✉️ Send a fresh code to the account's email   |
+| GET    | `/api/auth/username?u=`                    | 🏷️ Is this handle free? Suggestions if not    |
+| POST   | `/api/auth/password/forgot`                | 🔑 Email a reset code                        |
+| POST   | `/api/auth/password/reset`                 | 🔑 Set a new password with `{ email, code, password }` |
+| POST   | `/api/auth/password/change`                | 🔑 Change it while logged in (keeps messages) |
 | PATCH  | `/api/users/me`                            | Update name / profile photo (multipart)       |
 | GET    | `/api/users/search?q=`                     | Search users by name or email                 |
 | GET    | `/api/conversations`                       | My conversations with unread counts           |

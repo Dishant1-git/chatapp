@@ -1,6 +1,18 @@
 // Date/time helpers for the UI
 import { PAUSE_REASONS, REVIVE_ANSWERS } from './social';
 
+// Built once and reused. Making an Intl formatter is surprisingly slow, and a
+// long chat asks for the time on every bubble, on every render.
+const timeFormat = new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' });
+const weekdayFormat = new Intl.DateTimeFormat([], { weekday: 'short' });
+const dateFormat = new Intl.DateTimeFormat();
+const dayDividerFormat = new Intl.DateTimeFormat([], {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+
 function isSameDay(a, b) {
   return (
     a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
@@ -15,7 +27,7 @@ function isYesterday(date) {
 
 // "10:32 AM"
 export function formatTime(value) {
-  return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return timeFormat.format(new Date(value));
 }
 
 // Chat list: "10:32 AM", "Yesterday", "Mon", "12/03/2026"
@@ -29,9 +41,9 @@ export function formatListDate(value) {
 
   const sixDaysAgo = new Date();
   sixDaysAgo.setDate(now.getDate() - 6);
-  if (date > sixDaysAgo) return date.toLocaleDateString([], { weekday: 'short' });
+  if (date > sixDaysAgo) return weekdayFormat.format(date);
 
-  return date.toLocaleDateString();
+  return dateFormat.format(date);
 }
 
 // Divider between days in a chat: "Today", "Yesterday", "Monday, 12 March 2026"
@@ -39,7 +51,7 @@ export function formatDayDivider(value) {
   const date = new Date(value);
   if (isSameDay(date, new Date())) return 'Today';
   if (isYesterday(date)) return 'Yesterday';
-  return date.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  return dayDividerFormat.format(date);
 }
 
 export function isDifferentDay(a, b) {

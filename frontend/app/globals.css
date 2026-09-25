@@ -210,6 +210,36 @@ body {
   animation-delay: var(--write-delay, 0s);
 }
 
+/* 😬 Privacy screen (see lib/privacy.js): everything marked "private" is
+   blurred, so someone glancing over your shoulder can't read it. Hovering with
+   a mouse, or tapping on a phone (which adds "revealed"), shows one at a time. */
+html.privacy .private {
+  filter: blur(7px);
+  transition: filter 0.12s ease-out;
+  cursor: pointer;
+}
+html.privacy .private:hover,
+html.privacy .private:focus-visible,
+html.privacy .private:focus-within,
+html.privacy .private.revealed {
+  filter: none;
+}
+/* Pictures get a heavier blur: shapes and colours give more away than words */
+html.privacy .private-image {
+  filter: blur(18px);
+  transition: filter 0.12s ease-out;
+}
+html.privacy .private-image:hover,
+html.privacy .private-image.revealed {
+  filter: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  html.privacy .private,
+  html.privacy .private-image {
+    transition: none;
+  }
+}
+
 /* Scrollable, but without the scrollbar showing (the message box) */
 .no-scrollbar {
   scrollbar-width: none;

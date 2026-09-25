@@ -18,7 +18,7 @@ const router = Router();
 router.use(requireAuth);
 
 // What others see about the people they chat with. No email: only its owner sees that.
-export const PARTICIPANT_FIELDS = 'name profileImage isOnline lastSeen publicKey keyId mood';
+export const PARTICIPANT_FIELDS = 'name username profileImage isOnline lastSeen publicKey keyId mood';
 const PAGE_SIZE = 30;
 
 export function badRequest(res, error) {
@@ -116,7 +116,9 @@ router.get('/', async (req, res) => {
   // One query for all unread counts instead of one per conversation
   const me = new mongoose.Types.ObjectId(req.userId);
   const unread = await Message.aggregate([
-    { $match: { recipients: me, readBy: { $ne: me }, isDeleted: false, deletedFor: { $ne: me } } },
+    // isRead: false first, so the {recipients, isRead} index narrows this down
+    // instead of the database reading every message ever sent to me
+    { $match: { recipients: me, isRead: false, readBy: { $ne: me }, isDeleted: false, deletedFor: { $ne: me } } },
     { $group: { _id: '$conversationId', count: { $sum: 1 } } },
   ]);
   const unreadByConversation = Object.fromEntries(unread.map((u) => [String(u._id), u.count]));
@@ -358,6 +360,7 @@ router.get('/:id', async (req, res) => {
   const unreadCount = await Message.countDocuments({
     conversationId: conversation._id,
     recipients: req.userId,
+    isRead: false, // lets the index do the work; see the list query above
     readBy: { $ne: req.userId },
     isDeleted: false,
     deletedFor: { $ne: req.userId },
@@ -399,7 +402,7 @@ router.post('/:id/read', async (req, res) => {
 
   const me = new mongoose.Types.ObjectId(req.userId);
   const result = await Message.updateMany(
-    { conversationId: conversation._id, recipients: me, readBy: { $ne: me } },
+    { conversationId: conversation._id, recipients: me, isRead: false, readBy: { $ne: me } },
     [
       {
         $set: {

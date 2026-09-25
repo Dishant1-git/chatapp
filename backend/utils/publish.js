@@ -16,17 +16,28 @@ export async function publishMessage(conversation, fields, clientId = null) {
   });
   if (message.replyTo) await message.populate('replyTo', REPLY_FIELDS);
 
-  conversation.lastMessage = message._id;
-  conversation.lastMessageAt = message.createdAt;
-  await conversation.save();
-  // 🗑️ A chat someone deleted comes back to their list with the new message
-  await Conversation.updateOne({ _id: conversation._id, 'hiddenFor.0': { $exists: true } }, { hiddenFor: [] });
-
-  // Emitting to several rooms at once still sends each socket only one copy.
-  // The user rooms cover sockets that haven't joined the conversation room yet.
+  // Send it out straight away. Two messages saved a moment apart used to be
+  // announced in whatever order their *other* database work finished in, which
+  // is how they could land in the wrong order on the other side. Everything
+  // below this line is bookkeeping and can happen after the message is out.
   getIO()
+    // Emitting to several rooms at once still sends each socket only one copy.
+    // The user rooms cover sockets that haven't joined the conversation room yet.
     ?.to([conversationRoom(conversation._id), ...conversation.participants.map((p) => userRoom(p))])
     .emit('message:new', { message, clientId });
+
+  // The chat list shows the newest message, so an older one that finishes
+  // saving later must not take its place
+  const isNewest = !conversation.lastMessageAt || message.createdAt >= conversation.lastMessageAt;
+  if (isNewest) {
+    conversation.lastMessage = message._id;
+    conversation.lastMessageAt = message.createdAt;
+  }
+  await conversation.save();
+  // 🗑️ A chat someone deleted comes back to their list with the new message
+  if (conversation.hiddenFor?.length) {
+    await Conversation.updateOne({ _id: conversation._id }, { hiddenFor: [] });
+  }
 
   return message;
 }

@@ -212,6 +212,44 @@ export async function unlockKeys(userId, { publicKey, keyId, backup }, secret) {
   await startSession(userId, privateKey, publicKey, keyId);
 }
 
+// 🔑 Changing the password without losing anything: the locked key is opened
+// with the old password and locked again with the new one. The key pair itself
+// doesn't change, so every message stays readable.
+// Returns the body for PUT /api/keys (send it with reset: true).
+export async function relockKeys(userId, { publicKey, keyId, backup }, oldSecret, newSecret) {
+  const oldKey = await deriveSecretKey(oldSecret, fromBase64(backup.salt), backup.iterations);
+  let pkcs8;
+  try {
+    pkcs8 = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: fromBase64(backup.iv) },
+      oldKey,
+      fromBase64(backup.encryptedPrivateKey)
+    );
+  } catch {
+    throw new Error('Could not unlock your encryption key.');
+  }
+
+  const salt = randomBytes(16);
+  const iv = randomBytes(12);
+  const newKey = await deriveSecretKey(newSecret, salt, SECRET_ITERATIONS);
+  const encryptedPrivateKey = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, newKey, pkcs8);
+
+  // Keep using it on this device straight away
+  const privateKey = await crypto.subtle.importKey('pkcs8', pkcs8, EC, false, ['deriveKey', 'deriveBits']);
+  await startSession(userId, privateKey, publicKey, keyId);
+
+  return {
+    publicKey,
+    backup: {
+      encryptedPrivateKey: toBase64(encryptedPrivateKey),
+      salt: toBase64(salt),
+      iv: toBase64(iv),
+      iterations: SECRET_ITERATIONS,
+      kind: 'password',
+    },
+  };
+}
+
 // ---- Encrypting and decrypting messages ----
 
 // The AES-KW key shared by me and the owner of this public key.

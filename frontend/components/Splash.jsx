@@ -12,7 +12,7 @@ export default function Splash() {
       aria-label="Loading Ghost-ed"
     >
       <img
-        src="/logo.png"
+        src="/logo-128.webp"
         alt=""
         width={96}
         height={96}

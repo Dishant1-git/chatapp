@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import AuthCard, { Field, FormError, SubmitButton } from '@/components/AuthCard';
+import AuthCard, { Field, PasswordField, FormError, SubmitButton } from '@/components/AuthCard';
 import Handwriting from '@/components/Handwriting';
 import { api } from '@/lib/client';
 import { prepareKeys } from '@/lib/accountKeys';
@@ -64,12 +64,15 @@ export default function LoginPage() {
           onChange={(e) => setEmail(e.target.value)}
           required
         />
-        <Field
-          label="Password"
-          type="password"
+        <PasswordField
           autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          hint={
+            <Link href="/forgot" className="text-xs font-medium text-brand hover:underline">
+              Forgot password?
+            </Link>
+          }
           required
         />
         <SubmitButton loading={loading}>Log in</SubmitButton>

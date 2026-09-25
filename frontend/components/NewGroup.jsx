@@ -195,7 +195,7 @@ export function PeoplePicker({ selected, onChange, exclude = [] }) {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name or full email"
+            placeholder="Search by name, @username or full email"
             className="w-full rounded-full bg-panel-soft py-2.5 pr-4 pl-10 text-base outline-none placeholder:text-muted focus:ring-2 focus:ring-brand/25 md:text-sm"
           />
         </div>
@@ -217,6 +217,7 @@ export function PeoplePicker({ selected, onChange, exclude = [] }) {
               <Avatar user={person} size={44} />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{person.name}</p>
+                {person.username && <p className="truncate text-xs text-muted">@{person.username}</p>}
               </div>
               <span
                 className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition ${

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamicImport from 'next/dynamic';
 import { WifiOff } from 'lucide-react';
 import { AppSkeleton } from '@/components/Skeleton';
 import Splash from '@/components/Splash';
@@ -9,7 +10,8 @@ import ChatProvider, { useChat } from '@/components/ChatProvider';
 import ChatList from '@/components/ChatList';
 import Navbar from '@/components/Navbar';
 import Notifications from '@/components/Notifications';
-import Tour from '@/components/Tour';
+// Shown once, on a first visit — no reason to ship it to everyone else
+const Tour = dynamicImport(() => import('@/components/Tour'), { ssr: false });
 import ProfileViewer from '@/components/ProfileViewer';
 import CallProvider from '@/components/CallProvider';
 import { useViewportHeight } from '@/hooks/useViewportHeight';
@@ -26,21 +28,23 @@ export default function ChatLayout({ children }) {
   );
 }
 
-// How long the name takes to be written on the loading screen
+// The name is written while the chats load. It never holds the app back: as
+// soon as everything is ready the chats appear, part-written name and all.
+// This is only how long to keep showing it if the chats are still coming.
 const SPLASH_MS = handwritingDuration('Ghost-ed', { speed: 95 }) + 300;
 
 function ChatShell({ children }) {
   const { isLoading, loadError, retryLoad, activeConversationId, keyStatus } = useChat();
-  // ✍️ Opening the app always writes the name out first — it takes about as long
-  // as the chats need anyway. If they take longer, the skeleton of the app comes
-  // next, so a slow connection doesn't look stuck on the splash.
+  // ✍️ …and if the loading outlasts the writing, the skeleton of the app takes
+  // over, so a slow connection doesn't look stuck on the splash.
   const [splashDone, setSplashDone] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => setSplashDone(true), SPLASH_MS);
     return () => clearTimeout(timer);
   }, []);
 
-  if (!splashDone && !loadError) return <Splash />;
+  const stillLoading = isLoading || (!loadError && keyStatus !== 'ready');
+  if (stillLoading && !splashDone && !loadError) return <Splash />;
 
   // Also shown for the moment it takes to send a device without the encryption
   // key back to the login page (the key is unlocked with the password there)

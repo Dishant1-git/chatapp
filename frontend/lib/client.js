@@ -26,6 +26,8 @@ export async function api(url, { method = 'GET', body, formData, file } = {}) {
     const error = new Error(data.error || 'Something went wrong. Please try again.');
     error.status = response.status;
     error.code = data.code;
+    // Anything else the server sent with the problem (e.g. free usernames to offer)
+    error.data = data;
     throw error;
   }
 

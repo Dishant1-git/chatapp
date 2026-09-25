@@ -74,3 +74,25 @@ It works for the next 15 minutes. If you didn't sign up, you can ignore this ema
 
   return { subject: `${code} is your Ghost-ed code`, text, html };
 }
+
+// 🔑 The other one: a code for setting a new password after forgetting it
+export function resetMail(code, name = '') {
+  const hello = name ? `Hi ${name},` : 'Hi,';
+  const text = `${hello}
+
+Your Ghost-ed password reset code is ${code}
+
+It works for the next 15 minutes. If you didn't ask to reset your password, you can ignore this
+email — nothing has changed.`;
+
+  const html = `<div style="font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:#f7e8e2;padding:32px">
+  <div style="max-width:420px;margin:0 auto;background:#fffbf9;border-radius:20px;padding:28px;text-align:center">
+    <p style="margin:0 0 6px;color:#8b6a5f;font-size:14px">${hello}</p>
+    <h1 style="margin:0 0 18px;color:#c1573a;font-size:22px">Reset your password</h1>
+    <p style="margin:0 auto 18px;display:inline-block;background:#fadfd4;color:#33170f;font-size:32px;letter-spacing:8px;font-weight:700;padding:12px 20px;border-radius:14px">${code}</p>
+    <p style="margin:0;color:#8b6a5f;font-size:13px">It works for the next 15 minutes.<br>Didn't ask for this? Ignore this email — nothing has changed.</p>
+  </div>
+</div>`;
+
+  return { subject: `${code} is your Ghost-ed password reset code`, text, html };
+}

@@ -12,10 +12,14 @@ import MessageInput from './MessageInput';
 import DeleteDialog from './DeleteDialog';
 import ChatMenu from './ChatMenu';
 import GhostBanner from './GhostBanner';
-import GroupInfo from './GroupInfo';
+import dynamic from 'next/dynamic';
+// The group screen, the camera (which brings video compression with it) and the
+// sticker store are all behind a button — loaded when they're opened
+const GroupInfo = dynamic(() => import('./GroupInfo'), { ssr: false });
 import MissYouHearts from './MissYouHearts';
-import { GhostClickCamera, GhostClickViewer } from './GhostClick';
-import StickerStore from './StickerStore';
+const GhostClickCamera = dynamic(() => import('./GhostClick').then((m) => m.GhostClickCamera), { ssr: false });
+const GhostClickViewer = dynamic(() => import('./GhostClick').then((m) => m.GhostClickViewer), { ssr: false });
+const StickerStore = dynamic(() => import('./StickerStore'), { ssr: false });
 import { MessagesSkeleton } from './Skeleton';
 import { loadAccessibility, speak } from '@/lib/accessibility';
 import Celebration from './Celebration';
@@ -53,6 +57,17 @@ const UNDO_SEEN_MS = 10000; // how long "Undo seen" is offered after opening a c
 // Start loading older messages when the user scrolls this close to the top
 const LOAD_OLDER_THRESHOLD = 150;
 
+// Where a message belongs in the list. MongoDB ids sort by the moment the
+// server saved them, which is the order everyone else sees the chat in;
+// "temp-…" ids are messages of ours that aren't saved yet, so they sort last.
+function isBefore(a, b) {
+  const aTemp = String(a._id).startsWith('temp-');
+  const bTemp = String(b._id).startsWith('temp-');
+  if (aTemp !== bTemp) return bTemp; // a saved message comes before a pending one
+  if (aTemp) return new Date(a.createdAt) < new Date(b.createdAt);
+  return String(a._id) < String(b._id);
+}
+
 // Adds a message to the list, or replaces the copy we already have.
 // clientId is the temporary id of the optimistic message the sender created.
 // keepExisting: don't overwrite a copy that already arrived over the socket
@@ -62,10 +77,15 @@ function addOrReplace(list, message, clientId, { keepExisting = false } = {}) {
     const withoutTemp = list.filter((m) => m._id !== clientId);
     return keepExisting ? withoutTemp : withoutTemp.map((m) => (m._id === message._id ? message : m));
   }
-  if (clientId && list.some((m) => m._id === clientId)) {
-    return list.map((m) => (m._id === clientId ? message : m));
-  }
-  return [...list, message];
+  // The saved copy of one of my own messages takes the temporary one's place,
+  // then moves to wherever the server put it in the order
+  const withoutTemp = clientId ? list.filter((m) => m._id !== clientId) : list;
+
+  // Put it where it belongs rather than simply at the end: messages can reach
+  // us in a different order than they were saved in
+  let at = withoutTemp.length;
+  while (at > 0 && isBefore(message, withoutTemp[at - 1])) at -= 1;
+  return [...withoutTemp.slice(0, at), message, ...withoutTemp.slice(at)];
 }
 
 // Notes that get a little moment on screen the first time I see them
@@ -181,6 +201,11 @@ export default function ChatWindow({ conversationId }) {
   const noticeTimer = useRef(null);
   // Incoming messages are decrypted one after another so they stay in order
   const incomingQueue = useRef(Promise.resolve());
+  // ...and outgoing ones are sent one after another, so two messages typed in
+  // quick succession reach the server — and everyone else — in the order they
+  // were written. A photo takes longer to encrypt and upload than a line of
+  // text, so without this the text could overtake it.
+  const sendQueue = useRef(Promise.resolve());
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -194,10 +219,18 @@ export default function ChatWindow({ conversationId }) {
     noticeTimer.current = setTimeout(() => setNotice(''), 3500);
   }, []);
 
-  // Marks the chat as read — unless I just used "undo seen"
+  // Marks the chat as read — unless I just used "undo seen".
+  // A busy chat can deliver several messages a second, and each "read" rescans
+  // the conversation on the server, so they're collected into one call.
+  const readTimer = useRef(null);
   const readNow = useCallback(() => {
-    if (!suppressRead.current) markAsRead(conversationId);
+    if (suppressRead.current) return;
+    clearTimeout(readTimer.current);
+    readTimer.current = setTimeout(() => {
+      if (!suppressRead.current) markAsRead(conversationId);
+    }, 400);
   }, [markAsRead, conversationId]);
+  useEffect(() => () => clearTimeout(readTimer.current), []);
 
   // Hearts for "miss you", doves when I'm forgiven, a ghost when I'm not
   const showMoment = useCallback((message) => {
@@ -271,18 +304,10 @@ export default function ChatWindow({ conversationId }) {
     return () => clearTimeout(timer);
   }, [undoSeen]);
 
-  // 🔥 Opening a chat refreshes its streak, which is shown next to the name
-  // in the chat list (the list loads them all in one go)
-  useEffect(() => {
-    if (isGroupChat || !hasConversation) return;
-    let cancelled = false;
-    api(`/api/conversations/${conversationId}/insights?tz=${encodeURIComponent(timezoneOffset())}`)
-      .then((data) => !cancelled && updateConversation(conversationId, { streak: data.streak }))
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [conversationId, isGroupChat, hasConversation, updateConversation]);
+  // 🔥 The streak next to the name comes with the chat list, which works it out
+  // for every chat in one query. Opening a chat used to ask for the whole
+  // "read the vibe" report again just to refresh that one number — thousands of
+  // messages read for a badge we already had — so it doesn't any more.
 
   // Keep the scroll position right after messages change:
   // - after loading older messages, stay where the user was
@@ -423,7 +448,11 @@ export default function ChatWindow({ conversationId }) {
 
     // 🧹 I cleared this chat (maybe in another tab)
     function onCleared({ conversationId: id }) {
-      if (id === conversationId) setMessages([]);
+      if (id !== conversationId) return;
+      setMessages([]);
+      // Nothing left to page back to, and asking for "older than my unsaved
+      // message" would fetch the newest page instead
+      setHasMore(false);
     }
 
     // They used "undo seen": my ticks go back to delivered
@@ -450,8 +479,14 @@ export default function ChatWindow({ conversationId }) {
       setMessages((prev) => prev.map((m) => (m.senderId === myId ? markDeliveredTo(m, receiverId) : m)));
     }
 
-    // Back online: fetch whatever arrived while we were disconnected
+    // Back online: fetch whatever arrived while we were disconnected.
+    // The first connection isn't a reconnection — the page was just loaded.
+    let hasConnectedBefore = socket.connected;
     function onReconnect() {
+      if (!hasConnectedBefore) {
+        hasConnectedBefore = true;
+        return;
+      }
       api(`/api/conversations/${conversationId}/messages`)
         .then((data) => openMessages(data.messages, conversationId))
         .then((latest) => setMessages((prev) => mergeLatest(prev, latest)))
@@ -496,8 +531,18 @@ export default function ChatWindow({ conversationId }) {
   // ---- Sending ----
 
   // Encrypts the message (and image) for every member, uploads, saves it,
-  // then swaps the optimistic copy for the real one
+  // then swaps the optimistic copy for the real one. Queued, so messages leave
+  // in the order they were written (see sendQueue).
   const deliver = useCallback(
+    (temp) => {
+      sendQueue.current = sendQueue.current.then(() => send(temp)).catch(() => {});
+      return sendQueue.current;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [conversationId, updateConversation, showNotice]
+  );
+
+  const send = useCallback(
     async (temp) => {
       async function encryptAndSend(members) {
         // 🌟 A sticker only travels as its id, inside the encrypted message

@@ -34,7 +34,8 @@ export default function Notifications() {
               <ChatAvatar conversation={toast.conversation} size={40} />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{toast.title}</p>
-                <p className="truncate text-sm text-muted">{toast.text}</p>
+                {/* 🫣 Blurred with the privacy screen on, like the chat itself */}
+                <p className="private truncate text-sm text-muted">{toast.text}</p>
               </div>
             </button>
             <button

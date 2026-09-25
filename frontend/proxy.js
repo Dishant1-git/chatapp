@@ -6,7 +6,8 @@ import { NextResponse } from 'next/server';
 export function proxy(request) {
   const { pathname } = request.nextUrl;
   const hasToken = Boolean(request.cookies.get('token')?.value);
-  const isAuthPage = pathname === '/login' || pathname === '/register';
+  // 🔑 /forgot is for people who can't log in, so it counts as an auth page
+  const isAuthPage = pathname === '/login' || pathname === '/register' || pathname === '/forgot';
 
   if (!hasToken && !isAuthPage) {
     return NextResponse.redirect(new URL('/login', request.url));
@@ -22,5 +23,5 @@ export function proxy(request) {
 export const config = {
   // ✉️ /verify is in here so someone without a cookie can't sit on it; whether
   // the address is actually confirmed is decided by the page and the backend.
-  matcher: ['/', '/login', '/register', '/verify', '/chat/:path*'],
+  matcher: ['/', '/login', '/register', '/forgot', '/verify', '/chat/:path*'],
 };

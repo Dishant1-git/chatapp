@@ -274,10 +274,13 @@ export default function ChatProvider({ children }) {
       setConversations((prev) => {
         const conv = prev.find((c) => c._id === conversationId);
         if (!conv) return prev;
+        // A message saved earlier can still reach us later; it mustn't replace
+        // a newer one as the chat's last message
+        const isNewest = !conv.lastMessageAt || new Date(message.createdAt) >= new Date(conv.lastMessageAt);
         const updated = {
           ...conv,
-          lastMessage: message,
-          lastMessageAt: message.createdAt,
+          lastMessage: isNewest ? message : conv.lastMessage,
+          lastMessageAt: isNewest ? message.createdAt : conv.lastMessageAt,
           unreadCount: isForMe && !isViewing ? conv.unreadCount + 1 : conv.unreadCount,
         };
         // Move the conversation to the top

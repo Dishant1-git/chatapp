@@ -24,6 +24,9 @@ const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true, maxlength: 50 },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    // 🏷️ The handle people can be found by: unique, lower case, @-style.
+    // Accounts from before usernames existed get one in config/migrate.js.
+    username: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
     // select: false means the password is never returned unless we ask for it
     password: { type: String, required: true, select: false },
     profileImage: { type: String, default: '' },

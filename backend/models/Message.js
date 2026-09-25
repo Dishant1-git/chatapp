@@ -157,6 +157,9 @@ const messageSchema = new mongoose.Schema(
 messageSchema.index({ conversationId: 1, _id: -1 });
 // Counting unread messages / marking as delivered
 messageSchema.index({ recipients: 1, isRead: 1 });
+messageSchema.index({ recipients: 1, isDelivered: 1 });
+// 🔥 Streaks and the call log look at a date range inside one conversation
+messageSchema.index({ conversationId: 1, createdAt: -1 });
 
 // Fields of the quoted message loaded with a reply
 export const REPLY_FIELDS = 'text image media messageType senderId isDeleted ciphertext iv senderKey keys';

@@ -6,7 +6,9 @@ import crypto from 'node:crypto';
 // the document by itself once it expires (the TTL index below).
 const emailCodeSchema = new mongoose.Schema(
   {
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    // What the code is for: confirming a new account, or resetting a password
+    purpose: { type: String, enum: ['verify', 'reset'], default: 'verify' },
     codeHash: { type: String, required: true },
     expiresAt: { type: Date, required: true },
     // Wrong guesses; too many and the code is thrown away
@@ -17,6 +19,8 @@ const emailCodeSchema = new mongoose.Schema(
 
 // MongoDB removes expired codes on its own (checked about once a minute)
 emailCodeSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+// One live code per account per purpose: asking for a new one replaces the old
+emailCodeSchema.index({ userId: 1, purpose: 1 }, { unique: true });
 
 export const CODE_TTL_MINUTES = 15;
 export const MAX_ATTEMPTS = 5;

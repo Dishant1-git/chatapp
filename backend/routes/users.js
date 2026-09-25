@@ -15,19 +15,22 @@ function escapeRegex(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// GET /api/users/search?q=john — search other users by name, or by their exact email.
-// Emails are private: they're never returned, and a partial email doesn't match
-// (so nobody can guess addresses letter by letter).
+// GET /api/users/search?q=john — search other users by name, by @username, or
+// by their exact email. Emails are private: they're never returned, and a partial
+// email doesn't match (so nobody can guess addresses letter by letter). Usernames
+// are public handles, so those do match part way.
 router.get('/search', async (req, res) => {
   const q = String(req.query.q || '').trim().slice(0, 100);
   if (!q) return res.json({ users: [] });
 
   const pattern = new RegExp(escapeRegex(q.slice(0, 50)), 'i');
+  // "@dishant" and "dishant" should both find the same person
+  const handle = new RegExp(escapeRegex(q.replace(/^@/, '').slice(0, 50)), 'i');
   const users = await User.find({
     _id: { $ne: req.userId },
-    $or: [{ name: pattern }, { email: q.toLowerCase() }],
+    $or: [{ name: pattern }, { username: handle }, { email: q.toLowerCase() }],
   })
-    .select('name profileImage isOnline lastSeen mood')
+    .select('name username profileImage isOnline lastSeen mood')
     .sort({ name: 1 })
     .limit(20);
 

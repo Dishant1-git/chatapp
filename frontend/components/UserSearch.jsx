@@ -69,7 +69,7 @@ export default function UserSearch({ initialQuery = '', onClose }) {
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name or full email"
+            placeholder="Search by name, @username or full email"
             className="w-full rounded-full bg-panel-soft py-2.5 pr-4 pl-10 text-base outline-none placeholder:text-muted focus:ring-2 focus:ring-brand/25 md:text-sm"
           />
         </div>
@@ -87,7 +87,10 @@ export default function UserSearch({ initialQuery = '', onClose }) {
             >
               <Avatar user={person} size={46} showStatus viewable />
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{person.name}</p>
+                <p className="flex min-w-0 items-baseline gap-1.5">
+                  <span className="truncate font-medium">{person.name}</span>
+                  {person.username && <span className="shrink-0 text-xs text-muted">@{person.username}</span>}
+                </p>
                 <p className={`truncate text-sm ${person.isOnline ? 'text-brand' : 'text-muted'}`}>
                   {person.isOnline ? 'online' : formatLastSeen(person.lastSeen)}
                 </p>
