@@ -82,6 +82,8 @@
 
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
     'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  /* The handwriting (Dancing Script, loaded in app/layout.js) */
+  --font-hand: var(--font-hand-family), 'Segoe Script', 'Brush Script MT', cursive;
 }
 
 /* ♿ Accessibility (see lib/accessibility.js) */
@@ -177,6 +179,37 @@ body {
   }
 }
 
+/* ✍️ Handwriting: each word is uncovered from left to right, one after the
+   other, so the words look like they're being written. */
+@keyframes write {
+  from {
+    clip-path: inset(0 100% -20% 0);
+  }
+  to {
+    clip-path: inset(0 -6% -20% 0);
+  }
+}
+.handwriting-word {
+  clip-path: inset(0 100% -20% 0);
+  animation: write var(--write-duration, 0.9s) steps(24, end) forwards;
+  animation-delay: var(--write-delay, 0s);
+}
+/* The nib: a small dot that travels along with the writing */
+@keyframes nib {
+  from {
+    left: 0;
+    opacity: 1;
+  }
+  to {
+    left: 100%;
+    opacity: 1;
+  }
+}
+.handwriting-nib {
+  animation: nib var(--write-duration, 0.9s) steps(24, end) forwards;
+  animation-delay: var(--write-delay, 0s);
+}
+
 /* Scrollable, but without the scrollbar showing (the message box) */
 .no-scrollbar {
   scrollbar-width: none;
@@ -235,5 +268,13 @@ body {
   .flash,
   .skeleton::after {
     animation: none;
+  }
+  /* The words are simply there, already written */
+  .handwriting-word {
+    clip-path: none;
+    animation: none;
+  }
+  .handwriting-nib {
+    display: none;
   }
 }

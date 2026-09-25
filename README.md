@@ -7,7 +7,11 @@ conversations, and a clean two-column layout on desktop.
 
 **The look:** warm and quiet — a cream wash behind everything, with the chat list and the
 conversation as near-white cards on top of it (full screen on a phone, side by side with rounded
-corners on a computer). Titles, buttons and your own bubbles are terracotta; the other person's are
+corners on a computer). The ghost logo (`frontend/public/logo.png`, and `app/icon.png` for the
+browser tab) shows up on the login page, the top bar and the loading screen — where the name is
+**written out by hand**, a word at a time, in Dancing Script; the login page greets you the same way
+(`frontend/components/Handwriting.jsx`, and the `write` keyframes in `globals.css`). Both stand
+still for anyone who asks for reduced motion. Titles, buttons and your own bubbles are terracotta; the other person's are
 a pale blush. Dark mode is the same idea in near-black brown with salmon accents. Every colour is a
 token in `frontend/app/globals.css` (`--brand`, `--panel`, `--header`, `--bubble-in/out`, `--on-brand`,
 …), so the whole palette — light and dark — changes in that one file.

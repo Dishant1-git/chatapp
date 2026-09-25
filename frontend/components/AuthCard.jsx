@@ -1,8 +1,8 @@
-import { MessageCircle } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 
-// Shared frame for the login and register pages
-export default function AuthCard({ title, subtitle, children, footer, icon: Icon = MessageCircle }) {
+// Shared frame for the login and register pages.
+// greeting: something written by hand above the title (see the login page)
+export default function AuthCard({ title, subtitle, children, footer, greeting = null }) {
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center px-4 py-10">
       <ThemeToggle className="fixed top-3 right-3" />
@@ -10,9 +10,8 @@ export default function AuthCard({ title, subtitle, children, footer, icon: Icon
       {/* The page sits on the warm wash, with the form as a floating card */}
       <div className="w-full max-w-sm">
         <div className="mb-7 flex flex-col items-center text-center text-fg">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand text-on-brand shadow-sm">
-            <Icon size={28} />
-          </div>
+          <img src="/logo.png" alt="" width={56} height={56} className="mb-3 h-14 w-14 rounded-2xl shadow-sm" />
+          {greeting}
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
           <p className="mt-1 text-sm text-muted">{subtitle}</p>
         </div>

@@ -1,7 +1,10 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { WifiOff } from 'lucide-react';
 import { AppSkeleton } from '@/components/Skeleton';
+import Splash from '@/components/Splash';
+import { handwritingDuration } from '@/components/Handwriting';
 import ChatProvider, { useChat } from '@/components/ChatProvider';
 import ChatList from '@/components/ChatList';
 import Navbar from '@/components/Navbar';
@@ -23,8 +26,21 @@ export default function ChatLayout({ children }) {
   );
 }
 
+// How long the name takes to be written on the loading screen
+const SPLASH_MS = handwritingDuration('Ghost-ed', { speed: 95 }) + 300;
+
 function ChatShell({ children }) {
   const { isLoading, loadError, retryLoad, activeConversationId, keyStatus } = useChat();
+  // ✍️ Opening the app always writes the name out first — it takes about as long
+  // as the chats need anyway. If they take longer, the skeleton of the app comes
+  // next, so a slow connection doesn't look stuck on the splash.
+  const [splashDone, setSplashDone] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setSplashDone(true), SPLASH_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!splashDone && !loadError) return <Splash />;
 
   // Also shown for the moment it takes to send a device without the encryption
   // key back to the login page (the key is unlocked with the password there)

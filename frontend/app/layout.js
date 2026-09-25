@@ -1,5 +1,15 @@
+import { Dancing_Script } from 'next/font/google';
 import './globals.css';
 import { ACCESSIBILITY_SCRIPT } from '@/lib/accessibility';
+
+// The handwriting on the loading screen and the login page. Downloaded at build
+// time and served from our own domain, so no request goes to Google at runtime.
+const handwriting = Dancing_Script({
+  subsets: ['latin'],
+  weight: ['500', '700'],
+  // globals.css turns this into the `font-hand` utility, with fallbacks
+  variable: '--font-hand-family',
+});
 
 export const metadata = {
   title: 'Ghost-ed',
@@ -31,7 +41,7 @@ try {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={handwriting.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript + ACCESSIBILITY_SCRIPT }} />
       </head>

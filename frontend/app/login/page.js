@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AuthCard, { Field, FormError, SubmitButton } from '@/components/AuthCard';
+import Handwriting from '@/components/Handwriting';
 import { api } from '@/lib/client';
 import { prepareKeys } from '@/lib/accountKeys';
 
@@ -39,6 +40,8 @@ export default function LoginPage() {
 
   return (
     <AuthCard
+      // ✍️ Written out a word at a time, as if by hand
+      greeting={<Handwriting text="Hello there" className="mb-2 text-4xl font-bold text-brand" />}
       title="Welcome back"
       subtitle="Log in to continue your conversations"
       footer={

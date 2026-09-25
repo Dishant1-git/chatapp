@@ -1,6 +1,6 @@
 'use client';
 
-import { LogOut, MessageCircle } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import Avatar from './Avatar';
 import ThemeToggle from './ThemeToggle';
@@ -12,9 +12,7 @@ export default function Navbar() {
   return (
     <nav className="hidden h-16 shrink-0 items-center justify-between px-4 text-fg md:flex lg:px-6">
       <div className="flex items-center gap-2.5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-on-brand">
-          <MessageCircle size={20} />
-        </div>
+        <img src="/logo.png" alt="" width={36} height={36} className="h-9 w-9 rounded-xl" />
         <span className="text-lg font-semibold tracking-tight">Ghost-ed</span>
         {!isConnected && (
           <span className="ml-2 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
