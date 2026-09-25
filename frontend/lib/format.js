@@ -117,7 +117,10 @@ export function describeEvent(message, nameOf, myId) {
     case 'call': {
       const kind = event.video ? 'video call' : 'voice call';
       if (event.duration) return `${event.video ? 'Video' : 'Voice'} call · ${formatDuration(event.duration)}`;
-      return String(message.senderId) === myId ? `${kind[0].toUpperCase()}${kind.slice(1)} · No answer` : `Missed ${kind}`;
+      const mine = String(message.senderId) === myId;
+      // reason is only on calls saved by a recent server; older ones just say no answer
+      if (event.reason === 'declined') return mine ? `${kind[0].toUpperCase()}${kind.slice(1)} · Declined` : `Declined ${kind}`;
+      return mine ? `${kind[0].toUpperCase()}${kind.slice(1)} · No answer` : `Missed ${kind}`;
     }
     default:
       return '';
@@ -134,6 +137,7 @@ export function messagePreview(message, { nameOf = () => 'Someone', myId = null 
   if (message.ghostClick) return '👻 Ghost Click';
   if (message.undecryptable) return "🔒 This message can't be decrypted";
   if (message.messageType === 'image') return message.text ? `📷 ${message.text}` : '📷 Photo';
+  if (message.messageType === 'file') return `📎 ${message.fileName || 'Document'}`;
   if (message.messageType === 'audio' || message.messageType === 'video') {
     const label = message.messageType === 'audio' ? '🎤 Voice message' : '📹 Video message';
     return message.mediaDuration ? `${label} (${formatDuration(message.mediaDuration)})` : label;

@@ -267,7 +267,7 @@ function CreatePack({ onDone, onError }) {
 
       <p className="mt-2 rounded-xl bg-panel-soft px-3.5 py-2.5 text-xs text-muted">
         {who === 'everyone'
-          ? '⚠️ A public pack is there for everyone using Ghosted to add. Your name isn’t shown, but the pictures are. Only publish pictures you’re happy to share and have the right to use.'
+          ? '⚠️ A public pack is there for everyone using Ghost-ed to add. Your name isn’t shown, but the pictures are. Only publish pictures you’re happy to share and have the right to use.'
           : 'Nobody else sees this pack. When you send one of its stickers, a copy of the picture goes to that chat, encrypted like a photo.'}{' '}
         You can delete it later, which removes it for anyone who added it.
       </p>

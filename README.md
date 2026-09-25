@@ -16,8 +16,8 @@ token in `frontend/app/globals.css` (`--brand`, `--panel`, `--header`, `--bubble
 **group chats** (admins, add/remove members, rename, group photo), **end-to-end encrypted**
 messages and photos, **voice and video calls** (one-to-one and groups of up to 6),
 real-time messages, online status and last seen, typing indicator, sent/delivered/read ticks,
-photo sharing, reactions, replies (swipe a message to the right), editing your own messages,
-**Friends / Groups tabs** over the chat list, in-app notifications with unread counts, delete for
+photo sharing, **document sharing**, reactions, replies (swipe a message to the right), editing your
+own messages, **Friends / Groups tabs** over the chat list, a **call log**, in-app notifications with unread counts, delete for
 me/everyone, message pagination, **skeleton placeholders** while things load, and light/dark mode.
 
 ```
@@ -113,6 +113,11 @@ Browser ──► Next.js (frontend) ──/api, /socket.io, /uploads──► E
   is written when the last tab closes.
 - **Ticks:** a message is *delivered* if the receiver has the app open when it's sent (or as soon
   as they connect), and *read* when they open the conversation.
+- **📎 Documents** (the paperclip next to the message box) go the same way as photos: encrypted in
+  the browser and stored as opaque bytes, up to 30 MB. The name, type and size travel *inside* the
+  encryption, so the server can't tell a spreadsheet from a holiday photo — and the receiver's browser
+  only downloads and unlocks the file when they tap Save. A picture picked with the paperclip is sent
+  as a photo instead, so it can still be seen in the chat.
 - **Chat photos** are resized and encrypted in the browser, then stored as-is in MongoDB (GridFS,
   the `uploads` bucket) and served at `/uploads/<name>.bin`, so the server never sees them. **Profile
   and group photos** aren't secret: they're checked, resized and converted to WEBP with `sharp` and
@@ -153,7 +158,11 @@ Browser ──► Next.js (frontend) ──/api, /socket.io, /uploads──► E
 - Group calls connect everyone to everyone (a "mesh"), which works well for up to 6 people.
   Whoever joins sends an offer to each person already in the call.
 - A call rings for 45 seconds. When it ends, a note like "Voice call · 3:12" or "Missed video call"
-  is added to the chat.
+  is added to the chat, along with why it ended, so a declined call doesn't read as an unanswered one.
+- **📞 The call log** (the phone button above the chat list) gathers those notes from every chat
+  into one screen, with its own Friends / Groups tabs: who, when, in or out, how long, and a button
+  that calls them straight back. `GET /api/calls/history` reads them from the messages themselves —
+  there's no separate call table to keep in step.
 - Browsers only allow the camera and microphone on **https** pages (or `localhost`). Opening the app
   from another device through a local IP like `http://192.168.x.x:3000` won't work for calls.
 - Without a TURN server, calls fail on some networks (often mobile data or company Wi-Fi). Set
@@ -326,6 +335,7 @@ frontend/
 | GET    | `/api/keys/backup`                         | My password-locked private key                |
 | PUT    | `/api/keys`                                | Save my public key + locked private key (`reset: true` to replace) |
 | GET    | `/api/calls/config`                        | STUN/TURN servers for calls                   |
+| GET    | `/api/calls/history?before=`               | 📞 Call log across all my chats, newest first |
 | POST   | `/api/conversations/:id/ghost`             | Ghost / change level `{ level }` (DELETE to unghost) |
 | POST   | `/api/conversations/:id/ghost/answer`      | Answer a forgiveness request `{ answer: forgive \| keep }` |
 | POST   | `/api/conversations/:id/pause`             | Leave without drama `{ reason }` (DELETE to come back) |

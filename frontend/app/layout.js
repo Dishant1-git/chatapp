@@ -2,7 +2,7 @@ import './globals.css';
 import { ACCESSIBILITY_SCRIPT } from '@/lib/accessibility';
 
 export const metadata = {
-  title: 'Ghosted',
+  title: 'Ghost-ed',
   description: 'End-to-end encrypted messaging, group chats and calls',
 };
 

@@ -19,8 +19,11 @@ export const UPLOAD_URL_PATTERN = /^\/uploads\/[a-f0-9]{32}\.webp$/;
 // Encrypted chat images. The server can't open them, so they're stored as-is.
 export const ENCRYPTED_URL_PATTERN = /^\/uploads\/[a-f0-9]{32}\.bin$/;
 // Images are resized in the browser first; video notes are capped at 60s of
-// low-bitrate video (about 8 MB), voice messages at 5 minutes (about 1.5 MB)
-export const MAX_ENCRYPTED_SIZE = 16 * 1024 * 1024;
+// low-bitrate video (about 8 MB), voice messages at 5 minutes (about 1.5 MB).
+// Shared documents are the big ones, so this is the cap they run into.
+export const MAX_ENCRYPTED_SIZE = 32 * 1024 * 1024;
+// What a document may weigh before encryption (the browser checks this too)
+export const MAX_DOCUMENT_SIZE = 30 * 1024 * 1024;
 
 const FILE_NAME_PATTERN = /^[a-f0-9]{32}\.(webp|bin)$/;
 const CONTENT_TYPES = { webp: 'image/webp', bin: 'application/octet-stream' };

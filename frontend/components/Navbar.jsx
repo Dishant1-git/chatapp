@@ -15,7 +15,7 @@ export default function Navbar() {
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-on-brand">
           <MessageCircle size={20} />
         </div>
-        <span className="text-lg font-semibold tracking-tight">Ghosted</span>
+        <span className="text-lg font-semibold tracking-tight">Ghost-ed</span>
         {!isConnected && (
           <span className="ml-2 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
             Reconnecting…

@@ -3,7 +3,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, BellOff, Check, Clock, Ghost, MessageCirclePlus, Search, Star, Trash2, UserRoundPlus, Users, WifiOff, X } from 'lucide-react';
+import { Bell, BellOff, Check, Clock, Ghost, MessageCirclePlus, Phone, Search, Star, Trash2, UserRoundPlus, Users, WifiOff, X } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import { ConfirmDialog } from './ChatDialogs';
 import { api } from '@/lib/client';
@@ -13,6 +13,7 @@ import UserSearch from './UserSearch';
 import NewGroup from './NewGroup';
 import Profile from './Profile';
 import ScheduledMessages from './ScheduledMessages';
+import Calls from './Calls';
 import { MessageTicks } from './Message';
 import { formatListDate, messagePreview } from '@/lib/format';
 import { conversationTitle, isGroup, makeNameOf, typingText } from '@/lib/conversations';
@@ -164,11 +165,16 @@ export default function ChatList() {
   return (
     <div className="brand-header relative flex h-full min-h-0 flex-col overflow-hidden">
       <header className="flex h-16 shrink-0 items-center justify-between gap-2 px-4 pt-1">
-        <h1 className="text-[22px] font-semibold tracking-tight text-brand">
-          <span className="md:hidden">Messages</span>
-          <span className="hidden md:inline">Messages</span>
-        </h1>
+        <h1 className="text-[22px] font-semibold tracking-tight text-brand">Ghost-ed</h1>
         <div className="flex items-center">
+          <button
+            onClick={() => setSidebarPanel('calls')}
+            className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
+            aria-label="Call logs"
+            title="Calls"
+          >
+            <Phone size={19} />
+          </button>
           <button
             onClick={() => setSidebarPanel('scheduled')}
             className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
@@ -378,13 +384,15 @@ export default function ChatList() {
         {sidebarPanel === 'newGroup' && <NewGroup key="group" onClose={() => setSidebarPanel(null)} />}
         {sidebarPanel === 'profile' && <Profile key="profile" onClose={() => setSidebarPanel(null)} />}
         {sidebarPanel === 'scheduled' && <ScheduledMessages key="scheduled" onClose={() => setSidebarPanel(null)} />}
+        {sidebarPanel === 'calls' && <Calls key="calls" onClose={() => setSidebarPanel(null)} />}
       </AnimatePresence>
     </div>
   );
 }
 
 // One of the two switches above the list. The dot means: unread over there.
-function TabPill({ label, isActive, hasUnread, onClick }) {
+// The Calls screen uses the same pair.
+export function TabPill({ label, isActive, hasUnread, onClick }) {
   return (
     <button
       type="button"

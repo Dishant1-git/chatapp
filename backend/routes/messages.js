@@ -46,7 +46,8 @@ router.post('/', messageLimiter, async (req, res) => {
   const text = String(body.text || '').trim();
   const image = String(body.image || '');
   const media = String(body.media || '');
-  const mediaKind = ['audio', 'video'].includes(body.mediaKind) ? body.mediaKind : null;
+  // 'file' is a shared document — its name and type are inside the ciphertext
+  const mediaKind = ['audio', 'video', 'file'].includes(body.mediaKind) ? body.mediaKind : null;
   const replyTo = body.replyTo ? String(body.replyTo) : null;
   // Temporary id of the optimistic message in the sender's browser.
   // Echoed back so the sender can swap it for the saved message.
@@ -56,7 +57,7 @@ router.post('/', messageLimiter, async (req, res) => {
   // Only accept encrypted files uploaded through /api/upload/encrypted
   if (image && !ENCRYPTED_URL_PATTERN.test(image)) return res.status(400).json({ error: 'Invalid image.' });
   if (media && (!ENCRYPTED_URL_PATTERN.test(media) || !mediaKind || image)) {
-    return res.status(400).json({ error: 'Invalid recording.' });
+    return res.status(400).json({ error: mediaKind === 'file' ? 'Invalid document.' : 'Invalid recording.' });
   }
 
   // The sender must be a participant; everyone else in the chat receives it

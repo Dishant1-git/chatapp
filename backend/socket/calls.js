@@ -75,7 +75,9 @@ async function endCall(call, reason) {
     const conversation = await Conversation.findById(call.conversationId);
     if (conversation) {
       const duration = call.answeredAt ? Math.round((Date.now() - call.answeredAt) / 1000) : 0;
-      await publishEvent(conversation, call.callerId, { type: 'call', video: call.video, duration });
+      // reason: 'ended' | 'declined' | 'no-answer' | 'removed' — so the call
+      // log can tell "Declined" from "No answer"
+      await publishEvent(conversation, call.callerId, { type: 'call', video: call.video, duration, reason });
     }
   } catch (err) {
     console.error('[calls] failed to save call log:', err.message);

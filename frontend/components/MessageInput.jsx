@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Mic, Plus, SendHorizontal, Smile, X } from 'lucide-react';
+import { Camera, Mic, Paperclip, Plus, SendHorizontal, Smile, X } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import VoiceRecorder from './VoiceRecorder';
 import { checkImageFile } from './ImagePreview';
@@ -39,6 +39,7 @@ export default function MessageInput({
   onSendCustomSticker, // 🌟 (url) sends a sticker from an installed pack
   onOpenStickerStore, // 🌟 opens the sticker packs screen
   onSendVoice, // 🎤 ({ blob, duration, waveform }) a recorded voice message
+  onSendDocument, // 📎 (file) a document: PDF, spreadsheet, zip …
   onError,
 }) {
   const { socket, stickerPacks } = useChat();
@@ -50,6 +51,7 @@ export default function MessageInput({
   // Checked after mounting, since the server render has no MediaRecorder
   const [recordingSupported, setRecordingSupported] = useState(false);
   const boxRef = useRef(null);
+  const documentInputRef = useRef(null);
   const typing = useRef({ active: false, lastSent: 0, timer: null });
   const draftRef = useRef({ startedAt: 0, longest: 0 });
   const socketRef = useRef(socket);
@@ -174,6 +176,20 @@ export default function MessageInput({
     if (problem) onError(problem);
     else onPickImage(file);
     return true;
+  }
+
+  // 📎 The attach button. A picture picked here is sent as a photo, so it can
+  // still be seen in the chat instead of arriving as a file to download.
+  function handlePickedDocument(event) {
+    const file = event.target.files?.[0];
+    event.target.value = ''; // picking the same file twice should work
+    if (!file) return;
+
+    if (file.type.startsWith('image/') && onPickImage) {
+      const problem = checkImageFile(file);
+      return problem ? onError(problem) : onPickImage(file);
+    }
+    onSendDocument(file);
   }
 
   function insertEmoji(emoji) {
@@ -368,6 +384,29 @@ export default function MessageInput({
             // text-base (16px) stops iOS from zooming into the field
             className="no-scrollbar max-h-32 min-w-0 flex-1 resize-none rounded-3xl border border-line bg-panel px-4 py-2.5 text-base leading-6 text-fg outline-none placeholder:text-muted focus:border-brand/40 md:text-[15px]"
           />
+
+          {/* 📎 Any file: pictures go the photo way, everything else is sent as
+              a document. Both are encrypted before they leave the device. */}
+          {!emojiOnly && onSendDocument && (
+            <>
+              <button
+                type="button"
+                onClick={() => documentInputRef.current?.click()}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
+                aria-label="Attach a document"
+                title="📎 Send a document"
+              >
+                <Paperclip size={21} />
+              </button>
+              <input
+                ref={documentInputRef}
+                type="file"
+                onChange={handlePickedDocument}
+                className="sr-only"
+                tabIndex={-1}
+              />
+            </>
+          )}
 
           {!emojiOnly && onCamera && (
             <button

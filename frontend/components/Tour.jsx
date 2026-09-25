@@ -12,7 +12,7 @@ import { useChat } from './ChatProvider';
 
 const STEPS = [
   {
-    title: '👋 Welcome to Ghosted',
+    title: '👋 Welcome to Ghost-ed',
     text: 'A private chat app with end-to-end encryption, groups, calls — and a few playful twists. Here’s a quick tour of where everything is.',
   },
   {
@@ -64,7 +64,7 @@ const STEPS = [
   },
   {
     title: '🔒 Private by design',
-    text: 'Your messages and photos are end-to-end encrypted. It all happens automatically — nothing to set up, and not even Ghosted can read your chats. You’re all set!',
+    text: 'Your messages and photos are end-to-end encrypted. It all happens automatically — nothing to set up, and not even Ghost-ed can read your chats. You’re all set!',
   },
 ];
 

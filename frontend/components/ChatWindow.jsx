@@ -30,6 +30,7 @@ import {
   VibePanel,
 } from './ChatDialogs';
 import { ImageLightbox } from './ImagePreview';
+import { checkDocumentFile } from './FileCard';
 import { backgroundStyle } from '@/lib/chatBackground';
 import { api } from '@/lib/client';
 import { MOODS, PAUSE_REASONS, REVIVE_ANSWERS, isDeadChat, shakeElement, timezoneOffset } from '@/lib/social';
@@ -519,6 +520,10 @@ export default function ChatWindow({ conversationId }) {
             mirrored: temp.mediaMirrored,
           };
         }
+        // 📎 A document: even its name and size travel inside the encryption
+        if (temp.fileBlob) {
+          payload.file = { name: temp.fileName, type: temp.fileType, size: temp.fileSize };
+        }
 
         const { encrypted, contentKey } = await encryptMessage({ conversationId, members, payload });
 
@@ -532,6 +537,11 @@ export default function ChatWindow({ conversationId }) {
         let media = '';
         if (temp.mediaBlob) {
           const file = await encryptFile(contentKey, temp.mediaBlob, 'media');
+          media = (await api('/api/upload/encrypted', { method: 'POST', file })).url;
+          rememberImage(media, temp.localMedia);
+        }
+        if (temp.fileBlob) {
+          const file = await encryptFile(contentKey, temp.fileBlob, 'file');
           media = (await api('/api/upload/encrypted', { method: 'POST', file })).url;
           rememberImage(media, temp.localMedia);
         }
@@ -573,6 +583,9 @@ export default function ChatWindow({ conversationId }) {
         // which would leave an empty bubble behind. Better to say it failed.
         if (temp.mediaBlob && !result.message?.media) {
           throw new Error('Your recording could not be saved. The server needs to be updated to the latest version.');
+        }
+        if (temp.fileBlob && !result.message?.media) {
+          throw new Error('Your document could not be sent. The server needs to be updated to the latest version.');
         }
 
         const opened = await openMessage(result.message, conversationId);
@@ -667,6 +680,41 @@ export default function ChatWindow({ conversationId }) {
       deliver(temp);
     },
     [conversationId, myId, replyingTo, deliver]
+  );
+
+  // 📎 A document (PDF, spreadsheet, zip …). It's encrypted like a photo — the
+  // server only ever sees the locked bytes, not even the file's name.
+  const sendDocument = useCallback(
+    (file) => {
+      const problem = checkDocumentFile(file);
+      if (problem) return showNotice(problem);
+
+      const localMedia = URL.createObjectURL(file);
+      const temp = {
+        _id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        conversationId,
+        senderId: myId,
+        text: '',
+        media: localMedia,
+        localMedia,
+        fileBlob: file,
+        fileName: file.name,
+        fileType: file.type || 'application/octet-stream',
+        fileSize: file.size,
+        messageType: 'file',
+        replyTo: replyingTo,
+        reactions: [],
+        createdAt: new Date().toISOString(),
+        pending: true,
+      };
+
+      suppressRead.current = false;
+      stickToBottom.current = true;
+      setMessages((prev) => [...prev, temp]);
+      setReplyingTo(null);
+      deliver(temp);
+    },
+    [conversationId, myId, replyingTo, deliver, showNotice]
   );
 
   const retry = useCallback(
@@ -1231,7 +1279,7 @@ export default function ChatWindow({ conversationId }) {
               <p className="mx-auto mb-3 flex max-w-sm items-start gap-2 rounded-xl bg-amber-100/80 px-3 py-2 text-left text-xs text-amber-900 shadow-sm dark:bg-amber-400/10 dark:text-amber-200">
                 <Lock size={13} className="mt-0.5 shrink-0" />
                 <span>
-                  Messages and calls are end-to-end encrypted. No one outside this chat, not even Ghosted, can read or
+                  Messages and calls are end-to-end encrypted. No one outside this chat, not even Ghost-ed, can read or
                   listen to them.
                 </span>
               </p>
@@ -1402,6 +1450,7 @@ export default function ChatWindow({ conversationId }) {
           onSendCustomSticker={sendCustomSticker}
           onOpenStickerStore={() => setDialog('stickers')}
           onSendVoice={(recording) => sendMedia('audio', recording)}
+          onSendDocument={sendDocument}
           onError={showNotice}
         />
       )}

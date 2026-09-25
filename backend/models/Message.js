@@ -94,7 +94,7 @@ const messageSchema = new mongoose.Schema(
     // Everyone in the chat except the sender, at the time it was sent.
     // Used for unread counts and delivered/read ticks.
     recipients: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-    messageType: { type: String, enum: ['text', 'image', 'audio', 'video', 'event'], default: 'text' },
+    messageType: { type: String, enum: ['text', 'image', 'audio', 'video', 'file', 'event'], default: 'text' },
 
     // End-to-end encrypted content. The server can't read any of it.
     ciphertext: { type: String, default: '', maxlength: 40000 },
@@ -103,8 +103,9 @@ const messageSchema = new mongoose.Schema(
     keys: { type: [wrappedKeySchema], default: [] },
     // URL of the (encrypted) image file. The key to open it is inside the ciphertext.
     image: { type: String, default: '' },
-    // URL of the (encrypted) voice message or video note. Its duration, waveform
-    // and file type are inside the ciphertext too; messageType says which kind it is.
+    // URL of the (encrypted) voice message, video note or shared document. Its
+    // duration, waveform, name and file type are inside the ciphertext too;
+    // messageType says which kind it is.
     media: { type: String, default: '' },
 
     // Plain text of messages sent before encryption was added

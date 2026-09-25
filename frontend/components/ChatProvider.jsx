@@ -32,7 +32,8 @@ export default function ChatProvider({ children }) {
   const [keyStatus, setKeyStatus] = useState('checking');
   const [typingIn, setTypingIn] = useState({}); // { [conversationId]: { [userId]: true } }
   const [toasts, setToasts] = useState([]);
-  const [sidebarPanel, setSidebarPanel] = useState(null); // null | 'newChat' | 'newGroup' | 'profile' | 'scheduled'
+  // null | 'newChat' | 'newGroup' | 'profile' | 'scheduled' | 'calls'
+  const [sidebarPanel, setSidebarPanel] = useState(null);
   const [stickerPacks, setStickerPacks] = useState([]); // 🌟 the packs I installed
 
   const { socket, isConnected } = useSocket(keyStatus === 'ready');
@@ -438,10 +439,10 @@ export default function ChatProvider({ children }) {
     };
   }, [socket, router, loadConversations, updateConversation, removeConversation, showNotification, setTyping]);
 
-  // Show the unread count in the browser tab, e.g. "(3) Ghosted". Muted chats don't count.
+  // Show the unread count in the browser tab, e.g. "(3) Ghost-ed". Muted chats don't count.
   const totalUnread = conversations.reduce((sum, c) => sum + (c.isMuted ? 0 : c.unreadCount || 0), 0);
   useEffect(() => {
-    document.title = totalUnread > 0 ? `(${totalUnread}) Ghosted` : 'Ghosted';
+    document.title = totalUnread > 0 ? `(${totalUnread}) Ghost-ed` : 'Ghost-ed';
   }, [totalUnread]);
 
   // ⭐ Trusted Ghosts: favourite contacts, pinned at the top of the chat list

@@ -24,6 +24,7 @@ import { formatTime, messagePreview } from '@/lib/format';
 import { colorFor } from './Avatar';
 import SecureImage, { useMessageImage } from './SecureImage';
 import { VideoNote, VoiceNote } from './MediaNote';
+import FileCard from './FileCard';
 import { isSticker, stickerLabel, stickerUrl } from '@/lib/stickers';
 
 // ↩️ Swipe-to-reply: how far the bubble follows the finger, and the point
@@ -112,6 +113,9 @@ function Message({
   const isVoiceNote = hasMedia && message.messageType === 'audio';
   // A video note is a circle on its own, without a bubble around it
   const isVideoNote = hasMedia && message.messageType === 'video';
+  // 📎 A shared document (the file is only fetched when it's asked for, so a
+  // missing one still shows its name and size)
+  const isDocument = message.messageType === 'file' && !isDeleted && !undecryptable;
   // 🌟 A sticker is shown on its own, without a bubble
   const showSticker = Boolean(message.sticker) && isSticker(message.sticker) && !isDeleted && !undecryptable;
   // One of the sender's own stickers: an encrypted picture, shown sticker-style
@@ -120,7 +124,15 @@ function Message({
   const bare = showSticker || isStickerImage; // a sticker has no bubble around it
   // Nothing at all to show: the recording never made it to the server
   const isEmpty =
-    !hasText && !hasImage && !hasMedia && !isViewOnce && !bare && !isDeleted && !undecryptable && !message.forgiveness;
+    !hasText &&
+    !hasImage &&
+    !hasMedia &&
+    !isDocument &&
+    !isViewOnce &&
+    !bare &&
+    !isDeleted &&
+    !undecryptable &&
+    !message.forgiveness;
   // ✏️ My own encrypted text messages can be edited (not stickers, photos or forgiveness requests)
   const canEdit =
     isMine &&
@@ -381,6 +393,7 @@ function Message({
 
           {isVoiceNote && <VoiceNote message={message} isMine={isMine} />}
           {isVideoNote && <VideoNote message={message} time={time} />}
+          {isDocument && <FileCard message={message} isMine={isMine} />}
 
           {/* 👻 View-once Ghost Click: tap to open it, one time */}
           {isViewOnce && !isDeleted && (

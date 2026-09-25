@@ -238,7 +238,8 @@ async function wrappingKeyFor(publicKey) {
 
 // members: everyone in the chat, including me: [{ _id, publicKey, keyId }]
 // payload: { text, image?: { type, width, height },
-//            media?: { kind: 'audio' | 'video', type, duration, waveform?, mirrored? } }
+//            media?: { kind: 'audio' | 'video', type, duration, waveform?, mirrored? },
+//            file?: { name, type, size } }  — a shared document; even its name is encrypted
 export async function encryptMessage({ conversationId, members, payload }) {
   if (!session) throw new Error('Encryption is locked. Please reload the page.');
 
@@ -330,6 +331,7 @@ export async function openMessage(message, conversationId = message?.conversatio
           imageWidth: result.payload.image?.width || 0,
           imageHeight: result.payload.image?.height || 0,
           ...(result.payload.media && openMediaDetails(result.payload.media)),
+          ...(result.payload.file && openFileDetails(result.payload.file)),
           contentKey: result.contentKey,
         }
       : { ...full, text: '', undecryptable: true };
@@ -352,6 +354,26 @@ function openMediaDetails(media) {
     mediaDuration: Math.max(0, Number(media.duration) || 0),
     mediaWaveform: waveform.map((v) => Math.min(31, Math.max(0, Number(v) || 0))),
     mediaMirrored: media.mirrored === true,
+  };
+}
+
+// 📎 Details of a shared document. The name comes from the sender, so it's
+// trimmed to something safe to show and to save under.
+function openFileDetails(file) {
+  // The name is shown in the chat and becomes the name the file is saved under,
+  // so drop control characters and both kinds of path separator (47 = /, 92 = \)
+  const name = [...String(file.name || '')]
+    .filter((c) => {
+      const code = c.codePointAt(0);
+      return code > 31 && code !== 47 && code !== 92;
+    })
+    .join('')
+    .trim()
+    .slice(0, 120);
+  return {
+    fileName: name || 'Document',
+    fileType: typeof file.type === 'string' ? file.type.slice(0, 100) : '',
+    fileSize: Math.max(0, Number(file.size) || 0),
   };
 }
 
@@ -420,8 +442,8 @@ export async function prepareImage(file, maxSize = 1600) {
 }
 
 // Encrypted file = 12-byte IV followed by the AES-GCM ciphertext.
-// context is 'image' for photos and 'media' for voice messages and video notes,
-// so one kind of file can't be passed off as the other.
+// context is 'image' for photos, 'media' for voice messages and video notes and
+// 'file' for documents, so one kind of file can't be passed off as another.
 export async function encryptFile(contentKey, blob, context = 'image') {
   const iv = randomBytes(12);
   const data = await crypto.subtle.encrypt(
@@ -455,6 +477,11 @@ export function decryptImage(url, contentKey, type = 'image/webp', context = 'im
 // Same for a voice message or video note; resolves to an object URL for <audio>/<video>
 export function decryptMedia(url, contentKey, type) {
   return decryptImage(url, contentKey, type, 'media');
+}
+
+// 📎 Same for a shared document; resolves to an object URL for a download link
+export function decryptDocument(url, contentKey, type) {
+  return decryptImage(url, contentKey, type || 'application/octet-stream', 'file');
 }
 
 // Lets the sender show their own image straight away, without downloading it again
