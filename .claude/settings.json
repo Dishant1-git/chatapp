@@ -10,7 +10,18 @@
       "Bash(node look.mjs)",
       "Bash(perl -0pi -e \"s/return \\\\{ browser, page, email, label \\\\};/return { browser, page, email, label, name };/\" streak.mjs)",
       "Bash(perl -0pi -e \"s/return \\\\{ browser, page, email, label \\\\};/return { browser, page, email, label, name };/\" shared-bg-video.mjs)",
-      "Bash(perl -0pi -e \"s|\\(await ann\\\\.page\\\\.getByPlaceholder\\\\\\(/Search by name or/\\\\\\)\\\\.fill\\\\\\(ben\\\\.email\\\\\\);\\\\n    await ann\\\\.page\\\\.\\)locator\\\\\\('aside'\\\\\\)\\\\.getByRole\\\\\\('button'\\\\\\)\\\\.filter\\\\\\(\\\\{ hasText: /online\\\\|last seen/ \\\\}\\\\\\)\\\\.first\\\\\\(\\\\\\)\\\\.click\\\\\\(\\\\\\);\\(\\\\n    await ann\\\\.page\\\\.getByRole\\\\\\('button', \\\\{ name: 'Next' \\\\}\\\\\\)\\)|\\\\$1locator\\('aside div.z-20'\\).getByRole\\('button', { name: new RegExp\\(ben.name\\) }\\).first\\(\\).click\\(\\);\\\\$2|s\" shared-bg-video.mjs)"
+      "Bash(perl -0pi -e \"s|\\(await ann\\\\.page\\\\.getByPlaceholder\\\\\\(/Search by name or/\\\\\\)\\\\.fill\\\\\\(ben\\\\.email\\\\\\);\\\\n    await ann\\\\.page\\\\.\\)locator\\\\\\('aside'\\\\\\)\\\\.getByRole\\\\\\('button'\\\\\\)\\\\.filter\\\\\\(\\\\{ hasText: /online\\\\|last seen/ \\\\}\\\\\\)\\\\.first\\\\\\(\\\\\\)\\\\.click\\\\\\(\\\\\\);\\(\\\\n    await ann\\\\.page\\\\.getByRole\\\\\\('button', \\\\{ name: 'Next' \\\\}\\\\\\)\\)|\\\\$1locator\\('aside div.z-20'\\).getByRole\\('button', { name: new RegExp\\(ben.name\\) }\\).first\\(\\).click\\(\\);\\\\$2|s\" shared-bg-video.mjs)",
+      "Bash(ls C:/Users/HP/.claude/projects/d--chatapp/memory/ 2>/dev/null && cat C:/Users/HP/.claude/projects/d--chatapp/memory/MEMORY.md 2>/dev/null)",
+      "Read(//c/Users/HP/.claude/projects/d--chatapp/memory/**)",
+      "Bash(curl -s -o /dev/null -w \"backend %{http_code}\\\\n\" http://localhost:5055/api/health)",
+      "Bash(curl -s -o /dev/null -w \"frontend %{http_code}\\\\n\" http://localhost:3055/login)",
+      "Bash(node auth-look.mjs)",
+      "Bash(node node_modules/next/dist/bin/next start -p 3055)",
+      "Bash(node tabs-skeletons.mjs)",
+      "Bash(powershell -NoProfile -Command \"\\(Get-Process chrome -ErrorAction SilentlyContinue | Measure-Object\\).Count\")",
+      "Bash(grep -n \"api\\(\\\\`/api/messages\" components/ChatWindow.jsx)",
+      "Bash(sh run-suites.sh)",
+      "Bash(sh run-rest.sh)"
     ]
   }
 }

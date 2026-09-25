@@ -32,11 +32,11 @@ const SWIPE_MAX = 80;
 const SWIPE_REPLY_AT = 56;
 
 // ✓ sent · ✓✓ delivered · blue ✓✓ read
-// onBrand: the ticks sit inside one of my own (teal) bubbles, so blue would jar
+// onBrand: the ticks sit inside one of my own (terracotta) bubbles, so blue would jar
 export function MessageTicks({ message, className = '', onBrand = false }) {
   if (message.failed) return <AlertCircle size={15} className={`text-red-500 ${className}`} />;
   if (message.pending) return <Clock3 size={13} className={className} />;
-  if (message.isRead) return <CheckCheck size={16} className={`${onBrand ? 'text-sky-200' : 'text-tick-read'} ${className}`} />;
+  if (message.isRead) return <CheckCheck size={16} className={`${onBrand ? 'text-bubble-out-fg/85' : 'text-tick-read'} ${className}`} />;
   if (message.isDelivered) return <CheckCheck size={16} className={className} />;
   return <Check size={16} className={className} />;
 }
@@ -322,7 +322,7 @@ function Message({
             <button
               type="button"
               onClick={() => onJumpTo(replyTo._id)}
-              className={`mb-1 flex w-full min-w-40 items-center gap-2 overflow-hidden rounded-lg border-l-4 text-left ${isMine ? 'border-white/70 bg-white/15' : 'border-brand bg-black/5 dark:bg-white/5'} ${imageOnly ? '' : '-mx-0.5'}`}
+              className={`mb-1 flex w-full min-w-40 items-center gap-2 overflow-hidden rounded-lg border-l-4 text-left ${isMine ? 'border-bubble-out-fg/60 bg-black/10' : 'border-brand bg-black/5 dark:bg-white/5'} ${imageOnly ? '' : '-mx-0.5'}`}
             >
               <span className="min-w-0 flex-1 px-2.5 py-1.5">
                 <span className="block text-xs font-semibold text-brand">
@@ -429,13 +429,13 @@ function Message({
           )}
 
           {bare && (
-            <span className={`flex items-center gap-1 pt-0.5 text-[11px] ${isMine ? 'justify-end text-white/75' : 'text-muted'}`}>
+            <span className={`flex items-center gap-1 pt-0.5 text-[11px] ${isMine ? 'justify-end text-bubble-out-fg/70' : 'text-muted'}`}>
               {time}
             </span>
           )}
 
           {!imageOnly && !isVideoNote && !bare && (
-            <span className={`absolute right-2.5 bottom-1 flex items-center gap-1 text-[11px] ${isMine && !imageOnly && !isVideoNote ? 'text-white/75' : 'text-muted'}`}>
+            <span className={`absolute right-2.5 bottom-1 flex items-center gap-1 text-[11px] ${isMine && !imageOnly && !isVideoNote ? 'text-bubble-out-fg/70' : 'text-muted'}`}>
               {time}
             </span>
           )}
@@ -683,7 +683,7 @@ function GhostClickCard({ message, isMine, myId, onOpen }) {
 
   return (
     <button type="button" onClick={onOpen} className="flex items-center gap-2 pr-12 text-left text-[14px]">
-      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-lg text-white">👻</span>
+      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-lg text-on-brand">👻</span>
       <span>
         <span className="block font-semibold text-brand">Tap to view</span>
         <span className="block text-[12px] text-muted">Ghost Click · view once</span>

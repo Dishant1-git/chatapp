@@ -133,7 +133,7 @@ export default function GroupInfo({ conversation, onClose }) {
             <button
               onClick={addMembers}
               disabled={toAdd.length === 0 || busy === 'add'}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-medium text-white transition hover:bg-brand-strong disabled:opacity-40"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-medium text-on-brand transition hover:bg-brand-strong disabled:opacity-40"
             >
               {busy === 'add' ? <Loader2 size={18} className="animate-spin" /> : <UserPlus size={18} />}
               Add {toAdd.length || ''} {toAdd.length === 1 ? 'person' : 'people'}
@@ -173,7 +173,7 @@ export default function GroupInfo({ conversation, onClose }) {
                 <button
                   type="submit"
                   disabled={busy === 'details' || !name.trim()}
-                  className="rounded-xl bg-brand px-4 text-sm font-medium text-white disabled:opacity-50"
+                  className="rounded-xl bg-brand px-4 text-sm font-medium text-on-brand disabled:opacity-50"
                 >
                   Save
                 </button>
@@ -210,7 +210,7 @@ export default function GroupInfo({ conversation, onClose }) {
                 onClick={() => setView('add')}
                 className="flex w-full items-center gap-3 px-5 py-2.5 text-left transition hover:bg-hover"
               >
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand text-white">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand text-on-brand">
                   <UserPlus size={19} />
                 </span>
                 <span className="font-medium">Add members</span>

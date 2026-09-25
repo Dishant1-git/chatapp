@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Loader2, Search } from 'lucide-react';
+import { PeopleSkeleton } from './Skeleton';
 import { useChat } from './ChatProvider';
 import Avatar from './Avatar';
 import { api } from '@/lib/client';
@@ -97,8 +98,8 @@ export default function UserSearch({ initialQuery = '', onClose }) {
         ))}
 
         {isSearching && results.length === 0 && (
-          <li className="flex justify-center py-10 text-muted">
-            <Loader2 size={22} className="animate-spin" />
+          <li>
+            <PeopleSkeleton />
           </li>
         )}
 

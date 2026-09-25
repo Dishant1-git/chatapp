@@ -1,6 +1,7 @@
 'use client';
 
-import { Loader2, WifiOff } from 'lucide-react';
+import { WifiOff } from 'lucide-react';
+import { AppSkeleton } from '@/components/Skeleton';
 import ChatProvider, { useChat } from '@/components/ChatProvider';
 import ChatList from '@/components/ChatList';
 import Navbar from '@/components/Navbar';
@@ -28,11 +29,7 @@ function ChatShell({ children }) {
   // Also shown for the moment it takes to send a device without the encryption
   // key back to the login page (the key is unlocked with the password there)
   if (isLoading || (!loadError && keyStatus !== 'ready')) {
-    return (
-      <div className="flex h-dvh items-center justify-center text-muted">
-        <Loader2 className="animate-spin" size={28} />
-      </div>
-    );
+    return <AppSkeleton />;
   }
 
   if (loadError) {
@@ -42,7 +39,7 @@ function ChatShell({ children }) {
         <p className="max-w-xs text-muted">{loadError}</p>
         <button
           onClick={retryLoad}
-          className="rounded-full bg-brand px-5 py-2 font-medium text-white hover:bg-brand-strong"
+          className="rounded-full bg-brand px-5 py-2 font-medium text-on-brand hover:bg-brand-strong"
         >
           Try again
         </button>
@@ -61,7 +58,7 @@ function ChatShell({ children }) {
       <div className="fixed inset-x-0 top-[var(--app-top,0px)] flex h-[var(--app-height,100dvh)] flex-col overflow-hidden pt-[env(safe-area-inset-top)]">
         <Navbar />
 
-        {/* The two panels float as rounded cards on the teal background */}
+        {/* The two panels float as rounded cards on the warm background */}
         <div className="flex min-h-0 flex-1 md:mx-auto md:w-full md:max-w-[1600px] md:gap-4 md:px-4 md:pb-5 lg:px-6 lg:pb-6">
           <aside
             className={`${isChatOpen ? 'hidden md:flex' : 'flex'} w-full min-h-0 flex-col overflow-hidden bg-panel md:w-[340px] md:rounded-3xl md:shadow-xl lg:w-[380px]`}

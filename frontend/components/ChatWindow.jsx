@@ -16,6 +16,7 @@ import GroupInfo from './GroupInfo';
 import MissYouHearts from './MissYouHearts';
 import { GhostClickCamera, GhostClickViewer } from './GhostClick';
 import StickerStore from './StickerStore';
+import { MessagesSkeleton } from './Skeleton';
 import { loadAccessibility, speak } from '@/lib/accessibility';
 import Celebration from './Celebration';
 import {
@@ -1037,7 +1038,7 @@ export default function ChatWindow({ conversationId }) {
         <MessageSquareOff size={40} className="text-muted" />
         <p className="font-medium">Conversation not found</p>
         <p className="text-sm text-muted">It may have been removed, or you don't have access to it.</p>
-        <Link href="/chat" className="mt-2 rounded-full bg-brand px-5 py-2 text-sm font-medium text-white">
+        <Link href="/chat" className="mt-2 rounded-full bg-brand px-5 py-2 text-sm font-medium text-on-brand">
           Back to chats
         </Link>
       </div>
@@ -1066,7 +1067,7 @@ export default function ChatWindow({ conversationId }) {
       <header className="brand-header flex h-[4.5rem] shrink-0 items-center gap-1 px-2 md:gap-2 md:px-4">
         <button
           onClick={goBackToList}
-          className="flex h-10 w-9 shrink-0 items-center justify-center rounded-full text-white hover:bg-white/15 md:w-10 md:hidden"
+          className="flex h-10 w-9 shrink-0 items-center justify-center rounded-full text-fg hover:bg-hover md:w-10 md:hidden"
           aria-label="Back to chats"
         >
           <ArrowLeft size={22} />
@@ -1084,13 +1085,13 @@ export default function ChatWindow({ conversationId }) {
         >
           {conversation && <ChatAvatar conversation={conversation} size={40} viewable />}
           <div className="min-w-0 flex-1">
-            <h2 className="flex min-w-0 items-center gap-1 leading-tight font-semibold text-white">
+            <h2 className="flex min-w-0 items-center gap-1 leading-tight font-semibold text-fg">
               <span className="truncate">{conversationTitle(conversation) || '…'}</span>
               {/* 💖 Their real name next to the nickname I gave them */}
-              {theirNickname && <span className="shrink-0 text-xs font-normal text-white/70">{otherUser?.name}</span>}
-              {!isGroupChat && otherUser && !blockedByMe && <Pencil size={12} className="shrink-0 text-white/60" aria-hidden />}
+              {theirNickname && <span className="shrink-0 text-xs font-normal text-muted">{otherUser?.name}</span>}
+              {!isGroupChat && otherUser && !blockedByMe && <Pencil size={12} className="shrink-0 text-muted" aria-hidden />}
             </h2>
-            <p className={`truncate text-xs ${statusIsHighlighted ? 'text-white' : 'text-white/70'}`}>{statusText}</p>
+            <p className={`truncate text-xs ${statusIsHighlighted ? 'text-brand' : 'text-muted'}`}>{statusText}</p>
           </div>
         </button>
 
@@ -1099,7 +1100,7 @@ export default function ChatWindow({ conversationId }) {
           (canJoinCall ? (
             <button
               onClick={() => handleCall(activeCall.video)}
-              className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-emerald-600 px-3.5 text-sm font-medium text-white hover:bg-emerald-700"
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-brand px-3.5 text-sm font-medium text-on-brand hover:bg-brand-strong"
             >
               <PhoneCall size={16} /> Join
             </button>
@@ -1172,7 +1173,7 @@ export default function ChatWindow({ conversationId }) {
               </p>
               <button
                 onClick={undoSeenNow}
-                className="shrink-0 rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white transition hover:bg-brand-strong active:scale-95"
+                className="shrink-0 rounded-full bg-brand px-3 py-1 text-xs font-semibold text-on-brand transition hover:bg-brand-strong active:scale-95"
               >
                 🤫 Undo seen
               </button>
@@ -1201,18 +1202,14 @@ export default function ChatWindow({ conversationId }) {
         className="chat-bg scroll-thin relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-3 pb-4 text-fg md:px-[5%] lg:px-[8%]"
         style={backgroundStyle(conversation?.background?.url, conversation?.background?.dim)}
       >
-        {status === 'loading' && (
-          <div className="flex h-full items-center justify-center text-muted">
-            <Loader2 className="animate-spin" size={26} />
-          </div>
-        )}
+        {status === 'loading' && <MessagesSkeleton />}
 
         {status === 'error' && (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
             <p className="text-sm text-muted">{errorText}</p>
             <button
               onClick={() => setReloadKey((k) => k + 1)}
-              className="rounded-full bg-brand px-4 py-2 text-sm font-medium text-white"
+              className="rounded-full bg-brand px-4 py-2 text-sm font-medium text-on-brand"
             >
               Try again
             </button>
@@ -1342,7 +1339,7 @@ export default function ChatWindow({ conversationId }) {
           {pausedBy.by === myId ? (
             <div className="flex items-center gap-3">
               <p className="min-w-0 flex-1">You stepped away from this chat. They can’t message you until you’re back.</p>
-              <button onClick={comeBack} className="shrink-0 rounded-full bg-brand px-4 py-1.5 font-medium text-white hover:bg-brand-strong">
+              <button onClick={comeBack} className="shrink-0 rounded-full bg-brand px-4 py-1.5 font-medium text-on-brand hover:bg-brand-strong">
                 Come back
               </button>
             </div>
@@ -1361,7 +1358,7 @@ export default function ChatWindow({ conversationId }) {
           <p className="min-w-0 flex-1">🚫 You blocked {otherUser?.name}. Neither of you can message or call.</p>
           <button
             onClick={unblock}
-            className="shrink-0 rounded-full bg-brand px-4 py-1.5 font-medium text-white hover:bg-brand-strong"
+            className="shrink-0 rounded-full bg-brand px-4 py-1.5 font-medium text-on-brand hover:bg-brand-strong"
           >
             Unblock
           </button>
@@ -1372,7 +1369,7 @@ export default function ChatWindow({ conversationId }) {
       {isDead && !pausedBy && !blockedByMe && !hasPendingRevive && (
         <div className="flex shrink-0 items-center gap-3 border-t border-line bg-panel-soft px-4 py-2.5 text-sm">
           <p className="min-w-0 flex-1">🪦 This chat is officially dead.</p>
-          <button onClick={sendRevive} className="shrink-0 rounded-full bg-brand px-4 py-1.5 font-medium text-white hover:bg-brand-strong">
+          <button onClick={sendRevive} className="shrink-0 rounded-full bg-brand px-4 py-1.5 font-medium text-on-brand hover:bg-brand-strong">
             🧟 Revive it
           </button>
         </div>
@@ -1530,7 +1527,7 @@ function CallMenu({ disabled, onCall }) {
       <button
         onClick={() => setIsOpen(!isOpen)}
         disabled={disabled}
-        className="flex h-10 w-9 items-center justify-center rounded-full text-white/85 transition hover:bg-white/15 hover:text-white disabled:opacity-40 md:w-10"
+        className="flex h-10 w-9 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg disabled:opacity-40 md:w-10"
         aria-label="Call"
         aria-expanded={isOpen}
       >

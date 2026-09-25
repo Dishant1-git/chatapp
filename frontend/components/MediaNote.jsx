@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, Loader2, Pause, Play } from 'lucide-react';
+import Skeleton from './Skeleton';
 import { decryptMedia } from '@/lib/e2ee';
 import { formatDuration } from '@/lib/format';
 import { WAVEFORM_BARS } from '@/lib/recording';
@@ -127,7 +128,7 @@ export function VoiceNote({ message, isMine }) {
         type="button"
         onClick={player.toggle}
         disabled={!src}
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-white transition hover:bg-brand-strong disabled:opacity-70"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-on-brand transition hover:bg-brand-strong disabled:opacity-70"
         aria-label={player.isPlaying ? 'Pause voice message' : 'Play voice message'}
       >
         {failed ? (
@@ -208,7 +209,7 @@ export function VideoNote({ message, time }) {
           />
         ) : (
           <span className="flex h-full w-full items-center justify-center text-muted">
-            {failed ? <AlertCircle size={26} /> : <Loader2 size={26} className="animate-spin" />}
+            {failed ? <AlertCircle size={26} /> : <Skeleton className="h-full w-full rounded-none" />}
           </span>
         )}
       </span>

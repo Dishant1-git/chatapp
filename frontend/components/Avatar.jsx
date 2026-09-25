@@ -6,7 +6,7 @@ import { MOODS } from '@/lib/social';
 import { openProfileViewer } from './ProfileViewer';
 
 // Profile picture with a fallback to the person's initials
-const COLORS = ['#0d8a74', '#2563eb', '#9333ea', '#db2777', '#ea580c', '#0891b2', '#4f46e5', '#65a30d'];
+const COLORS = ['#c1573a', '#2563eb', '#9333ea', '#db2777', '#ea580c', '#0f766e', '#4f46e5', '#a16207'];
 
 export function colorFor(name = '') {
   let total = 0;

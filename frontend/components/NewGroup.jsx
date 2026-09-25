@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Camera, Check, Loader2, Search, X } from 'lucide-react';
+import { PeopleSkeleton } from './Skeleton';
 import { useChat } from './ChatProvider';
 import Avatar from './Avatar';
 import { SidePanel } from './UserSearch';
@@ -57,7 +58,7 @@ export default function NewGroup({ onClose }) {
           <button
             onClick={() => setStep('details')}
             disabled={selected.length === 0}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-medium text-white transition hover:bg-brand-strong disabled:opacity-40"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-medium text-on-brand transition hover:bg-brand-strong disabled:opacity-40"
           >
             Next <ArrowRight size={18} />
           </button>
@@ -110,7 +111,7 @@ export default function NewGroup({ onClose }) {
           <button
             type="submit"
             disabled={isCreating || !name.trim()}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-medium text-white transition hover:bg-brand-strong disabled:opacity-40"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-medium text-on-brand transition hover:bg-brand-strong disabled:opacity-40"
           >
             {isCreating ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />} Create group
           </button>
@@ -219,7 +220,7 @@ export function PeoplePicker({ selected, onChange, exclude = [] }) {
               </div>
               <span
                 className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition ${
-                  isSelected(person) ? 'border-brand bg-brand text-white' : 'border-line'
+                  isSelected(person) ? 'border-brand bg-brand text-on-brand' : 'border-line'
                 }`}
               >
                 {isSelected(person) && <Check size={14} strokeWidth={3} />}
@@ -229,8 +230,8 @@ export function PeoplePicker({ selected, onChange, exclude = [] }) {
         ))}
 
         {isSearching && results.length === 0 && (
-          <li className="flex justify-center py-10 text-muted">
-            <Loader2 size={22} className="animate-spin" />
+          <li>
+            <PeopleSkeleton />
           </li>
         )}
         {!isSearching && query.trim() && people.length === 0 && !error && (

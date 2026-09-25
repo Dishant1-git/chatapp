@@ -48,7 +48,7 @@ export default function ChatMenu({ conversation, myId, onOpen, onMissYou, onBuzz
     <div ref={menuRef} className="relative shrink-0">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex h-10 w-10 items-center justify-center rounded-full text-white/85 transition hover:bg-white/15 hover:text-white"
+        className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
         aria-label="Chat options"
         aria-expanded={isOpen}
       >

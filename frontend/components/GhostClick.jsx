@@ -343,7 +343,7 @@ export function GhostClickCamera({ onSend, onCancel, onError }) {
             />
             <button
               type="submit"
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand text-white transition hover:bg-brand-strong"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand text-on-brand transition hover:bg-brand-strong"
               aria-label="Send Ghost Click"
             >
               <SendHorizontal size={20} />

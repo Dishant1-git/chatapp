@@ -14,8 +14,8 @@ export const viewport = {
   // message box stays visible above it
   interactiveWidget: 'resizes-content',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#11171e' },
+    { media: '(prefers-color-scheme: light)', color: '#f7e8e2' },
+    { media: '(prefers-color-scheme: dark)', color: '#100c0b' },
   ],
 };
 

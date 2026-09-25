@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Check, Download, ImagePlus, Loader2, Trash2, X } from 'lucide-react';
+import { PackListSkeleton } from './Skeleton';
 import { useChat } from './ChatProvider';
 import { checkImageFile } from './ImagePreview';
 import { api } from '@/lib/client';
@@ -92,9 +93,7 @@ export default function StickerStore({ onClose, onError }) {
           <>
             <div className="scroll-thin min-h-0 flex-1 overflow-y-auto px-5">
               {packs === null ? (
-                <div className="flex justify-center py-10 text-muted">
-                  <Loader2 className="animate-spin" />
-                </div>
+                <PackListSkeleton />
               ) : packs.length === 0 ? (
                 <p className="py-10 text-center text-sm text-muted">
                   No packs yet. Make the first one!
@@ -129,7 +128,7 @@ export default function StickerStore({ onClose, onError }) {
                         disabled={busyId === pack._id}
                         aria-label={`${pack.isInstalled ? 'Remove' : 'Add'} ${pack.name}`}
                         className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition disabled:opacity-50 ${
-                          pack.isInstalled ? 'border border-line hover:bg-hover' : 'bg-brand text-white hover:bg-brand-strong'
+                          pack.isInstalled ? 'border border-line hover:bg-hover' : 'bg-brand text-on-brand hover:bg-brand-strong'
                         }`}
                       >
                         {busyId === pack._id ? (
@@ -158,7 +157,7 @@ export default function StickerStore({ onClose, onError }) {
             <div className="px-5 pt-3">
               <button
                 onClick={() => setIsCreating(true)}
-                className="w-full rounded-full bg-brand py-2.5 font-medium text-white hover:bg-brand-strong"
+                className="w-full rounded-full bg-brand py-2.5 font-medium text-on-brand hover:bg-brand-strong"
               >
                 + Make a pack
               </button>
@@ -280,7 +279,7 @@ function CreatePack({ onDone, onError }) {
         <button
           type="submit"
           disabled={busy || name.trim().length < 2 || files.length === 0}
-          className="flex-1 rounded-full bg-brand py-2.5 font-medium text-white hover:bg-brand-strong disabled:opacity-50"
+          className="flex-1 rounded-full bg-brand py-2.5 font-medium text-on-brand hover:bg-brand-strong disabled:opacity-50"
         >
           {busy ? 'Publishing…' : `Publish ${files.length || ''}`.trim()}
         </button>

@@ -83,7 +83,7 @@ export default function GhostBanner({ ghost, myId, otherName, isUnghosting, onUn
         {canRequest && !isWriting && (
           <button
             onClick={() => setIsWriting(true)}
-            className="shrink-0 rounded-full bg-brand px-3.5 py-1.5 text-sm font-medium text-white transition hover:bg-brand-strong"
+            className="shrink-0 rounded-full bg-brand px-3.5 py-1.5 text-sm font-medium text-on-brand transition hover:bg-brand-strong"
           >
             🕊️ Ask forgiveness
           </button>
@@ -103,7 +103,7 @@ export default function GhostBanner({ ghost, myId, otherName, isUnghosting, onUn
           <button
             type="submit"
             disabled={!text.trim()}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-white disabled:opacity-40"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-on-brand disabled:opacity-40"
             aria-label="Send forgiveness request"
           >
             <Send size={17} />

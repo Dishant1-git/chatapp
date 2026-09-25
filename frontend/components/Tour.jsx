@@ -278,7 +278,7 @@ export default function Tour() {
               <button
                 onClick={next}
                 autoFocus
-                className="rounded-full bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-strong"
+                className="rounded-full bg-brand px-4 py-1.5 text-sm font-medium text-on-brand hover:bg-brand-strong"
               >
                 {isLast ? 'Get started' : 'Next feature'}
               </button>

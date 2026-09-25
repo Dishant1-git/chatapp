@@ -160,7 +160,7 @@ export default function VoiceRecorder({ onSend, onCancel, onError }) {
         type="button"
         onClick={send}
         disabled={phase === 'starting'}
-        className={`${iconButton} bg-brand text-white hover:bg-brand-strong disabled:opacity-40`}
+        className={`${iconButton} bg-brand text-on-brand hover:bg-brand-strong disabled:opacity-40`}
         aria-label="Send voice message"
       >
         <SendHorizontal size={20} />

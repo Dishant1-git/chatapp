@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ImagePlus, Loader2, X } from 'lucide-react';
+import { StatsSkeleton } from './Skeleton';
 import { checkImageFile } from './ImagePreview';
 import { api } from '@/lib/client';
 import { prepareImage } from '@/lib/e2ee';
@@ -99,7 +100,7 @@ export function GhostDialog({ conversation, myId, onClose, onError, onChanged })
         <button
           onClick={() => run('unghost', () => api(`/api/conversations/${conversation._id}/ghost`, { method: 'DELETE' }))}
           disabled={Boolean(busy)}
-          className="mt-4 w-full rounded-full bg-brand py-2.5 font-medium text-white hover:bg-brand-strong disabled:opacity-60"
+          className="mt-4 w-full rounded-full bg-brand py-2.5 font-medium text-on-brand hover:bg-brand-strong disabled:opacity-60"
         >
           {busy === 'unghost' ? 'Unghosting…' : '🕊️ Unghost'}
         </button>
@@ -193,7 +194,7 @@ export function BadgeDialog({ conversation, onClose, onError }) {
         <button
           type="submit"
           disabled={busy || !label.trim()}
-          className="mt-4 w-full rounded-full bg-brand py-2.5 font-medium text-white hover:bg-brand-strong disabled:opacity-50"
+          className="mt-4 w-full rounded-full bg-brand py-2.5 font-medium text-on-brand hover:bg-brand-strong disabled:opacity-50"
         >
           {busy ? 'Adding…' : `Add ${emoji} ${label.trim() || 'badge'}`}
         </button>
@@ -304,7 +305,7 @@ export function BackgroundDialog({ conversation, onClose, onError }) {
         <button
           onClick={save}
           disabled={busy || (!blob && !current)}
-          className="flex-1 rounded-full bg-brand py-2.5 font-medium text-white hover:bg-brand-strong disabled:opacity-50"
+          className="flex-1 rounded-full bg-brand py-2.5 font-medium text-on-brand hover:bg-brand-strong disabled:opacity-50"
         >
           {busy ? 'Saving…' : 'Save'}
         </button>
@@ -338,11 +339,7 @@ export function VibePanel({ conversation, onClose }) {
   return (
     <Modal title="Read the vibe 🧠" onClose={onClose}>
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-      {!data && !error && (
-        <div className="flex justify-center py-10 text-muted">
-          <Loader2 className="animate-spin" />
-        </div>
-      )}
+      {!data && !error && <StatsSkeleton />}
       {data && (
         <>
           <div className="grid grid-cols-2 gap-2">
@@ -433,7 +430,7 @@ export function NicknameDialog({ conversation, onClose, onError }) {
         <button
           type="submit"
           disabled={busy || !nickname.trim() || nickname.trim() === current}
-          className="mt-4 w-full rounded-full bg-brand py-2.5 font-medium text-white hover:bg-brand-strong disabled:opacity-60"
+          className="mt-4 w-full rounded-full bg-brand py-2.5 font-medium text-on-brand hover:bg-brand-strong disabled:opacity-60"
         >
           {busy ? 'Saving…' : 'Save nickname'}
         </button>
@@ -513,7 +510,7 @@ export function EditMessageDialog({ message, onSave, onClose }) {
         <button
           type="submit"
           disabled={busy || !trimmed || trimmed === message.text}
-          className="mt-3 w-full rounded-full bg-brand py-2.5 font-medium text-white hover:bg-brand-strong disabled:opacity-60"
+          className="mt-3 w-full rounded-full bg-brand py-2.5 font-medium text-on-brand hover:bg-brand-strong disabled:opacity-60"
         >
           {busy ? 'Saving…' : 'Save'}
         </button>

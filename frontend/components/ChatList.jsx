@@ -3,7 +3,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, BellOff, Clock, Ghost, MessageCirclePlus, Search, Star, Trash2, Users, WifiOff, X } from 'lucide-react';
+import { Bell, BellOff, Check, Clock, Ghost, MessageCirclePlus, Search, Star, Trash2, UserRoundPlus, Users, WifiOff, X } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import { ConfirmDialog } from './ChatDialogs';
 import { api } from '@/lib/client';
@@ -32,6 +32,8 @@ export default function ChatList() {
     toggleTrusted,
   } = useChat();
   const [query, setQuery] = useState('');
+  // 👥 Which half of the list is showing: one-to-one chats or groups
+  const [tab, setTab] = useState('friends');
   // Right-click (or long-press) menu on a chat: { conversationId, x, y }
   const [menu, setMenu] = useState(null);
   const [deleting, setDeleting] = useState(null); // the chat waiting for "Delete chat?" confirmation
@@ -53,6 +55,50 @@ export default function ChatList() {
   const openMenu = useCallback((conversationId, x, y) => setMenu({ conversationId, x, y }), []);
   const closeMenu = useCallback(() => setMenu(null), []);
   const menuConversation = menu && conversations.find((c) => c._id === menu.conversationId);
+
+  // Remember the tab between visits (private browsing can block storage)
+  const tabWasChosen = useRef(false);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('ghosted:chatTab');
+      if (saved === 'friends' || saved === 'groups') {
+        tabWasChosen.current = true;
+        setTab(saved);
+      }
+    } catch {
+      // never mind, Friends is a fine default
+    }
+  }, []);
+
+  // Until they pick a tab themselves, show the side that actually has chats —
+  // so someone whose only chat is a group doesn't land on an empty list
+  useEffect(() => {
+    if (tabWasChosen.current) return;
+    const hasGroups = conversations.some((c) => isGroup(c));
+    const hasFriends = conversations.some((c) => !isGroup(c));
+    if (tab === 'friends' && !hasFriends && hasGroups) setTab('groups');
+    else if (tab === 'groups' && !hasGroups && hasFriends) setTab('friends');
+  }, [conversations, tab]);
+
+  // Opening a chat switches to its tab, so the open one is always in the list
+  const syncedTabFor = useRef(null);
+  useEffect(() => {
+    if (!activeConversationId || syncedTabFor.current === activeConversationId) return;
+    const active = conversations.find((c) => c._id === activeConversationId);
+    if (!active) return; // not loaded yet — this runs again when it is
+    syncedTabFor.current = activeConversationId;
+    setTab(isGroup(active) ? 'groups' : 'friends');
+  }, [activeConversationId, conversations]);
+
+  function pickTab(next) {
+    tabWasChosen.current = true;
+    setTab(next);
+    try {
+      localStorage.setItem('ghosted:chatTab', next);
+    } catch {
+      // the tab still works for this visit
+    }
+  }
 
   function showNotice(text) {
     setNotice(text);
@@ -98,23 +144,34 @@ export default function ChatList() {
     );
   }, [conversations, query]);
 
+  // The tab splits the list — but a search looks through everything, so a group
+  // you're looking for is never hidden behind the other tab
+  const isSearching = query.trim().length > 0;
+  const visible = useMemo(
+    () => (isSearching ? filtered : filtered.filter((c) => isGroup(c) === (tab === 'groups'))),
+    [filtered, isSearching, tab]
+  );
+  // Unread waiting on the tab you're not looking at
+  const unreadOn = (wantGroups) =>
+    conversations.some((c) => isGroup(c) === wantGroups && !c.isMuted && c.unreadCount > 0);
+
   // ⭐ Trusted Ghosts are pinned in their own section at the top
   const trustedIds = user?.trusted || [];
   const isTrustedChat = (c) => !isGroup(c) && trustedIds.includes(c.otherUser?._id);
-  const trustedChats = filtered.filter(isTrustedChat);
-  const otherChats = trustedChats.length ? filtered.filter((c) => !isTrustedChat(c)) : filtered;
+  const trustedChats = visible.filter(isTrustedChat);
+  const otherChats = trustedChats.length ? visible.filter((c) => !isTrustedChat(c)) : visible;
 
   return (
     <div className="brand-header relative flex h-full min-h-0 flex-col overflow-hidden">
       <header className="flex h-16 shrink-0 items-center justify-between gap-2 px-4 pt-1">
-        <h1 className="text-[22px] font-semibold tracking-tight text-white">
+        <h1 className="text-[22px] font-semibold tracking-tight text-brand">
           <span className="md:hidden">Messages</span>
           <span className="hidden md:inline">Messages</span>
         </h1>
         <div className="flex items-center">
           <button
             onClick={() => setSidebarPanel('scheduled')}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-white/85 transition hover:bg-white/15 hover:text-white"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"
             aria-label="Scheduled messages"
             title="Scheduled messages"
           >
@@ -122,15 +179,16 @@ export default function ChatList() {
           </button>
           <button
             onClick={() => setSidebarPanel('newGroup')}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-white/85 transition hover:bg-white/15 hover:text-white"
+            className="hidden h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg md:flex"
             aria-label="New group"
             title="New group"
           >
             <Users size={20} />
           </button>
+          {/* On a phone the round button at the bottom of the list does this instead */}
           <button
             onClick={() => setSidebarPanel('newChat')}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-white/85 transition hover:bg-white/15 hover:text-white"
+            className="hidden h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg md:flex"
             aria-label="New chat"
             title="New chat"
           >
@@ -155,17 +213,17 @@ export default function ChatList() {
 
       <div className="px-3 pb-2">
         <div className="relative">
-          <Search size={17} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-white/70" />
+          <Search size={17} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search chats"
-            className="w-full rounded-full border border-white/25 bg-white/15 py-2.5 pr-10 pl-10 text-base text-white outline-none placeholder:text-white/70 focus:bg-white/20 md:text-sm"
+            className="w-full rounded-full border border-line bg-panel py-2.5 pr-10 pl-10 text-base text-fg outline-none placeholder:text-muted focus:border-brand/40 md:text-sm"
           />
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="absolute top-1/2 right-2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-white/80 hover:bg-white/15"
+              className="absolute top-1/2 right-2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted hover:bg-hover"
               aria-label="Clear search"
             >
               <X size={15} />
@@ -174,11 +232,29 @@ export default function ChatList() {
         </div>
       </div>
 
-      {/* The white panel curves up over the teal and holds the conversations */}
+      {/* 👥 One-to-one chats or groups. A search looks through both. */}
+      {!isSearching && (
+        <div className="flex items-center gap-2 px-3 pb-2">
+          <TabPill
+            label="Friends"
+            isActive={tab === 'friends'}
+            hasUnread={tab !== 'friends' && unreadOn(false)}
+            onClick={() => pickTab('friends')}
+          />
+          <TabPill
+            label="Groups"
+            isActive={tab === 'groups'}
+            hasUnread={tab !== 'groups' && unreadOn(true)}
+            onClick={() => pickTab('groups')}
+          />
+        </div>
+      )}
+
+      {/* The panel curves up over the header strip and holds the conversations */}
       <ul className="scroll-thin surface mt-1 min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-t-[2rem] pt-3 pb-[env(safe-area-inset-bottom)] text-fg">
         <li className="flex items-center justify-between px-5 pb-1">
           <h2 className="text-lg font-semibold">Recent</h2>
-          <span className="text-xs text-muted">{filtered.length}</span>
+          <span className="text-xs text-muted">{visible.length}</span>
         </li>
         {trustedChats.length > 0 && (
           <li className="px-5 pt-1 pb-1 text-xs font-semibold tracking-wide text-muted uppercase">⭐ Trusted Ghosts</li>
@@ -220,14 +296,30 @@ export default function ChatList() {
             <p className="mt-1 text-sm text-muted">Find someone to start chatting with.</p>
             <button
               onClick={() => setSidebarPanel('newChat')}
-              className="mt-5 rounded-full bg-brand px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-strong"
+              className="mt-5 rounded-full bg-brand px-5 py-2.5 text-sm font-medium text-on-brand hover:bg-brand-strong"
             >
               Start a new chat
             </button>
           </li>
         )}
 
-        {conversations.length > 0 && filtered.length === 0 && (
+        {/* Nothing on this tab, but chats exist on the other one */}
+        {conversations.length > 0 && !isSearching && visible.length === 0 && (
+          <li className="px-8 py-14 text-center">
+            <p className="font-medium">{tab === 'groups' ? 'No group chats yet' : 'No one-to-one chats yet'}</p>
+            <p className="mt-1 text-sm text-muted">
+              {tab === 'groups' ? 'Make one with a few people.' : 'Find someone to start chatting with.'}
+            </p>
+            <button
+              onClick={() => setSidebarPanel(tab === 'groups' ? 'newGroup' : 'newChat')}
+              className="mt-5 rounded-full bg-brand px-5 py-2.5 text-sm font-medium text-on-brand hover:bg-brand-strong"
+            >
+              {tab === 'groups' ? 'New group' : 'Start a new chat'}
+            </button>
+          </li>
+        )}
+
+        {conversations.length > 0 && isSearching && visible.length === 0 && (
           <li className="px-8 py-12 text-center text-sm text-muted">
             No chats match “{query}”.
             <button
@@ -239,6 +331,16 @@ export default function ChatList() {
           </li>
         )}
       </ul>
+
+      {/* 📱 Phones: the round button for the thing you'd do on this tab */}
+      <button
+        onClick={() => setSidebarPanel(tab === 'groups' ? 'newGroup' : 'newChat')}
+        className="absolute right-4 bottom-[max(1.25rem,env(safe-area-inset-bottom))] flex h-14 w-14 items-center justify-center rounded-full bg-brand text-on-brand shadow-lg transition hover:bg-brand-strong active:scale-95 md:hidden"
+        aria-label={tab === 'groups' ? 'New group' : 'New chat'}
+        title={tab === 'groups' ? 'New group' : 'New chat'}
+      >
+        {tab === 'groups' ? <Users size={24} /> : <UserRoundPlus size={24} />}
+      </button>
 
       {menuConversation && (
         <ChatContextMenu
@@ -278,6 +380,26 @@ export default function ChatList() {
         {sidebarPanel === 'scheduled' && <ScheduledMessages key="scheduled" onClose={() => setSidebarPanel(null)} />}
       </AnimatePresence>
     </div>
+  );
+}
+
+// One of the two switches above the list. The dot means: unread over there.
+function TabPill({ label, isActive, hasUnread, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={isActive}
+      className={`relative flex flex-1 items-center justify-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition ${
+        isActive ? 'bg-brand-soft text-brand' : 'text-muted hover:bg-hover'
+      }`}
+    >
+      {isActive && <Check size={15} className="shrink-0" />}
+      {label}
+      {hasUnread && (
+        <span className="absolute top-1.5 right-3 h-2 w-2 rounded-full bg-brand" aria-label="Unread messages" />
+      )}
+    </button>
   );
 }
 
@@ -563,8 +685,8 @@ const ConversationItem = memo(function ConversationItem({
               {isMuted && <BellOff size={15} className="text-muted" aria-label="Muted" />}
               {unreadCount > 0 && (
                 <span
-                  className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold text-white ${
-                    isMuted ? 'bg-muted' : 'bg-rose-500'
+                  className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
+                    isMuted ? 'bg-muted text-panel' : 'bg-brand text-on-brand'
                   }`}
                 >
                   {unreadCount > 99 ? '99+' : unreadCount}

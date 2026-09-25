@@ -87,7 +87,7 @@ export default function Profile({ onClose }) {
               <span className="mt-1">Change photo</span>
             </span>
             {/* Always visible on touch screens, where there is no hover */}
-            <span className="absolute right-1 bottom-1 flex h-9 w-9 items-center justify-center rounded-full bg-brand text-white shadow md:hidden">
+            <span className="absolute right-1 bottom-1 flex h-9 w-9 items-center justify-center rounded-full bg-brand text-on-brand shadow md:hidden">
               <Camera size={17} />
             </span>
             <input
@@ -122,7 +122,7 @@ export default function Profile({ onClose }) {
             <button
               type="submit"
               disabled={isSaving || name.trim() === user.name || name.trim().length < 2}
-              className="rounded-xl bg-brand px-4 text-sm font-medium text-white hover:bg-brand-strong disabled:opacity-50"
+              className="rounded-xl bg-brand px-4 text-sm font-medium text-on-brand hover:bg-brand-strong disabled:opacity-50"
             >
               {isSaving ? 'Saving…' : 'Save'}
             </button>

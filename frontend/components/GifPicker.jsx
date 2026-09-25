@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, Search } from 'lucide-react';
+import { TileGridSkeleton } from './Skeleton';
 import { api } from '@/lib/client';
 
 // 🎞️ GIF search (GIPHY, proxied by our own server). The tab only appears when
@@ -66,8 +67,8 @@ export default function GifPicker({ onPick, onError, onUnavailable }) {
 
       <div className="scroll-thin grid max-h-44 grid-cols-3 gap-1 overflow-y-auto sm:grid-cols-4">
         {gifs === null ? (
-          <div className="col-span-full flex justify-center py-8 text-muted">
-            <Loader2 className="animate-spin" size={20} />
+          <div className="col-span-full">
+            <TileGridSkeleton tiles={8} className="grid grid-cols-3 gap-1 sm:grid-cols-4" />
           </div>
         ) : gifs.length === 0 ? (
           <p className="col-span-full py-8 text-center text-sm text-muted">No GIFs found.</p>

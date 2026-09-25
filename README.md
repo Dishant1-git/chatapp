@@ -5,19 +5,20 @@ Express + Socket.IO + MongoDB, each in its own folder.
 It's inspired by the feel of WhatsApp on mobile: a full-screen chat list, full-screen
 conversations, and a clean two-column layout on desktop.
 
-**The look:** a teal gradient behind everything, with the chat list and the conversation as white
-cards floating on top of it — on a phone they fill the screen, on a computer they sit side by side
-with rounded corners. Headers, the message box and your own bubbles are teal; the other person's
-are a pale mint. Every colour is a token in `frontend/app/globals.css` (`--brand-*`, `--panel`,
-`--bubble-in/out`, …), so the whole palette — light and dark — changes in that one file.
+**The look:** warm and quiet — a cream wash behind everything, with the chat list and the
+conversation as near-white cards on top of it (full screen on a phone, side by side with rounded
+corners on a computer). Titles, buttons and your own bubbles are terracotta; the other person's are
+a pale blush. Dark mode is the same idea in near-black brown with salmon accents. Every colour is a
+token in `frontend/app/globals.css` (`--brand`, `--panel`, `--header`, `--bubble-in/out`, `--on-brand`,
+…), so the whole palette — light and dark — changes in that one file.
 
 **Features:** register/login, profiles with photos, user search, private conversations,
 **group chats** (admins, add/remove members, rename, group photo), **end-to-end encrypted**
 messages and photos, **voice and video calls** (one-to-one and groups of up to 6),
 real-time messages, online status and last seen, typing indicator, sent/delivered/read ticks,
 photo sharing, reactions, replies (swipe a message to the right), editing your own messages,
-in-app notifications with unread counts, delete for
-me/everyone, message pagination, and light/dark mode.
+**Friends / Groups tabs** over the chat list, in-app notifications with unread counts, delete for
+me/everyone, message pagination, **skeleton placeholders** while things load, and light/dark mode.
 
 ```
 chatapp/
@@ -245,6 +246,15 @@ Routes live in `backend/routes/social.js`; labels in `frontend/lib/ghost.js` and
 - **⭐ Trusted Ghosts**: favourite contacts from the chat menu, pinned at the top of the chat list.
   The list is private and only returned by `/api/auth/me`.
 - **✨ Reactions** burst and pop when added. This is off when the system asks for reduced motion.
+- **👥 Friends / Groups**: two pills above the chat list split one-to-one chats from groups. A
+  search looks through both, so nothing hides behind the other tab, and the pill you're not on shows
+  a dot when unread messages are waiting there. The choice is remembered on the device; until you
+  pick one, the app shows whichever side actually has chats. On a phone the round button at the
+  bottom of the list starts a new chat — or a new group, on the Groups tab.
+- **⏳ Skeletons**: while the app, a conversation, a search, the GIF grid, the sticker store or a
+  photo loads, a shimmering placeholder shaped like the real thing is shown instead of a spinner
+  (`frontend/components/Skeleton.jsx`, and the `.skeleton` class in `globals.css`). Buttons that are
+  busy still show a small spinner, because there the wait is an action, not content.
 
 ## Project structure
 

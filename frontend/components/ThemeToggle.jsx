@@ -26,8 +26,8 @@ export default function ThemeToggle({ className = '' }) {
     <button
       type="button"
       onClick={toggle}
-      // It always sits on the teal (the top bar, or the list header)
-      className={`flex h-10 w-10 items-center justify-center rounded-full text-white/85 transition hover:bg-white/15 hover:text-white ${className}`}
+      // It always sits on a header strip (the top bar, or the list header)
+      className={`flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg ${className}`}
       aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
       title={isDark ? 'Light mode' : 'Dark mode'}
     >

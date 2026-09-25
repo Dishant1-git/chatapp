@@ -292,11 +292,11 @@ export function MinimizedCall({ call, conversation, peers, onExpand, onHangUp })
 
   return (
     // Phones: above the message box. Desktop: in the empty middle of the top bar.
-    <div className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-40 mx-auto flex max-w-sm items-center gap-3 rounded-full bg-emerald-700 py-2 pr-2 pl-4 text-white shadow-xl md:top-3 md:bottom-auto">
+    <div className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-40 mx-auto flex max-w-sm items-center gap-3 rounded-full bg-brand py-2 pr-2 pl-4 text-on-brand shadow-xl md:top-3 md:bottom-auto">
       <button onClick={onExpand} className="flex min-w-0 flex-1 items-center gap-2 text-left" aria-label="Return to call">
         {call.video ? <Video size={17} className="shrink-0" /> : <Phone size={17} className="shrink-0" />}
         <span className="truncate text-sm font-medium">{conversationTitle(conversation) || 'Call'}</span>
-        <span className="shrink-0 text-xs text-white/80">{statusLine(call, peers, timer)}</span>
+        <span className="shrink-0 text-xs opacity-80">{statusLine(call, peers, timer)}</span>
         <Maximize2 size={15} className="ml-auto shrink-0 opacity-80" />
       </button>
       <button

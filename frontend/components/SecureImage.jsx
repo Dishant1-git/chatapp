@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ImageOff, Loader2 } from 'lucide-react';
+import { ImageOff } from 'lucide-react';
+import Skeleton from './Skeleton';
 import { decryptImage } from '@/lib/e2ee';
 
 const isEncrypted = (url) => /\.bin$/.test(url || '');
@@ -42,10 +43,10 @@ export default function SecureImage({ message, className = '', onLoad, alt = 'Sh
   if (!src) {
     return (
       <div
-        className={`flex items-center justify-center bg-black/5 text-muted dark:bg-white/5 ${className}`}
+        className={`flex items-center justify-center text-muted ${failed ? 'bg-black/5 dark:bg-white/5' : ''} ${className}`}
         style={{ aspectRatio: ratio || '4 / 3' }}
       >
-        {failed ? <ImageOff size={22} /> : <Loader2 size={22} className="animate-spin" />}
+        {failed ? <ImageOff size={22} /> : <Skeleton className="h-full w-full rounded-none" />}
       </div>
     );
   }

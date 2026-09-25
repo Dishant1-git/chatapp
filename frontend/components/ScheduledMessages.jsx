@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, ArrowRight, Check, Clock, Loader2, Plus, X } from 'lucide-react';
+import Skeleton from './Skeleton';
 import { useChat } from './ChatProvider';
 import Avatar from './Avatar';
 import { SidePanel } from './UserSearch';
@@ -123,7 +124,7 @@ function ScheduledList({ onClose, onNew }) {
       <div className="shrink-0 px-3 py-3">
         <button
           onClick={onNew}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-medium text-white transition hover:bg-brand-strong"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-medium text-on-brand transition hover:bg-brand-strong"
         >
           <Plus size={18} /> Schedule a message
         </button>
@@ -158,24 +159,24 @@ function ScheduledList({ onClose, onNew }) {
   );
 }
 
-// Grey placeholder cards shaped like the real ones, while the list loads
+// Placeholder cards shaped like the real ones, while the list loads
 function ListSkeleton() {
   return (
     <div aria-busy="true" aria-label="Loading scheduled messages">
-      <div className="mx-2 mt-4 mb-2.5 h-3 w-20 animate-pulse rounded-full bg-line" />
+      <Skeleton className="mx-2 mt-4 mb-2.5 h-3 w-20 rounded-full" />
       {[0, 1, 2].map((i) => (
         <div key={i} className="mb-2 rounded-2xl border border-line p-3">
           <div className="flex items-center justify-between">
-            <div className="h-3.5 w-36 animate-pulse rounded-full bg-line" />
-            <div className="h-4 w-16 animate-pulse rounded-full bg-line" />
+            <Skeleton className="h-3.5 w-36 rounded-full" />
+            <Skeleton className="h-4 w-16 rounded-full" />
           </div>
-          <div className="mt-3 h-3 w-full animate-pulse rounded-full bg-line" />
-          <div className="mt-1.5 h-3 w-2/3 animate-pulse rounded-full bg-line" />
+          <Skeleton className="mt-3 h-3 w-full rounded-full" />
+          <Skeleton className="mt-1.5 h-3 w-2/3 rounded-full" />
           <div className="mt-3 flex gap-1.5">
             {[0, 1].map((j) => (
               <div key={j} className="flex items-center gap-1.5 rounded-full bg-panel-soft py-0.5 pr-3 pl-0.5">
-                <div className="h-5 w-5 animate-pulse rounded-full bg-line" />
-                <div className="h-2.5 w-12 animate-pulse rounded-full bg-line" />
+                <Skeleton className="h-5 w-5 rounded-full" />
+                <Skeleton className="h-2.5 w-12 rounded-full" />
               </div>
             ))}
           </div>
@@ -355,7 +356,7 @@ function ComposeStep({ draft, onChange, onBack, onNext }) {
           <button
             type="submit"
             disabled={!draft.text.trim() || !inFuture}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-medium text-white transition hover:bg-brand-strong disabled:opacity-40"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-medium text-on-brand transition hover:bg-brand-strong disabled:opacity-40"
           >
             Next: choose people <ArrowRight size={18} />
           </button>
@@ -412,7 +413,7 @@ function TimePicker({ draft, onChange }) {
               aria-checked={draft.period === period}
               onClick={() => onChange({ period })}
               className={`px-3.5 py-2.5 text-sm font-medium transition ${
-                draft.period === period ? 'bg-brand text-white' : 'bg-panel-soft text-muted hover:bg-hover'
+                draft.period === period ? 'bg-brand text-on-brand' : 'bg-panel-soft text-muted hover:bg-hover'
               }`}
             >
               {period}
@@ -478,7 +479,7 @@ function PeopleStep({ draft, selected, onChange, onBack, onScheduled }) {
         <button
           onClick={schedule}
           disabled={busy || selected.length === 0}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-medium text-white transition hover:bg-brand-strong disabled:opacity-40"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-2.5 font-medium text-on-brand transition hover:bg-brand-strong disabled:opacity-40"
         >
           {busy ? <Loader2 size={18} className="animate-spin" /> : <Clock size={18} />}
           {selected.length === 0

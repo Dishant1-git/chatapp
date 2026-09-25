@@ -6,51 +6,54 @@
 /* Colour tokens. Components use these (bg-panel, text-muted, ...) so
    light/dark switching happens here instead of in every component. */
 :root {
-  --app: #e8f5f3;
-  /* The teal wash behind everything (headers, app background) */
-  --brand-deep: #0b6b63;
-  --brand-mid: #12857a;
-  --brand-light: #2ea89a;
-  --panel: #ffffff;
-  --panel-soft: #f1f6f6;
-  --hover: #eaf4f2;
-  --fg: #10312e;
-  --muted: #6b8481;
-  --line: #e2eceb;
-  --chat: #ffffff;
-  --bubble-out: #12857a;
-  --bubble-out-fg: #ffffff;
-  --bubble-in: #eaf5f3;
-  --bubble-in-fg: #10312e;
-  --brand: #0e7c72;
-  --brand-strong: #0b6b63;
-  --brand-soft: #dbf0ec;
-  --on-brand: #ffffff;
+  --app: #f7e8e2;
+  /* The warm wash behind everything */
+  --brand-deep: #efd9d0;
+  --brand-mid: #f5e3dc;
+  --brand-light: #fbefe9;
+  --panel: #fffbf9;
+  --panel-soft: #f8ece7;
+  --hover: #f5e2d9;
+  --fg: #33170f;
+  --muted: #8b6a5f;
+  --line: #f0ded6;
+  --chat: #fffbf9;
+  --bubble-out: #bd5533;
+  --bubble-out-fg: #fff6f2;
+  --bubble-in: #f7e6df;
+  --bubble-in-fg: #33170f;
+  --brand: #c1573a;
+  --brand-strong: #a3422a;
+  --brand-soft: #fadfd4;
+  --on-brand: #fffaf8;
+  /* The top bars: a blush strip above the near-white panels */
+  --header: #fbeee8;
   --tick-read: #2f8fdd;
   color-scheme: light;
 }
 
 .dark {
-  --app: #071614;
-  --brand-deep: #06322e;
-  --brand-mid: #0a4b45;
-  --brand-light: #0f6f66;
-  --panel: #0d1f1d;
-  --panel-soft: #122825;
-  --hover: #17322e;
-  --fg: #e4efed;
-  --muted: #8aa6a2;
-  --line: #1d3b37;
-  --chat: #0d1f1d;
-  --bubble-out: #0f6f66;
-  --bubble-out-fg: #f2fbfa;
-  --bubble-in: #16302c;
-  --bubble-in-fg: #e4efed;
-  --brand: #19b39f;
-  --brand-strong: #3fcbb8;
-  --brand-soft: #123a35;
-  --on-brand: #04201d;
-  --tick-read: #53b6ff;
+  --app: #100c0b;
+  --brand-deep: #120e0d;
+  --brand-mid: #191312;
+  --brand-light: #211918;
+  --panel: #1d1817;
+  --panel-soft: #261e1c;
+  --hover: #2f2523;
+  --fg: #f4e9e5;
+  --muted: #a68d85;
+  --line: #2e2523;
+  --chat: #1d1817;
+  --bubble-out: #97482e;
+  --bubble-out-fg: #fdeee7;
+  --bubble-in: #2a2220;
+  --bubble-in-fg: #f4e9e5;
+  --brand: #ef9f82;
+  --brand-strong: #f7b79f;
+  --brand-soft: #3a2621;
+  --on-brand: #2a120b;
+  --header: #191413;
+  --tick-read: #6bb6ff;
   color-scheme: dark;
 }
 
@@ -74,6 +77,7 @@
   --color-brand: var(--brand);
   --color-brand-strong: var(--brand-strong);
   --color-brand-soft: var(--brand-soft);
+  --color-header: var(--header);
   --color-tick-read: var(--tick-read);
 
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
@@ -120,7 +124,7 @@ html.keyboard-open {
 }
 
 body {
-  /* The teal wash the whole app sits on */
+  /* The warm wash the whole app sits on */
   background: linear-gradient(160deg, var(--brand-light) 0%, var(--brand-mid) 45%, var(--brand-deep) 100%);
   background-attachment: fixed;
   color: var(--fg);
@@ -129,24 +133,57 @@ body {
   overscroll-behavior: none;
 }
 
-/* The teal area at the top of a screen: title, search, the person you're
-   chatting with. It curves into the white panel below it. */
+/* The strip at the top of a screen: title, search, the person you're chatting
+   with — and the message box at the bottom. A shade warmer than the panel. */
 .brand-header {
-  background: linear-gradient(150deg, var(--brand-light) 0%, var(--brand-mid) 55%, var(--brand-deep) 100%);
-  color: #ffffff;
+  background: var(--header);
+  color: var(--fg);
 }
 
-/* White card that the list and the chat sit in */
+/* Card that the list and the chat sit in */
 .surface {
   background: var(--panel);
 }
 
-/* Anything on the teal: icons and secondary text */
+/* Secondary text and icons on the header strip */
 .on-brand {
-  color: #ffffff;
+  color: var(--fg);
 }
 .on-brand-muted {
-  color: rgb(255 255 255 / 0.72);
+  color: var(--muted);
+}
+
+/* ⏳ Skeletons: a soft block with a shimmer passing over it.
+   In the base layer, so rounded-full and friends still win on the shape. */
+@layer base {
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--muted) 20%, transparent);
+  }
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--panel) 70%, transparent), transparent);
+    animation: shimmer 1.5s infinite;
+  }
+}
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Scrollable, but without the scrollbar showing (the message box) */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* Thin, quiet scrollbars */
@@ -155,11 +192,11 @@ body {
   scrollbar-color: var(--line) transparent;
 }
 
-/* Behind the messages: a clean panel with a hint of teal washing up from the
+/* Behind the messages: a clean panel with a hint of warmth washing up from the
    bottom, where the message box sits */
 .chat-bg {
   background-color: var(--chat);
-  background-image: linear-gradient(to top, color-mix(in srgb, var(--brand) 9%, transparent) 0%, transparent 22%);
+  background-image: linear-gradient(to top, color-mix(in srgb, var(--brand) 7%, transparent) 0%, transparent 45%);
 }
 
 /* Briefly highlights a message after jumping to it from a reply */
@@ -195,7 +232,8 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .mobile-slide-in,
-  .flash {
+  .flash,
+  .skeleton::after {
     animation: none;
   }
 }
