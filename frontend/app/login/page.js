@@ -31,7 +31,7 @@ export default function LoginPage() {
       // Unlock (or create) the encryption key with the password — no PIN needed
       await prepareKeys(user, password);
       // Full page load so the chat starts with a fresh socket connection
-      window.location.href = '/chat';
+      window.location.href = user.emailVerified ? '/chat' : '/verify';
     } catch (err) {
       setError(err.message);
       setLoading(false);

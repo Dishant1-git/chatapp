@@ -71,6 +71,12 @@ export default function ChatProvider({ children }) {
     setLoadError('');
     try {
       const me = await api('/api/auth/me');
+      // ✉️ Signed in, but the email hasn't been confirmed yet: nothing else
+      // in the app is open to them until it is
+      if (!me.user.emailVerified) {
+        window.location.href = '/verify';
+        return;
+      }
       setUser(me.user);
       if (await restoreSession(me.user)) {
         await loadConversations();
@@ -86,6 +92,10 @@ export default function ChatProvider({ children }) {
     } catch (err) {
       if (err.status === 401 || err.status === 404) {
         logoutAndRedirect();
+        return;
+      }
+      if (err.code === 'EMAIL_NOT_VERIFIED') {
+        window.location.href = '/verify';
         return;
       }
       setLoadError(err.message);

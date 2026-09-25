@@ -6,6 +6,7 @@ import { migrate } from './config/migrate.js';
 import { setupSocket } from './socket/index.js';
 import User from './models/User.js';
 import { startScheduler } from './utils/scheduler.js';
+import { mailerReady } from './utils/mailer.js';
 
 dotenv.config({ quiet: true });
 
@@ -36,6 +37,13 @@ server.on('error', (err) => {
 
 server.listen(PORT, () => {
   console.log(`> API and Socket.IO ready on http://localhost:${PORT}`);
+
+  // ✉️ Be clear about how sign-up verification is set up on this server
+  if (process.env.AUTO_VERIFY_EMAIL === '1') {
+    console.warn('> AUTO_VERIFY_EMAIL is on: new accounts skip email verification. For development only.');
+  } else if (!mailerReady()) {
+    console.warn('> No BREVO_API_KEY/MAIL_FROM set: verification codes are printed here instead of emailed.');
+  }
 });
 
 await connectDB();

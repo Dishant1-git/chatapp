@@ -27,6 +27,10 @@ const userSchema = new mongoose.Schema(
     // select: false means the password is never returned unless we ask for it
     password: { type: String, required: true, select: false },
     profileImage: { type: String, default: '' },
+    // ✉️ Set once the six-digit code sent to this address has been entered.
+    // Accounts from before email verification existed are marked true by the
+    // migration in config/migrate.js, so nobody is locked out.
+    emailVerified: { type: Boolean, default: false },
     isOnline: { type: Boolean, default: false },
     lastSeen: { type: Date, default: Date.now },
     // Base64 SPKI public key (ECDH P-256), and a short hash of it. Senders

@@ -24,10 +24,18 @@ export function setupSocket(httpServer, allowedOrigins) {
   });
   setIO(io);
 
-  // Authenticate every connection using the same http-only cookie as the API
-  io.use((socket, next) => {
+  // Authenticate every connection using the same http-only cookie as the API.
+  // ✉️ An account whose email hasn't been confirmed doesn't get a socket either.
+  io.use(async (socket, next) => {
     const userId = verifyToken(readCookie(socket.handshake.headers.cookie, TOKEN_COOKIE));
     if (!userId) return next(new Error('unauthorized'));
+    try {
+      const user = await User.findById(userId).select('emailVerified').lean();
+      if (!user) return next(new Error('unauthorized'));
+      if (!user.emailVerified) return next(new Error('email not verified'));
+    } catch {
+      return next(new Error('unauthorized'));
+    }
     socket.userId = userId;
     next();
   });

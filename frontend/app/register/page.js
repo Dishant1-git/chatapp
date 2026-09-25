@@ -56,7 +56,8 @@ export default function RegisterPage() {
       // Encryption is on from the start: the key is created and locked with the password.
       // (If that fails, the account still exists — the next login finishes it.)
       await prepareKeys(user, form.password).catch(() => {});
-      window.location.href = '/chat';
+      // ✉️ The account is made, but the code from the email comes first
+      window.location.href = user.emailVerified ? '/chat' : '/verify';
     } catch (err) {
       setError(err.message);
       setLoading(false);

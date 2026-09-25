@@ -80,6 +80,9 @@ npm start         # starts backend + frontend
 | `TURN_USERNAME`    |                                      | TURN username                                          |
 | `TURN_CREDENTIAL`  |                                      | TURN password                                          |
 | `GIPHY_API_KEY`    |                                      | Optional. Turns on 🎞️ GIF search (free key from developers.giphy.com). Without it the GIF tab is hidden |
+| `BREVO_API_KEY`    | `xkeysib-…`                          | ✉️ Sends the sign-up verification code. Free at brevo.com (300 emails/day). Without it the code is printed in the server log |
+| `MAIL_FROM`        | `you@gmail.com`                      | The address the code comes from — must be confirmed in Brevo under *Senders* |
+| `MAIL_FROM_NAME`   | `Ghost-ed`                           | Optional. The name shown in the inbox |
 
 Generate a secret with:
 
@@ -128,6 +131,35 @@ Browser ──► Next.js (frontend) ──/api, /socket.io, /uploads──► E
   served at `/uploads/<name>.webp`. Files live in the database rather than on disk because hosts like
   Render wipe the disk on every restart. Only `backend/utils/storage.js` knows where files go, so
   switching to S3 or Cloudinary means changing that file only.
+
+### ✉️ Email verification
+
+- Signing up creates the account but leaves it closed: the browser goes to `/verify`, where the
+  six-digit code from the email is typed in. Logging in with an unconfirmed account lands there too.
+- The code is random (`crypto.randomInt`), stored only as a SHA-256 hash in the `emailcodes`
+  collection, and thrown away after 15 minutes (a MongoDB TTL index does the deleting), after five
+  wrong guesses, or once it's used. Asking for a new one replaces the old one, at most 6 times an hour.
+- The block is enforced on the server, not just in the browser: `requireVerified`
+  (`backend/middleware/auth.js`) sits in front of every `/api` route except auth and the account's own
+  encryption keys, and the Socket.IO connection is refused too. So an unconfirmed account can't reach
+  anything by calling the API directly.
+- Accounts made before this existed are marked verified by the migration in `backend/config/migrate.js`,
+  so nobody is locked out by the update.
+
+**Sending the mail on free hosting.** Render's free tier (and most free hosts) block outbound SMTP
+ports 25/465/587, so Gmail SMTP can't work there. This sends over ordinary HTTPS through
+[Brevo](https://www.brevo.com) instead — free forever, 300 emails a day, no card:
+
+1. Sign up at brevo.com, then **Senders, Domains & Dedicated IPs → Senders → Add a sender** with your
+   own Gmail address and click the link Brevo emails you. (No domain needed — the code arrives *from*
+   your Gmail address.)
+2. **SMTP & API → API keys → Generate a new API key.**
+3. On Render: **Environment → Add environment variable** → `BREVO_API_KEY` and `MAIL_FROM` (the address
+   you just confirmed), then redeploy.
+
+With no key set the server prints the code to its log instead, so local development and the tests
+work without an account anywhere. If mail can't be sent, the account is still created and the
+verification screen offers **Send a new code**.
 
 ### End-to-end encryption
 
@@ -318,6 +350,8 @@ frontend/
 | POST   | `/api/auth/login`                          | Log in, sets the http-only cookie             |
 | POST   | `/api/auth/logout`                         | Log out                                       |
 | GET    | `/api/auth/me`                             | Current user                                  |
+| POST   | `/api/auth/verify`                         | ✉️ Confirm the account with `{ code }`        |
+| POST   | `/api/auth/verify/resend`                  | ✉️ Send a fresh code to the account's email   |
 | PATCH  | `/api/users/me`                            | Update name / profile photo (multipart)       |
 | GET    | `/api/users/search?q=`                     | Search users by name or email                 |
 | GET    | `/api/conversations`                       | My conversations with unread counts           |
@@ -409,6 +443,9 @@ The frontend can run on the same server or elsewhere.
 4. Uploads are stored in MongoDB, so no persistent disk is needed. Keep an eye on the database size
    (voice messages and video notes add up); switch `backend/utils/storage.js` to S3/Cloudinary if it grows.
 5. Point your host's health check (on Render: **Settings → Health Check Path**) at `/api/health`.
+6. ✉️ Set `BREVO_API_KEY` and `MAIL_FROM` so new accounts can be verified. **Don't use Gmail SMTP on
+   a free Render service** — free instances can't open SMTP ports 25/465/587 at all, so nodemailer
+   just times out there; the Brevo API goes over HTTPS and works on the free tier.
 
 6. Set `TURN_URL`, `TURN_USERNAME` and `TURN_CREDENTIAL` so calls work on every network.
 

@@ -20,5 +20,7 @@ export function proxy(request) {
 }
 
 export const config = {
-  matcher: ['/', '/login', '/register', '/chat/:path*'],
+  // ✉️ /verify is in here so someone without a cookie can't sit on it; whether
+  // the address is actually confirmed is decided by the page and the backend.
+  matcher: ['/', '/login', '/register', '/verify', '/chat/:path*'],
 };

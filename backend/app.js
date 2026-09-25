@@ -16,6 +16,7 @@ import chatActionRoutes from './routes/chatActions.js';
 import scheduledRoutes from './routes/scheduled.js';
 import healthRoutes from './routes/health.js';
 import { requireDatabase, notFound, errorHandler } from './middleware/errors.js';
+import { requireVerified } from './middleware/auth.js';
 import { serveUpload } from './utils/storage.js';
 
 export function createApp(allowedOrigins) {
@@ -46,6 +47,11 @@ export function createApp(allowedOrigins) {
 
   app.use('/api', requireDatabase);
   app.use('/api/auth', authRoutes);
+  // ✉️ From here on the account's email must be confirmed (see middleware/auth.js).
+  // /api/keys is deliberately not in this list: that's the account's own
+  // encryption key being set up at sign-up, before the code has been entered.
+  app.use(['/api/users', '/api/conversations', '/api/messages', '/api/scheduled', '/api/upload',
+    '/api/stickers', '/api/gifs', '/api/calls'], requireVerified);
   app.use('/api/users', userRoutes);
   app.use('/api/conversations', conversationRoutes);
   // Ghost levels, forgiveness, pause, revive, inside jokes, undo seen, vibe stats
