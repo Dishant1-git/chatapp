@@ -56,7 +56,11 @@ export default function ChatList() {
   }, []);
   const swipeSideOf = (conversation) => (swiped?.conversationId === conversation._id ? swiped.side : 0);
 
-  const openMenu = useCallback((conversationId, x, y) => setMenu({ conversationId, x, y }), []);
+  // viaTouch: long-pressed on a phone, where deleting is done by swiping instead
+  const openMenu = useCallback(
+    (conversationId, x, y, viaTouch = false) => setMenu({ conversationId, x, y, viaTouch }),
+    []
+  );
   const closeMenu = useCallback(() => setMenu(null), []);
   const menuConversation = menu && conversations.find((c) => c._id === menu.conversationId);
 
@@ -359,6 +363,8 @@ export default function ChatList() {
           isTrusted={isTrustedChat(menuConversation)}
           onMute={(muted) => setMuted(menuConversation, muted)}
           onToggleTrusted={() => toggleTrustedGhost(menuConversation)}
+          // 🖱️ Computers get Delete here; phones swipe the row instead
+          onDelete={menu.viaTouch ? null : () => askToDelete(menuConversation)}
           onClose={closeMenu}
         />
       )}
@@ -418,8 +424,9 @@ const LONG_PRESS_MS = 450;
 const MENU_WIDTH = 232; // px
 
 // The options for one chat, opened where it was right-clicked or long-pressed
-// (Deleting a chat is done by swiping the row — see SwipeBin.)
-function ChatContextMenu({ conversation, x, y, isTrusted, onMute, onToggleTrusted, onClose }) {
+// Right-clicked on a computer it also offers Delete; on a phone deleting is done
+// by swiping the row — see SwipeBin.
+function ChatContextMenu({ conversation, x, y, isTrusted, onMute, onToggleTrusted, onDelete, onClose }) {
   const menuRef = useRef(null);
   const [position, setPosition] = useState({ left: x, top: y });
   const isDirect = !isGroup(conversation) && conversation.otherUser;
@@ -484,17 +491,20 @@ function ChatContextMenu({ conversation, x, y, isTrusted, onMute, onToggleTruste
           onClick={() => run(onToggleTrusted)}
         />
       )}
+      {onDelete && <ContextMenuItem icon={Trash2} label="Delete chat" danger onClick={() => run(onDelete)} />}
     </motion.div>
   );
 }
 
-function ContextMenuItem({ icon: Icon, label, onClick }) {
+function ContextMenuItem({ icon: Icon, label, danger = false, onClick }) {
   return (
     <button
       type="button"
       role="menuitem"
       onClick={onClick}
-      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-hover"
+      className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-hover ${
+        danger ? 'text-red-600 dark:text-red-400' : ''
+      }`}
     >
       <Icon size={17} className="shrink-0" />
       <span className="truncate">{label}</span>
@@ -536,7 +546,7 @@ const ConversationItem = memo(function ConversationItem({
 }) {
   const { lastMessage, lastMessageAt, unreadCount, isMuted, ghost, streak = 0 } = conversation;
   const longPress = useRef({ timer: null, fired: false });
-  const touch = useRef({ startX: 0, startY: 0, axis: null, moved: false });
+  const touch = useRef({ startX: 0, startY: 0, axis: null, moved: false, at: 0 });
   const [dragX, setDragX] = useState(null); // how far the row follows the finger, while swiping
   const openX = swipeSide * SWIPE_REVEAL;
   const x = dragX ?? openX;
@@ -544,16 +554,18 @@ const ConversationItem = memo(function ConversationItem({
   // Right-click on a computer, long-press on a phone: the chat's options menu
   function handleContextMenu(event) {
     event.preventDefault();
-    onMenu(conversation._id, event.clientX, event.clientY);
+    // Phones fire contextmenu on a long press too — that's still a touch, not a right-click
+    const viaTouch = event.nativeEvent.pointerType === 'touch' || Date.now() - touch.current.at < 1500;
+    onMenu(conversation._id, event.clientX, event.clientY, viaTouch);
   }
   function handleTouchStart(event) {
     const point = event.touches[0];
-    touch.current = { startX: point.clientX, startY: point.clientY, axis: null, moved: false };
+    touch.current = { startX: point.clientX, startY: point.clientY, axis: null, moved: false, at: Date.now() };
     longPress.current.fired = false;
     longPress.current.timer = setTimeout(() => {
       longPress.current.fired = true;
       navigator.vibrate?.(10);
-      onMenu(conversation._id, point.clientX, point.clientY);
+      onMenu(conversation._id, point.clientX, point.clientY, true);
     }, LONG_PRESS_MS);
   }
   function cancelLongPress() {
