@@ -128,7 +128,7 @@ Browser ──► Next.js (frontend) ──/api, /socket.io, /uploads──► E
   simply added at the end. A message that arrives late therefore lands where it belongs instead of
   at the bottom.
 - **📎 Documents** (the paperclip next to the message box) go the same way as photos: encrypted in
-  the browser and stored as opaque bytes, up to 30 MB. The name, type and size travel *inside* the
+  the browser and streamed into storage as opaque bytes, with no size limit. The name, type and size travel *inside* the
   encryption, so the server can't tell a spreadsheet from a holiday photo — and the receiver's browser
   only downloads and unlocks the file when they tap Save. A picture picked with the paperclip is sent
   as a photo instead, so it can still be seen in the chat.
@@ -266,7 +266,7 @@ Routes live in `backend/routes/social.js`; labels in `frontend/lib/ghost.js` and
 
 - **👻 Ghost Click** (the 📷 camera button next to the message box — the only one for photos and
   videos): **tap** the round button for a photo, **hold** it to record a video (up to 60 seconds,
-  with sound), or pick a photo **or video** from the device. A picked video can be up to a minute
+  with sound), or pick a photo **or video** from the device. A picked video can be any length
   and is re-encoded smaller first (`frontend/lib/videoCompress.js`: 640 px wide, ~700 kbps, sound
   kept), with a progress bar while it works — a minute of phone footage ends up around 5 MB. Then choose *👻 View once* or *💾 Can be saved* and
   add a caption. Everything is encrypted like any chat photo. A view-once photo or video opens one

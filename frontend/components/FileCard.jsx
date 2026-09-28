@@ -4,25 +4,18 @@ import { useState } from 'react';
 import { Download, FileArchive, FileAudio, FileImage, FileSpreadsheet, FileText, FileVideo, File as FileIcon, Loader2 } from 'lucide-react';
 import { decryptDocument } from '@/lib/e2ee';
 
-// What a document may weigh. The server caps the encrypted upload at 32 MB
-// (MAX_ENCRYPTED_SIZE in backend/utils/storage.js), so this leaves room.
-export const MAX_DOCUMENT_SIZE = 30 * 1024 * 1024;
-
-// The same check the server would make, but said kindly and before the upload
+// Any kind and any size of file can be sent; only an empty one is pointless
 export function checkDocumentFile(file) {
   if (!file) return 'No file was picked.';
   if (!file.size) return "That file is empty, so there's nothing to send.";
-  if (file.size > MAX_DOCUMENT_SIZE) {
-    return `Documents can be up to ${Math.round(MAX_DOCUMENT_SIZE / (1024 * 1024))} MB. That one is ${formatFileSize(file.size)}.`;
-  }
   return '';
 }
 
 export function formatFileSize(bytes = 0) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  const mb = bytes / (1024 * 1024);
-  return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
+  const [value, unit] = bytes < 1024 ** 3 ? [bytes / 1024 ** 2, 'MB'] : [bytes / 1024 ** 3, 'GB'];
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${unit}`;
 }
 
 // The icon matches the kind of file, so a PDF and a zip don't look the same

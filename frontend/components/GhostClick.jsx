@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Download, ImagePlus, Loader2, RotateCcw, SendHorizontal, SwitchCamera, X } from 'lucide-react';
-import { checkImageFile } from './ImagePreview';
+import { isChatImage } from './ImagePreview';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { MAX_VIDEO_SECONDS, deviceError, startRecording, stopStream } from '@/lib/recording';
 import { VIDEO_TYPES, compressVideo, isVideoFile } from '@/lib/videoCompress';
@@ -183,7 +183,7 @@ export function GhostClickCamera({ onSend, onCancel, onError }) {
     event.target.value = '';
     if (!file) return;
 
-    // 📹 A video from the device: up to a minute, shrunk before it's sent
+    // 📹 A video from the device, of any length, shrunk before it's sent
     if (isVideoFile(file)) {
       stopCamera();
       setProgress(0);
@@ -205,8 +205,7 @@ export function GhostClickCamera({ onSend, onCancel, onError }) {
       return;
     }
 
-    const problem = checkImageFile(file);
-    if (problem) return onError(problem);
+    if (!isChatImage(file)) return onError('Only JPG, PNG, WEBP and GIF images are allowed.');
     stopCamera();
     setShot({ kind: 'image', file, url: URL.createObjectURL(file) });
   }
@@ -338,7 +337,6 @@ export function GhostClickCamera({ onSend, onCancel, onError }) {
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               placeholder="Add a caption…"
-              maxLength={4000}
               className="min-w-0 flex-1 rounded-full bg-white/10 px-4 py-3 text-base text-white outline-none placeholder:text-white/50 md:text-sm"
             />
             <button

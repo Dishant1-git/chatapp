@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { MAX_CIPHERTEXT_LENGTH } from './Message.js';
 
 // ⏰ A message written now and sent later, to one or more people at once.
 // It's end-to-end encrypted like any message: the browser encrypts one copy per
@@ -24,7 +25,7 @@ const itemSchema = new mongoose.Schema(
     conversationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Conversation', required: true },
     // Who it's for (the other person in that one-to-one chat), to show in the list
     recipientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    ciphertext: { type: String, required: true, maxlength: 40000 },
+    ciphertext: { type: String, required: true, maxlength: MAX_CIPHERTEXT_LENGTH },
     iv: { type: String, required: true },
     senderKey: { type: String, required: true },
     keys: { type: [wrappedKeySchema], default: [] },

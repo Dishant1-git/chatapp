@@ -16,14 +16,11 @@ export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'im
 
 // Matches the URLs saveImage() produces. Used to reject image URLs we didn't create.
 export const UPLOAD_URL_PATTERN = /^\/uploads\/[a-f0-9]{32}\.webp$/;
-// Encrypted chat images. The server can't open them, so they're stored as-is.
+// Encrypted chat images, voice messages, videos and documents. The server can't
+// open them, so they're stored as-is — and with no size limit.
 export const ENCRYPTED_URL_PATTERN = /^\/uploads\/[a-f0-9]{32}\.bin$/;
-// Images are resized in the browser first; video notes are capped at 60s of
-// low-bitrate video (about 8 MB), voice messages at 5 minutes (about 1.5 MB).
-// Shared documents are the big ones, so this is the cap they run into.
-export const MAX_ENCRYPTED_SIZE = 32 * 1024 * 1024;
-// What a document may weigh before encryption (the browser checks this too)
-export const MAX_DOCUMENT_SIZE = 30 * 1024 * 1024;
+// The smallest possible encrypted file: a 12-byte IV and a 16-byte tag
+const MIN_ENCRYPTED_SIZE = 29;
 
 const FILE_NAME_PATTERN = /^[a-f0-9]{32}\.(webp|bin)$/;
 const CONTENT_TYPES = { webp: 'image/webp', bin: 'application/octet-stream' };
@@ -75,9 +72,25 @@ export async function saveImage(buffer, { maxSize = 1600 } = {}) {
   return store(output, 'webp');
 }
 
-// Saves an end-to-end encrypted file exactly as the browser sent it
-export async function saveEncryptedFile(buffer) {
-  return store(buffer, 'bin');
+// Saves an end-to-end encrypted file exactly as the browser sent it. It's
+// streamed into MongoDB as it arrives, so a file of any size never has to fit
+// in the server's memory. A half-finished upload is removed again.
+export async function saveEncryptedStream(source) {
+  const fileName = `${crypto.randomBytes(16).toString('hex')}.bin`;
+  const upload = bucket().openUploadStream(fileName);
+  try {
+    await pipeline(source, upload);
+  } catch (err) {
+    await upload.abort().catch(() => {});
+    throw err;
+  }
+  if (upload.length < MIN_ENCRYPTED_SIZE) {
+    await bucket().delete(upload.id).catch(() => {});
+    const error = new Error('Nothing to upload.');
+    error.status = 400;
+    throw error;
+  }
+  return `/uploads/${fileName}`;
 }
 
 export async function deleteImage(url) {

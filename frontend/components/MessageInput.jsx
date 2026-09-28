@@ -6,7 +6,7 @@ import { useChat } from './ChatProvider';
 import dynamic from 'next/dynamic';
 // Only needed once recording starts / the GIF tab is opened
 const VoiceRecorder = dynamic(() => import('./VoiceRecorder'), { ssr: false });
-import { checkImageFile } from './ImagePreview';
+import { isChatImage } from './ImagePreview';
 const GifPicker = dynamic(() => import('./GifPicker'), { ssr: false });
 import { messagePreview } from '@/lib/format';
 import { isOnlyEmoji } from '@/lib/ghost';
@@ -26,7 +26,6 @@ const TYPING_IDLE_MS = 2000; // send "stopTyping" after 2s without a keystroke
 // "Almost said": a draft typed for at least 8s and 10 characters, then deleted
 const ALMOST_SAID_MS = 8000;
 const ALMOST_SAID_CHARS = 10;
-const MAX_LENGTH = 4000;
 
 export default function MessageInput({
   conversationId,
@@ -174,10 +173,16 @@ export default function MessageInput({
     if (!file || !onPickImage) return false;
 
     event.preventDefault(); // don't also drop the file name into the box
-    const problem = checkImageFile(file);
-    if (problem) onError(problem);
-    else onPickImage(file);
+    sendPicture(file);
     return true;
+  }
+
+  // A picture the chat can show is sent as a photo, of any size. Any other kind
+  // (HEIC, TIFF, SVG …) still goes through, as a file to download.
+  function sendPicture(file) {
+    if (isChatImage(file)) onPickImage(file);
+    else if (onSendDocument) onSendDocument(file);
+    else onError('Only JPG, PNG, WEBP and GIF images can be sent here.');
   }
 
   // 📎 The attach button. A picture picked here is sent as a photo, so it can
@@ -187,10 +192,7 @@ export default function MessageInput({
     event.target.value = ''; // picking the same file twice should work
     if (!file) return;
 
-    if (file.type.startsWith('image/') && onPickImage) {
-      const problem = checkImageFile(file);
-      return problem ? onError(problem) : onPickImage(file);
-    }
+    if (file.type.startsWith('image/') && onPickImage) return sendPicture(file);
     onSendDocument(file);
   }
 
@@ -381,7 +383,6 @@ export default function MessageInput({
             onDrop={handleInsertedImage}
             onBlur={stopTyping}
             rows={1}
-            maxLength={MAX_LENGTH}
             placeholder={placeholder}
             // text-base (16px) stops iOS from zooming into the field
             className="no-scrollbar max-h-32 min-w-0 flex-1 resize-none rounded-3xl border border-line bg-panel px-4 py-2.5 text-base leading-6 text-fg outline-none placeholder:text-muted focus:border-brand/40 md:text-[15px]"

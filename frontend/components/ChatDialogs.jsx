@@ -504,7 +504,6 @@ export function EditMessageDialog({ message, onSave, onClose }) {
           }}
           autoFocus
           rows={3}
-          maxLength={4000}
           className="scroll-thin w-full resize-none rounded-xl border border-line bg-panel-soft px-3.5 py-2.5 text-base outline-none focus:border-brand md:text-sm"
         />
         <button

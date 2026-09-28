@@ -7,9 +7,8 @@
 
 import { videoMimeType } from './recording';
 
-export const MAX_VIDEO_SECONDS = 60;
 export const VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime', 'video/ogg', 'video/x-matroska'];
-// After compressing, a minute lands around 5 MB — well under the server's limit
+// After compressing, a minute lands around 5 MB
 const MAX_WIDTH = 640;
 const VIDEO_BITRATE = 700_000;
 const AUDIO_BITRATE = 64_000;
@@ -72,9 +71,6 @@ function canCompress() {
 // Returns { blob, duration, mirrored: false }.
 export async function compressVideo(file, { onProgress } = {}) {
   const info = await readVideoInfo(file);
-  if (info.duration > MAX_VIDEO_SECONDS + 0.5) {
-    throw new Error(`Videos can be up to ${MAX_VIDEO_SECONDS} seconds. This one is ${Math.round(info.duration)}s.`);
-  }
   if (!canCompress()) return { blob: file, duration: info.duration, mirrored: false };
 
   const scale = Math.min(1, MAX_WIDTH / Math.max(info.width, info.height));

@@ -1,4 +1,5 @@
 import User from '../models/User.js';
+import { MAX_CIPHERTEXT_LENGTH } from '../models/Message.js';
 
 export const BASE64 = /^[A-Za-z0-9+/]+=*$/;
 
@@ -11,7 +12,7 @@ export async function checkEncrypted(conversation, body, userId) {
   const iv = String(body.iv || '');
   const senderKey = String(body.senderKey || '');
 
-  if (!ciphertext || ciphertext.length > 40000 || !BASE64.test(ciphertext)) {
+  if (!ciphertext || ciphertext.length > MAX_CIPHERTEXT_LENGTH || !BASE64.test(ciphertext)) {
     return { status: 400, error: 'Message is empty or too long.' };
   }
   if (!BASE64.test(iv) || iv.length > 32) return { status: 400, error: 'Invalid message.' };

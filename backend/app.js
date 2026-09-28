@@ -18,6 +18,7 @@ import healthRoutes from './routes/health.js';
 import { requireDatabase, notFound, errorHandler } from './middleware/errors.js';
 import { requireVerified } from './middleware/auth.js';
 import { serveUpload } from './utils/storage.js';
+import { MAX_SCHEDULED_RECIPIENTS } from './models/ScheduledMessage.js';
 
 export function createApp(allowedOrigins) {
   const app = express();
@@ -36,6 +37,11 @@ export function createApp(allowedOrigins) {
     })
   );
   app.use(cors({ origin: allowedOrigins, credentials: true }));
+  // Messages can be very long (see MAX_CIPHERTEXT_LENGTH), so only their routes
+  // accept big bodies; a scheduled one carries a copy for every chat it goes to.
+  // Whichever parser runs first handles the body, the others skip it.
+  app.use('/api/messages', express.json({ limit: '5mb' }));
+  app.use('/api/scheduled', express.json({ limit: `${5 * MAX_SCHEDULED_RECIPIENTS}mb` }));
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
 

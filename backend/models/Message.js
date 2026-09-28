@@ -1,5 +1,10 @@
 import mongoose from 'mongoose';
 
+// How long an encrypted message may be (base64). About 3 MB of text — millions of
+// characters — so a long message always arrives whole, while one message still
+// fits comfortably in a MongoDB document (16 MB).
+export const MAX_CIPHERTEXT_LENGTH = 4_000_000;
+
 const reactionSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -97,7 +102,7 @@ const messageSchema = new mongoose.Schema(
     messageType: { type: String, enum: ['text', 'image', 'audio', 'video', 'file', 'event'], default: 'text' },
 
     // End-to-end encrypted content. The server can't read any of it.
-    ciphertext: { type: String, default: '', maxlength: 40000 },
+    ciphertext: { type: String, default: '', maxlength: MAX_CIPHERTEXT_LENGTH },
     iv: { type: String, default: '' },
     senderKey: { type: String, default: '' }, // sender's public key when it was sent
     keys: { type: [wrappedKeySchema], default: [] },
