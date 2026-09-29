@@ -28,7 +28,10 @@ export default function ChatMenu({ conversation, myId, onOpen, onMissYou, onBuzz
       if (!menuRef.current?.contains(event.target)) setIsOpen(false);
     }
     function handleKey(event) {
-      if (event.key === 'Escape') setIsOpen(false);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setIsOpen(false);
+      }
     }
     document.addEventListener('pointerdown', handlePointerDown);
     document.addEventListener('keydown', handleKey);

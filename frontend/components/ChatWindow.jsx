@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, ChevronsDown, X, Heart, Loader2, Lock, MessageSquareOff, Pencil, Phone, PhoneCall, Video } from 'lucide-react';
 import { useChat } from './ChatProvider';
@@ -122,6 +123,7 @@ export default function ChatWindow({ conversationId }) {
     goBackToList,
   } = useChat();
   const { startCall, joinCall, activeCalls, currentCall } = useCalls();
+  const router = useRouter();
 
   const conversation = conversations.find((c) => c._id === conversationId);
   const isGroupChat = isGroup(conversation);
@@ -1109,6 +1111,22 @@ export default function ChatWindow({ conversationId }) {
   const closeDeleteDialog = useCallback(() => setDeleting(null), []);
   const closeEditDialog = useCallback(() => setEditing(null), []);
 
+  // ⎋ Escape closes the chat (like WhatsApp Web) — or first cancels a reply.
+  // Open dialogs and menus handle Escape themselves and mark it as used
+  // (preventDefault), and those listeners can run after this one, so wait a tick.
+  useEffect(() => {
+    function handleKey(event) {
+      if (event.key !== 'Escape' || event.repeat) return;
+      setTimeout(() => {
+        if (event.defaultPrevented) return;
+        if (replyingTo) setReplyingTo(null);
+        else router.push('/chat');
+      });
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [replyingTo, router]);
+
   async function sendMissYou() {
     setIsSendingMissYou(true);
     try {
@@ -1684,7 +1702,10 @@ function CallMenu({ disabled, onCall }) {
       if (!menuRef.current?.contains(event.target)) setIsOpen(false);
     }
     function handleKey(event) {
-      if (event.key === 'Escape') setIsOpen(false);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setIsOpen(false);
+      }
     }
     document.addEventListener('pointerdown', handlePointerDown);
     document.addEventListener('keydown', handleKey);

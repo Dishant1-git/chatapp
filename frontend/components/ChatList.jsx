@@ -486,7 +486,10 @@ function ChatContextMenu({ conversation, x, y, isTrusted, onMute, onToggleTruste
       if (!menuRef.current?.contains(event.target)) onClose();
     }
     function handleKey(event) {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
     }
     document.addEventListener('pointerdown', handlePointerDown);
     document.addEventListener('keydown', handleKey);

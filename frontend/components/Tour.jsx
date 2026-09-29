@@ -174,7 +174,10 @@ export default function Tour() {
   useEffect(() => {
     if (!isOpen) return;
     function onKey(event) {
-      if (event.key === 'Escape') finish();
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        finish();
+      }
       if (event.key === 'ArrowRight') next();
       if (event.key === 'ArrowLeft') back();
     }

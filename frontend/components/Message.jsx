@@ -184,7 +184,10 @@ function Message({
       if (!menuRef.current?.contains(event.target)) setIsMenuOpen(false);
     }
     function handleKey(event) {
-      if (event.key === 'Escape') setIsMenuOpen(false);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setIsMenuOpen(false);
+      }
     }
     document.addEventListener('pointerdown', handlePointerDown);
     document.addEventListener('keydown', handleKey);
