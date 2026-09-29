@@ -26,6 +26,7 @@ import SecureImage, { useMessageImage } from './SecureImage';
 import { VideoNote, VoiceNote } from './MediaNote';
 import FileCard from './FileCard';
 import { isSticker, stickerLabel, stickerUrl } from '@/lib/stickers';
+import { MOODS, STYLES, isUnwrappedByAll, isWrappedFor } from '@/lib/gifts';
 
 // ↩️ Swipe-to-reply: how far the bubble follows the finger, and the point
 // past which letting go starts a reply
@@ -95,6 +96,10 @@ function Message({
   onForgivenessAnswer,
   onReveal,
   onOpenGhostClick,
+  // 🎁 Opens (or replays) a gift message
+  onOpenGift,
+  // 💞 The other person is holding this gift right now, waiting to open it together
+  giftPeerHolding = false,
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [menuOpensUp, setMenuOpensUp] = useState(false);
@@ -115,7 +120,10 @@ function Message({
   const ghostClick = message.ghostClick;
   const isViewOnce = ghostClick?.mode === 'once';
   const hasImage = Boolean(message.image) && !isDeleted && !undecryptable && !isViewOnce && !message.stickerImage;
-  const hasText = Boolean(message.text) && !isDeleted && !isViewOnce;
+  // 🎁 A gift I haven't opened yet shows the wrapping, never the words
+  const gift = !isDeleted && !undecryptable ? message.gift : null;
+  const giftWrapped = Boolean(gift) && isWrappedFor(message, myId);
+  const hasText = Boolean(message.text) && !isDeleted && !isViewOnce && !giftWrapped;
   const imageView = useMessageImage(hasImage ? message : null);
   const imageOnly = hasImage && !hasText;
   // 🎤 Voice message or 📹 video (a view-once one is only shown in the viewer)
@@ -142,6 +150,7 @@ function Message({
     !bare &&
     !isDeleted &&
     !undecryptable &&
+    !giftWrapped &&
     !message.forgiveness;
   // ✏️ My own encrypted text messages can be edited (not stickers, photos or forgiveness requests)
   const canEdit =
@@ -151,6 +160,7 @@ function Message({
     Boolean(message.ciphertext) &&
     !message.sticker &&
     !message.forgiveness &&
+    !gift && // an edit would re-encrypt the text alone and unwrap it for good
     !message.pending &&
     !message.failed;
   const isEdited = Boolean(message.editedAt) && !isDeleted;
@@ -422,6 +432,15 @@ function Message({
             <GhostClickCard message={message} isMine={isMine} myId={myId} onOpen={() => onOpenGhostClick(message)} />
           )}
 
+          {/* 🎁 Still wrapped: tap to open it */}
+          {giftWrapped && (
+            <GiftCard gift={gift} peerHolding={giftPeerHolding} onOpen={() => onOpenGift(message)} />
+          )}
+          {/* 🎁 Opened (or my own): the words, with a label that replays the reveal */}
+          {gift && !giftWrapped && (
+            <GiftLabel gift={gift} message={message} isMine={isMine} peerHolding={giftPeerHolding} onOpen={() => onOpenGift(message)} />
+          )}
+
           {isDeleted && (
             <p className="flex items-center gap-1.5 pr-14 text-[14px] text-muted italic">
               <Ban size={14} /> This message was deleted
@@ -689,6 +708,60 @@ function Message({
         )}
       </div>
     </div>
+  );
+}
+
+// 🎁 A gift that hasn't been opened yet
+function GiftCard({ gift, peerHolding, onOpen }) {
+  const mood = MOODS[gift.mood];
+  const style = STYLES[gift.style];
+  return (
+    <button type="button" onClick={onOpen} className="flex items-center gap-2.5 pr-14 text-left text-[14px]">
+      <motion.span
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-2xl shadow-sm"
+        style={{ background: mood.color }}
+        animate={{ rotate: [0, -8, 8, -4, 0] }}
+        transition={{ duration: 0.8, repeat: Infinity, repeatDelay: 2.2 }}
+      >
+        {style.emoji}
+      </motion.span>
+      <span>
+        <span className="block font-semibold">
+          {gift.together ? '💞 Open this with me' : `Sent you something ${mood.emoji}`}
+        </span>
+        <span className="block text-[12px] text-muted">
+          {peerHolding ? 'They’re holding it — hold with them!' : gift.together ? 'Open together' : style.hint}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+// 🎁 The small label on an opened gift (or one I sent): tap to see the reveal again
+function GiftLabel({ gift, message, isMine, peerHolding, onOpen }) {
+  const mood = MOODS[gift.mood];
+  const style = STYLES[gift.style];
+  const status = !isMine || message.pending ? '' : isUnwrappedByAll(message) ? ' · opened' : ' · not opened yet';
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={`mb-0.5 flex items-center gap-1 text-[12px] font-medium ${isMine ? 'text-bubble-out-fg/80' : 'text-muted'}`}
+      title="See it open again"
+    >
+      {style.emoji} {mood.emoji} {mood.label}
+      {gift.together ? ' · 💞' : ''}
+      <span className="font-normal opacity-80">{status}</span>
+      {peerHolding && (
+        <motion.span
+          className="ml-1 rounded-full bg-panel px-2 py-0.5 text-[11px] font-semibold text-brand"
+          animate={{ scale: [1, 1.08, 1] }}
+          transition={{ duration: 0.9, repeat: Infinity }}
+        >
+          They’re holding it — join!
+        </motion.span>
+      )}
+    </button>
   );
 }
 

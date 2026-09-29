@@ -14,6 +14,8 @@
 // - New group members can't read older messages, because those keys were never
 //   locked for them. Resetting your keys makes your old messages unreadable.
 
+import { readGift } from './gifts';
+
 const SECRET_ITERATIONS = 600000;
 const WRAP_INFO = new TextEncoder().encode('ghosted-wrap-v1');
 const EC = { name: 'ECDH', namedCurve: 'P-256' };
@@ -277,7 +279,8 @@ async function wrappingKeyFor(publicKey) {
 // members: everyone in the chat, including me: [{ _id, publicKey, keyId }]
 // payload: { text, image?: { type, width, height },
 //            media?: { kind: 'audio' | 'video', type, duration, waveform?, mirrored? },
-//            file?: { name, type, size } }  — a shared document; even its name is encrypted
+//            file?: { name, type, size },  — a shared document; even its name is encrypted
+//            gift?: { mood, style, together } }  — 🎁 a gift message (see lib/gifts.js)
 export async function encryptMessage({ conversationId, members, payload }) {
   if (!session) throw new Error('Encryption is locked. Please reload the page.');
 
@@ -365,6 +368,8 @@ export async function openMessage(message, conversationId = message?.conversatio
           sticker: typeof result.payload.sticker === 'string' ? result.payload.sticker : '',
           // One of the sender's own stickers: an image shown sticker-style
           stickerImage: result.payload.stickerImage === true,
+          // 🎁 Arrives wrapped and opens with an animation
+          gift: readGift(result.payload.gift),
           imageType: result.payload.image?.type || '',
           imageWidth: result.payload.image?.width || 0,
           imageHeight: result.payload.image?.height || 0,

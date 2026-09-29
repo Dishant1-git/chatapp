@@ -141,6 +141,9 @@ const messageSchema = new mongoose.Schema(
       ),
       default: null,
     },
+    // 🎁 Gift messages: who has unwrapped it. The mood and reveal style are
+    // inside the ciphertext — the server only learns that someone opened something.
+    unwrappedBy: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], default: undefined },
     replyTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Message', default: null },
     reactions: { type: [reactionSchema], default: [] },
     deliveredTo: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
@@ -167,7 +170,7 @@ messageSchema.index({ recipients: 1, isDelivered: 1 });
 messageSchema.index({ conversationId: 1, createdAt: -1 });
 
 // Fields of the quoted message loaded with a reply
-export const REPLY_FIELDS = 'text image media messageType senderId isDeleted ciphertext iv senderKey keys';
+export const REPLY_FIELDS = 'text image media messageType senderId isDeleted ciphertext iv senderKey keys unwrappedBy';
 
 // Recomputes isDelivered / isRead after deliveredTo / readBy changed.
 // Written as an update pipeline so MongoDB does it in one step.

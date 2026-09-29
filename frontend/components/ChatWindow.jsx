@@ -21,6 +21,8 @@ import MissYouHearts from './MissYouHearts';
 const GhostClickCamera = dynamic(() => import('./GhostClick').then((m) => m.GhostClickCamera), { ssr: false });
 const GhostClickViewer = dynamic(() => import('./GhostClick').then((m) => m.GhostClickViewer), { ssr: false });
 const StickerStore = dynamic(() => import('./StickerStore'), { ssr: false });
+// 🎁 The gift reveal (all ten styles) only loads when a gift is opened
+const GiftReveal = dynamic(() => import('./GiftReveal'), { ssr: false });
 import { MessagesSkeleton } from './Skeleton';
 import { loadAccessibility, speak } from '@/lib/accessibility';
 import Celebration from './Celebration';
@@ -39,6 +41,7 @@ import { checkDocumentFile } from './FileCard';
 import { backgroundStyle } from '@/lib/chatBackground';
 import { api } from '@/lib/client';
 import { MOODS, PAUSE_REASONS, REVIVE_ANSWERS, isDeadChat, shakeElement, timezoneOffset } from '@/lib/social';
+import { isUnwrappedByAll, isWrappedFor } from '@/lib/gifts';
 import { describeEvent, formatDayDivider, formatLastSeen, formatTime, isDifferentDay } from '@/lib/format';
 import { decryptImage, decryptMedia, encryptFile, encryptMessage, openMessage, openMessages, prepareImage, rememberImage } from '@/lib/e2ee';
 import {
@@ -54,6 +57,9 @@ import {
 } from '@/lib/conversations';
 
 const UNDO_SEEN_MS = 10000; // how long "Undo seen" is offered after opening a chat
+// 💞 "Open together": a hold is repeated while the finger stays down (see GiftReveal)
+// and forgotten if it isn't
+const GIFT_HOLD_EXPIRES_MS = 3500;
 
 // Start loading older messages when the user scrolls this close to the top
 const LOAD_OLDER_THRESHOLD = 150;
@@ -156,6 +162,11 @@ export default function ChatWindow({ conversationId }) {
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [ghostCamera, setGhostCamera] = useState(false); // 👻 Ghost Click camera open
   const [ghostView, setGhostView] = useState(null); // { src, kind, mode, caption, senderName }
+  const [giftViewId, setGiftViewId] = useState(null); // 🎁 the gift being opened
+  // 💞 Gifts the other person is holding right now ("open together"): { [messageId]: true }
+  const [giftHolds, setGiftHolds] = useState({});
+  // A hold that isn't repeated runs out, so a dropped connection doesn't leave one stuck
+  const giftHoldTimers = useRef({});
   const [deleting, setDeleting] = useState(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
@@ -404,7 +415,8 @@ export default function ChatWindow({ conversationId }) {
           if (opened.senderId !== myId && document.visibilityState === 'visible') {
             if (isNewMoment(opened, myId)) showMoment(opened);
             // 🔊 Accessibility: read new messages aloud
-            if (loadAccessibility().readAloud && opened.text && opened.messageType !== 'event') {
+            // (not a 🎁 gift — reading it out would open it)
+            if (loadAccessibility().readAloud && opened.text && opened.messageType !== 'event' && !opened.gift) {
               speak(`${nameOfRef.current(opened.senderId, opened)} says: ${opened.text}`);
             }
             readNow();
@@ -482,6 +494,22 @@ export default function ChatWindow({ conversationId }) {
       almostSaidTimer.current = setTimeout(() => setAlmostSaid(false), 7000);
     }
 
+    // 💞 The other person is holding (or let go of) a gift, to open it together
+    function onGiftHold({ conversationId: id, messageId, userId, holding }) {
+      if (id !== conversationId || userId === myId) return;
+      const set = (value) =>
+        setGiftHolds((prev) => {
+          if (Boolean(prev[messageId]) === value) return prev;
+          const next = { ...prev };
+          if (value) next[messageId] = true;
+          else delete next[messageId];
+          return next;
+        });
+      clearTimeout(giftHoldTimers.current[messageId]);
+      if (holding) giftHoldTimers.current[messageId] = setTimeout(() => set(false), GIFT_HOLD_EXPIRES_MS);
+      set(holding);
+    }
+
     function onRead({ conversationId: id, readerId }) {
       if (id !== conversationId || readerId === myId) return;
       setMessages((prev) => prev.map((m) => (m.senderId === myId ? markReadBy(m, readerId) : m)));
@@ -516,6 +544,7 @@ export default function ChatWindow({ conversationId }) {
     socket.on('messages:unread', onUnread);
     socket.on('messages:delivered', onDelivered);
     socket.on('almostSaid', onAlmostSaid);
+    socket.on('gift:hold', onGiftHold);
     socket.on('connect', onReconnect);
 
     return () => {
@@ -528,6 +557,7 @@ export default function ChatWindow({ conversationId }) {
       socket.off('messages:unread', onUnread);
       socket.off('messages:delivered', onDelivered);
       socket.off('almostSaid', onAlmostSaid);
+      socket.off('gift:hold', onGiftHold);
       socket.off('connect', onReconnect);
     };
   }, [socket, conversationId, myId, readNow, showMoment]);
@@ -563,6 +593,8 @@ export default function ChatWindow({ conversationId }) {
           text: temp.text,
           ...(temp.sticker && { sticker: temp.sticker }),
           ...(temp.stickerImage && { stickerImage: true }),
+          // 🎁 The mood and reveal style are encrypted with the words
+          ...(temp.gift && { gift: temp.gift }),
         };
         let prepared = null;
         if (temp.file) {
@@ -660,7 +692,8 @@ export default function ChatWindow({ conversationId }) {
   // forgive: send it as a 🕊️ forgiveness request (when I'm being ghosted)
   const sendMessage = useCallback(
     // ghostClick: 'once' | 'keep' for a 👻 Ghost Click photo; sticker: a sticker id
-    (text, file = null, { forgive = false, ghostClick = null, sticker = '', stickerImage = false } = {}) => {
+    // gift: { mood, style, together } for a 🎁 message that arrives wrapped
+    (text, file = null, { forgive = false, ghostClick = null, sticker = '', stickerImage = false, gift = null } = {}) => {
       const localImage = file ? URL.createObjectURL(file) : '';
       const temp = {
         _id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -673,6 +706,7 @@ export default function ChatWindow({ conversationId }) {
         messageType: file ? 'image' : 'text',
         ...(sticker && { sticker }),
         ...(stickerImage && { stickerImage: true }),
+        ...(gift && !file && { gift }),
         replyTo: forgive ? null : replyingTo,
         reactions: [],
         createdAt: new Date().toISOString(),
@@ -1105,6 +1139,25 @@ export default function ChatWindow({ conversationId }) {
     [myId, showNotice]
   );
 
+  // 🎁 Open a gift (or replay one). Pending ones have nothing to show yet.
+  const openGift = useCallback((message) => {
+    if (message.pending || message.failed) return;
+    setGiftViewId(message._id);
+  }, []);
+  const closeGift = useCallback(() => setGiftViewId(null), []);
+
+  // The reveal finished: it's no longer wrapped for me, here or on my other devices
+  const markGiftOpened = useCallback(
+    (message) => {
+      if (!isWrappedFor(message, myId)) return;
+      setMessages((prev) =>
+        prev.map((m) => (m._id === message._id ? { ...m, unwrappedBy: [...(m.unwrappedBy || []), myId] } : m))
+      );
+      api(`/api/messages/${message._id}/unwrap`, { method: 'POST' }).catch(() => {});
+    },
+    [myId]
+  );
+
   const closeLightbox = useCallback(() => setLightboxSrc(null), []);
   const closeCelebration = useCallback(() => setCelebration(null), []);
   const closeDialog = useCallback(() => setDialog(null), []);
@@ -1213,6 +1266,21 @@ export default function ChatWindow({ conversationId }) {
   const theirNickname = isGroupChat ? '' : nicknameOf(conversation, otherUser?._id);
   const myNickname = isGroupChat ? '' : nicknameOf(conversation, myId);
   const hasPendingRevive = messages.some((m) => m.event?.type === 'revive' && !m.event.answer);
+
+  // 🎁 The gift being opened, and — for "open together" in a one-to-one chat that
+  // hasn't been opened yet — who else is holding it
+  const giftMessage = giftViewId ? messages.find((m) => m._id === giftViewId && m.gift && !m.isDeleted) : null;
+  const giftTogether =
+    giftMessage?.gift.together &&
+    !isGroupChat &&
+    (isWrappedFor(giftMessage, myId) || (giftMessage.senderId === myId && !isUnwrappedByAll(giftMessage)))
+      ? {
+          peerName: otherUser?.name?.split(' ')[0] || 'them',
+          peerHolding: Boolean(giftHolds[giftMessage._id]),
+          peerOnline: Boolean(otherUser?.isOnline),
+          onHold: (holding) => socket?.emit('gift:hold', { conversationId, messageId: giftMessage._id, holding }),
+        }
+      : null;
 
   return (
     <div ref={rootRef} className="mobile-slide-in relative flex h-full min-h-0 flex-1 flex-col bg-panel">
@@ -1443,6 +1511,8 @@ export default function ChatWindow({ conversationId }) {
                     onJumpTo={jumpTo}
                     onOpenImage={setLightboxSrc}
                     onOpenGhostClick={openGhostClick}
+                    onOpenGift={openGift}
+                    giftPeerHolding={Boolean(message.gift && giftHolds[message._id])}
                     onImageLoad={handleImageLoad}
                     ghostedView={ghostedView}
                     canAnswerForgiveness={
@@ -1587,6 +1657,8 @@ export default function ChatWindow({ conversationId }) {
           onOpenStickerStore={() => setDialog('stickers')}
           onSendVoice={(recording) => sendMedia('audio', recording)}
           onSendDocument={sendDocument}
+          onSendGift={(text, gift) => sendMessage(text, null, { gift })}
+          canOpenTogether={!isGroupChat}
           onError={showNotice}
         />
       )}
@@ -1664,6 +1736,17 @@ export default function ChatWindow({ conversationId }) {
         )}
         {dialog === 'stickers' && <StickerStore key="sticker-store" onClose={closeDialog} onError={showNotice} />}
         {ghostView && <GhostClickViewer key="ghost-view" {...ghostView} onClose={() => setGhostView(null)} />}
+        {giftMessage && (
+          <GiftReveal
+            key="gift"
+            message={giftMessage}
+            senderName={giftMessage.senderId === myId ? 'You' : nameOf(giftMessage.senderId)}
+            isMine={giftMessage.senderId === myId}
+            together={giftTogether}
+            onOpened={() => markGiftOpened(giftMessage)}
+            onClose={closeGift}
+          />
+        )}
         {lightboxSrc && <ImageLightbox key="lightbox" src={lightboxSrc} onClose={closeLightbox} />}
         {deleting && (
           <DeleteDialog

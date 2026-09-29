@@ -79,6 +79,21 @@ export function setupSocket(httpServer, allowedOrigins) {
       socket.to(room).emit('almostSaid', { conversationId, userId });
     });
 
+    // 🎁 "Open together": someone is holding (or let go of) a gift message.
+    // Relayed to the rest of the chat; when both sides see each other holding,
+    // their browsers open it at the same time. Nothing about the gift is sent.
+    socket.on('gift:hold', async ({ conversationId, messageId, holding } = {}) => {
+      if (!mongoose.isValidObjectId(conversationId) || !mongoose.isValidObjectId(messageId)) return;
+      const room = conversationRoom(conversationId);
+      // A chat started after this socket connected hasn't been joined yet
+      if (!socket.rooms.has(room)) {
+        const member = await Conversation.exists({ _id: conversationId, participants: userId }).catch(() => null);
+        if (!member || !socket.connected) return;
+        socket.join(room);
+      }
+      socket.to(room).emit('gift:hold', { conversationId, messageId, userId, holding: holding === true });
+    });
+
     // "disconnecting" fires while socket.rooms is still filled in
     socket.on('disconnecting', async () => {
       const rooms = getConversationRooms(socket);

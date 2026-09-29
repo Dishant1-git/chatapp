@@ -1,18 +1,20 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Mic, Paperclip, Plus, SendHorizontal, Smile, X } from 'lucide-react';
+import { Camera, Gift, Mic, Paperclip, Plus, SendHorizontal, Smile, X } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import dynamic from 'next/dynamic';
 // Only needed once recording starts / the GIF tab is opened
 const VoiceRecorder = dynamic(() => import('./VoiceRecorder'), { ssr: false });
 import { isChatImage } from './ImagePreview';
 const GifPicker = dynamic(() => import('./GifPicker'), { ssr: false });
+import GiftPicker from './GiftPicker';
 import { messagePreview } from '@/lib/format';
 import { isOnlyEmoji } from '@/lib/ghost';
 import { canRecord } from '@/lib/recording';
 import { gifsAvailable } from '@/lib/gifs';
 import { STICKER_PACKS, stickerUrl } from '@/lib/stickers';
+import { MOODS, STYLES } from '@/lib/gifts';
 
 const EMOJIS = [
   '😀', '😂', '🤣', '😊', '😍', '🥰', '😘', '😎', '🤔', '😅', '😉', '🙂',
@@ -41,12 +43,16 @@ export default function MessageInput({
   onOpenStickerStore, // 🌟 opens the sticker packs screen
   onSendVoice, // 🎤 ({ blob, duration, waveform }) a recorded voice message
   onSendDocument, // 📎 (file) a document: PDF, spreadsheet, zip …
+  onSendGift, // 🎁 (text, { mood, style, together }) a message that arrives wrapped
+  canOpenTogether = false, // 💞 one-to-one chats can "open together"
   onError,
 }) {
   const { socket, stickerPacks } = useChat();
   const [text, setText] = useState('');
   const [showEmojis, setShowEmojis] = useState(emojiOnly);
-  const [panel, setPanel] = useState('emoji'); // emoji | stickers | gifs
+  const [panel, setPanel] = useState('emoji'); // emoji | stickers | gifs | gift
+  // 🎁 Set while the next message is going to be sent as a gift
+  const [gift, setGift] = useState(null);
   const [hasGifs, setHasGifs] = useState(false); // shown only if the server has a GIF key
   const [isRecording, setIsRecording] = useState(false);
   // Checked after mounting, since the server render has no MediaRecorder
@@ -121,8 +127,11 @@ export default function MessageInput({
   const canRecordVoice = recordingSupported && !emojiOnly && Boolean(onSendVoice);
   // Being ghosted means emojis only — no stickers until that's over
   const canSendStickers = !emojiOnly && Boolean(onSendSticker);
-  const placeholder = emojiOnly ? 'Emojis only' : 'Type a message';
-  const showMic = canRecordVoice && !trimmed;
+  const canSendGifts = !emojiOnly && Boolean(onSendGift);
+  const giftReady = canSendGifts && Boolean(gift);
+  const placeholder = emojiOnly ? 'Emojis only' : gift && canSendGifts ? 'What’s inside the gift?' : 'Type a message';
+  // A gift waits for its words, so the mic makes way for the send button
+  const showMic = canRecordVoice && !trimmed && !giftReady;
 
   function handleChange(event) {
     const value = event.target.value;
@@ -148,7 +157,12 @@ export default function MessageInput({
   function send() {
     if (!trimmed) return;
     if (!canSend) return onError('You can only send emojis.');
-    onSendText(trimmed);
+    if (giftReady) {
+      onSendGift(trimmed, { mood: gift.mood, style: gift.style, together: canOpenTogether && gift.together });
+      setGift(null);
+    } else {
+      onSendText(trimmed);
+    }
     setText('');
     setShowEmojis(emojiOnly);
     stopTyping();
@@ -225,6 +239,33 @@ export default function MessageInput({
         </div>
       )}
 
+      {/* 🎁 The next message goes out wrapped */}
+      {giftReady && (
+        <div className="flex items-center gap-2 px-3 pt-2">
+          <div
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border-l-4 bg-panel-soft px-3 py-1.5 text-sm"
+            style={{ borderColor: MOODS[gift.mood].color }}
+          >
+            <span className="text-lg">{STYLES[gift.style].emoji}</span>
+            <span className="min-w-0 truncate">
+              <span className="font-semibold">Sending as a gift</span>
+              <span className="text-muted">
+                {' '}
+                · {MOODS[gift.mood].emoji} {MOODS[gift.mood].label} · {STYLES[gift.style].label}
+                {canOpenTogether && gift.together ? ' · 💞 together' : ''}
+              </span>
+            </span>
+          </div>
+          <button
+            onClick={() => setGift(null)}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-hover"
+            aria-label="Don't send as a gift"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
+
       {showEmojis && (
         <div className="border-t border-line pt-2">
           {/* 😀 Emoji, 🌟 stickers and 🎞️ GIFs share one panel */}
@@ -234,6 +275,7 @@ export default function MessageInput({
                 ['emoji', '😀 Emoji'],
                 ['stickers', '🌟 Stickers'],
                 ...(hasGifs ? [['gifs', '🎞️ GIF']] : []),
+                ...(canSendGifts ? [['gift', '🎁 Gift']] : []),
               ].map(([key, label]) => (
                 <button
                   key={key}
@@ -253,7 +295,16 @@ export default function MessageInput({
             </div>
           )}
 
-          {panel === 'gifs' && canSendStickers && hasGifs ? (
+          {panel === 'gift' && canSendGifts ? (
+            <GiftPicker
+              value={gift}
+              onChange={(value) => {
+                setGift(value);
+                boxRef.current?.focus();
+              }}
+              canOpenTogether={canOpenTogether}
+            />
+          ) : panel === 'gifs' && canSendStickers && hasGifs ? (
             <GifPicker
               onPick={(file) => {
                 setShowEmojis(false);
@@ -444,9 +495,10 @@ export default function MessageInput({
               onClick={send}
               disabled={!canSend}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-on-brand shadow-md transition hover:bg-brand-strong disabled:opacity-50"
-              aria-label="Send message"
+              style={giftReady ? { background: MOODS[gift.mood].color, color: '#fff' } : undefined}
+              aria-label={giftReady ? 'Send as a gift' : 'Send message'}
             >
-              <SendHorizontal size={20} />
+              {giftReady ? <Gift size={20} /> : <SendHorizontal size={20} />}
             </button>
           )}
         </div>
