@@ -5,6 +5,9 @@ Express + Socket.IO + MongoDB, each in its own folder.
 It's inspired by the feel of WhatsApp on mobile: a full-screen chat list, full-screen
 conversations, and a clean two-column layout on desktop.
 
+> **Want the whole picture?** [ARCHITECTURE.md](ARCHITECTURE.md) is the deep version of this file:
+> how every part works, the rules each feature follows, and where to change things.
+
 **The look:** warm and quiet — a cream wash behind everything, with the chat list and the
 conversation as near-white cards on top of it (full screen on a phone, side by side with rounded
 corners on a computer). The ghost logo (`frontend/public/logo.png`, and `app/icon.png` for the
@@ -22,7 +25,7 @@ and **password reset** by code, profiles with photos, user search by name or han
 messages and photos, **voice and video calls** (one-to-one and groups of up to 6),
 real-time messages, online status and last seen, typing indicator, sent/delivered/read ticks,
 photo sharing, **document sharing**, reactions, replies (swipe a message to the right), editing your
-own messages, **Friends / Groups tabs** over the chat list, a **call log**, in-app notifications with unread counts, delete for
+own messages, **Friends / Groups / Requests tabs** over the chat list, a **call log**, in-app notifications with unread counts, delete for
 me/everyone, message pagination, **skeleton placeholders** while things load, and light/dark mode.
 
 ```
@@ -120,7 +123,9 @@ Browser ──► Next.js (frontend) ──/api, /socket.io, /uploads──► E
 - **Online status** is tracked per user (counting open tabs), saved to MongoDB, and `lastSeen`
   is written when the last tab closes.
 - **Ticks:** a message is *delivered* if the receiver has the app open when it's sent (or as soon
-  as they connect), and *read* when they open the conversation.
+  as they connect), and *read* when they open the conversation — except while the chat is still a
+  📬 request they haven't accepted, when reading gives nothing away. Read ticks are blue on both
+  kinds of bubble (there's a lighter blue for your own terracotta ones).
 - **Order.** Messages are ordered by the moment the server saved them, and every screen keeps to
   that order: the browser sends one message at a time (so a photo can't be overtaken by the line
   typed after it), the server announces a message as soon as it's saved rather than after the
@@ -322,11 +327,17 @@ Routes live in `backend/routes/social.js`; labels in `frontend/lib/ghost.js` and
   notifications so the person next to you can't read them. Hovering one message — or tapping it on a
   phone — shows that one and nothing else. It's a per-device setting, applied before the page is
   painted (`frontend/lib/privacy.js`), so nothing flashes up readable on the way in.
-- **👥 Friends / Groups**: two pills above the chat list split one-to-one chats from groups. A
-  search looks through both, so nothing hides behind the other tab, and the pill you're not on shows
-  a dot when unread messages are waiting there. The choice is remembered on the device; until you
-  pick one, the app shows whichever side actually has chats. On a phone the round button at the
-  bottom of the list starts a new chat — or a new group, on the Groups tab.
+- **👥 Friends / Groups / 📬 Requests**: three pills above the chat list. A search looks through all
+  of them, so nothing hides behind another tab, and a pill you're not on shows a dot when unread
+  messages are waiting there. The choice is remembered on the device; until you pick one, the app
+  shows whichever side actually has chats. On a phone the round button at the bottom of the list
+  starts a new chat — or a new group, on the Groups tab.
+- **📬 Message requests**: someone you've never talked to can't just appear in your chats. Their
+  first message waits on the Requests tab with a count on the pill, and you either **Accept** them
+  or **👻 ghost them forever**. Until you decide, they get no reply, no read tick and no sign of
+  whether you're online — and neither do you of them. Ghosting forever blocks them for good and the
+  chat leaves your list; they're never told, so it just looks like nobody answered. Searching for
+  someone never shows when they were last online, either: only their name and @handle.
 - **⏳ Skeletons**: while the app, a conversation, a search, the GIF grid, the sticker store or a
   photo loads, a shimmering placeholder shaped like the real thing is shown instead of a spinner
   (`frontend/components/Skeleton.jsx`, and the `.skeleton` class in `globals.css`). Buttons that are
@@ -398,7 +409,9 @@ frontend/
 | POST   | `/api/conversations/:id/admins/:userId`    | Make someone an admin (admins)                |
 | GET    | `/api/conversations/:id`                   | One conversation                              |
 | GET    | `/api/conversations/:id/messages?before=`  | 30 messages per page, older with `before`     |
-| POST   | `/api/conversations/:id/read`              | Mark messages as read                         |
+| POST   | `/api/conversations/:id/read`              | Mark messages as read (does nothing for a request you haven't accepted) |
+| POST   | `/api/conversations/:id/accept`            | 📬 Accept a message request                    |
+| POST   | `/api/conversations/:id/decline`           | 👻 Ghost them forever: blocked, and the chat leaves my list |
 | POST   | `/api/messages`                            | Send `{ conversationId, ciphertext, iv, senderKey, keys, image?, replyTo?, ghostClick? }` |
 | PATCH  | `/api/messages/:id`                        | Edit my text message `{ ciphertext, iv, senderKey, keys }` |
 | DELETE | `/api/messages/:id?for=me\|everyone`       | Delete a message                              |

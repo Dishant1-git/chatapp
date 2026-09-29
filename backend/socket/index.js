@@ -103,7 +103,9 @@ export function setupSocket(httpServer, allowedOrigins) {
         rooms.forEach((room) =>
           socket.to(room).emit('stopTyping', { conversationId: room.split(':')[1], userId })
         );
-        io.to(rooms).emit('presence', { userId, isOnline: false, lastSeen });
+        // 📬 …but a chat nobody has accepted yet never shows anyone's comings and goings
+        const accepted = await acceptedRooms(rooms.map((room) => room.split(':')[1]));
+        if (accepted.length) io.to(accepted).emit('presence', { userId, isOnline: false, lastSeen });
       }
     });
 
@@ -117,11 +119,22 @@ export function setupSocket(httpServer, allowedOrigins) {
   return io;
 }
 
+// 📬 Of these conversation ids, the rooms for the chats that have been accepted.
+// Presence goes to those only: until a request is answered, neither side learns
+// when the other is around.
+async function acceptedRooms(conversationIds) {
+  const accepted = await Conversation.find({ _id: { $in: conversationIds }, requestFor: null }).select('_id');
+  return accepted.map((c) => conversationRoom(c._id));
+}
+
 async function joinRoomsAndGoOnline(io, socket, isFirstConnection) {
   const userId = socket.userId;
 
-  const conversations = await Conversation.find({ participants: userId }).select('_id');
+  const conversations = await Conversation.find({ participants: userId }).select('_id requestFor');
   const rooms = conversations.map((c) => conversationRoom(c._id));
+  // 📬 Every chat is joined (messages still arrive), but presence is only shared
+  // with the ones both people have agreed to
+  const presenceRooms = conversations.filter((c) => !c.requestFor).map((c) => conversationRoom(c._id));
 
   // The user may have closed the tab while we were querying
   if (!socket.connected) return;
@@ -134,7 +147,7 @@ async function joinRoomsAndGoOnline(io, socket, isFirstConnection) {
   if (!isFirstConnection) return;
 
   await User.findByIdAndUpdate(userId, { isOnline: true });
-  if (rooms.length) io.to(rooms).emit('presence', { userId, isOnline: true });
+  if (presenceRooms.length) io.to(presenceRooms).emit('presence', { userId, isOnline: true });
 
   // Messages sent to this user while they were offline are now delivered
   const me = new mongoose.Types.ObjectId(userId);

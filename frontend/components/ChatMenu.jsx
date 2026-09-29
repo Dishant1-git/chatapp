@@ -14,6 +14,10 @@ export default function ChatMenu({ conversation, myId, onOpen, onMissYou, onBuzz
 
   const { ghost, otherUser } = conversation;
   const isDirect = conversation.type !== 'group';
+  // 📬 An unanswered request gets nothing that would reach the other person —
+  // no hearts, no buzz, no inside joke — only what's just for me. That holds
+  // for both sides: the one deciding, and the one still waiting to be let in.
+  const isRequest = Boolean(conversation.isRequest || conversation.awaitingAccept);
   const ghostedByMe = ghost?.by === myId;
   const ghostedByThem = Boolean(ghost) && !ghostedByMe;
 
@@ -62,7 +66,7 @@ export default function ChatMenu({ conversation, myId, onOpen, onMissYou, onBuzz
           transition={{ duration: 0.12 }}
           className="scroll-thin absolute top-full right-0 z-30 mt-1 max-h-[calc(var(--app-height,100dvh)-6rem)] w-64 origin-top-right overflow-y-auto rounded-2xl border border-line bg-panel py-1 text-sm text-fg shadow-xl"
         >
-          {isDirect && onMissYou && (
+          {isDirect && onMissYou && !isRequest && (
             <MenuItem
               icon={Heart}
               label="💕 Miss you"
@@ -71,7 +75,7 @@ export default function ChatMenu({ conversation, myId, onOpen, onMissYou, onBuzz
               onClick={() => run(onMissYou)}
             />
           )}
-          {isDirect && onBuzz && (
+          {isDirect && onBuzz && !isRequest && (
             <MenuItem
               icon={Vibrate}
               label="📳 Buzz their phone"
@@ -80,7 +84,7 @@ export default function ChatMenu({ conversation, myId, onOpen, onMissYou, onBuzz
               onClick={() => run(onBuzz)}
             />
           )}
-          {isDirect && otherUser && (
+          {isDirect && otherUser && !isRequest && (
             <MenuItem
               icon={Ghost}
               label={ghostedByMe ? `${GHOST_LEVEL_INFO[ghost.level]?.emoji} Ghost settings` : 'Ghost mode'}
@@ -89,15 +93,19 @@ export default function ChatMenu({ conversation, myId, onOpen, onMissYou, onBuzz
               onClick={() => open('ghost')}
             />
           )}
-          <MenuItem
-            icon={Image}
-            label="🖼️ Chat background"
-            hint="Just for this chat — everyone in it sees it"
-            onClick={() => open('background')}
-          />
-          <MenuItem icon={Brain} label="Read the vibe" onClick={() => open('vibe')} />
-          <MenuItem icon={Puzzle} label="Add inside joke" onClick={() => open('badge')} />
-          {isDirect && <MenuItem icon={DoorOpen} label="Leave conversation" onClick={() => open('leave')} />}
+          {!isRequest && (
+            <MenuItem
+              icon={Image}
+              label="🖼️ Chat background"
+              hint="Just for this chat — everyone in it sees it"
+              onClick={() => open('background')}
+            />
+          )}
+          {!isRequest && <MenuItem icon={Brain} label="Read the vibe" onClick={() => open('vibe')} />}
+          {!isRequest && <MenuItem icon={Puzzle} label="Add inside joke" onClick={() => open('badge')} />}
+          {isDirect && !isRequest && (
+            <MenuItem icon={DoorOpen} label="Leave conversation" onClick={() => open('leave')} />
+          )}
           <div className="my-1 border-t border-line" />
           <MenuItem icon={Eraser} label="Clear chat" hint="Only for you" onClick={() => open('clear')} />
         </motion.div>

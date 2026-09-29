@@ -6,7 +6,7 @@ import mongoose from 'mongoose';
 import Conversation, { MAX_BADGES, PAUSE_REASONS, formatBadges, formatPause } from '../models/Conversation.js';
 import Message, { REFRESH_TICKS } from '../models/Message.js';
 import { requireAuth } from '../middleware/auth.js';
-import { badRequest, findMyConversation, resumeConversation } from './conversations.js';
+import { badRequest, findMyConversation, notAcceptedYet, resumeConversation } from './conversations.js';
 import { GHOST_LEVELS, formatGhost, isOnlyEmoji } from '../utils/ghost.js';
 import { bumpStat, emitMessageUpdate, publishEvent, useDailyAllowance } from '../utils/publish.js';
 import { connectionStreak, localDay, parseOffset } from '../utils/streak.js';
@@ -27,6 +27,8 @@ async function findMyDirectChat(req, res) {
     badRequest(res, 'This only works in one-to-one chats.');
     return null;
   }
+  // 📬 Ghosting, pausing and reviving are all things a chat has to exist for
+  if (notAcceptedYet(conversation, req, res)) return null;
   return conversation;
 }
 
@@ -232,6 +234,7 @@ function emitBadges(conversation) {
 router.post('/:id/badges', async (req, res) => {
   const conversation = await findMyConversation(req, res);
   if (!conversation) return;
+  if (notAcceptedYet(conversation, req, res)) return;
 
   const emoji = String(req.body?.emoji || '').trim();
   const label = String(req.body?.label || '').trim();

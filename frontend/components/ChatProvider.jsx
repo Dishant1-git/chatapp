@@ -387,7 +387,8 @@ export default function ChatProvider({ children }) {
       );
     }
 
-    // A group's name, photo, members or admins changed
+    // A group's name, photo, members or admins changed, 📬 a request was accepted…
+    // Always only the fields that changed, so an opened last message stays opened.
     function handleConversationUpdated({ conversation }) {
       updateConversation(conversation._id, conversation);
     }

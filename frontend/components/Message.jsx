@@ -32,12 +32,22 @@ import { isSticker, stickerLabel, stickerUrl } from '@/lib/stickers';
 const SWIPE_MAX = 80;
 const SWIPE_REPLY_AT = 56;
 
-// ✓ sent · ✓✓ delivered · blue ✓✓ read
-// onBrand: the ticks sit inside one of my own (terracotta) bubbles, so blue would jar
+// ✓ sent · ✓✓ delivered · blue ✓✓ read.
+// onBrand: the ticks sit inside one of my own terracotta bubbles, where the
+// ordinary blue would be hard to see — so there's a lighter blue for that,
+// which still has to be obviously different from the cream delivered ticks.
 export function MessageTicks({ message, className = '', onBrand = false }) {
   if (message.failed) return <AlertCircle size={15} className={`text-red-500 ${className}`} />;
   if (message.pending) return <Clock3 size={13} className={className} />;
-  if (message.isRead) return <CheckCheck size={16} className={`${onBrand ? 'text-bubble-out-fg/85' : 'text-tick-read'} ${className}`} />;
+  if (message.isRead) {
+    return (
+      <CheckCheck
+        size={16}
+        className={`${onBrand ? 'text-tick-read-on-brand' : 'text-tick-read'} ${className}`}
+        aria-label="Read"
+      />
+    );
+  }
   if (message.isDelivered) return <CheckCheck size={16} className={className} />;
   return <Check size={16} className={className} />;
 }

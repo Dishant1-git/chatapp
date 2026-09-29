@@ -19,6 +19,8 @@ function escapeRegex(text) {
 // by their exact email. Emails are private: they're never returned, and a partial
 // email doesn't match (so nobody can guess addresses letter by letter). Usernames
 // are public handles, so those do match part way.
+// Nothing here says whether someone is online or when they were last seen: that's
+// for people you actually chat with, not for anyone who can type your name.
 router.get('/search', async (req, res) => {
   const q = String(req.query.q || '').trim().slice(0, 100);
   if (!q) return res.json({ users: [] });
@@ -30,7 +32,7 @@ router.get('/search', async (req, res) => {
     _id: { $ne: req.userId },
     $or: [{ name: pattern }, { username: handle }, { email: q.toLowerCase() }],
   })
-    .select('name username profileImage isOnline lastSeen mood')
+    .select('name username profileImage')
     .sort({ name: 1 })
     .limit(20);
 

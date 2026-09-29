@@ -117,6 +117,7 @@ export default function ChatWindow({ conversationId }) {
     typingIn,
     addConversation,
     updateConversation,
+    removeConversation,
     markAsRead,
     goBackToList,
   } = useChat();
@@ -182,7 +183,12 @@ export default function ChatWindow({ conversationId }) {
   const pausedBy = isGroupChat ? null : conversation?.pausedBy || null;
   // 🚫 I blocked them (if they blocked me, sending just fails with a short note)
   const blockedByMe = !isGroupChat && Boolean(conversation?.blockedByMe);
-  const canType = !pausedBy && !blockedByMe && !(iAmGhosted && ghost.level === 'permanent');
+  // 📬 Someone I've never talked to wrote to me: I can read it, but nothing else
+  // happens — no typing, no read receipt — until I let them in or ghost them
+  const isRequest = !isGroupChat && Boolean(conversation?.isRequest);
+  // …and the other way round: I wrote first and they haven't decided yet
+  const awaitingAccept = !isGroupChat && Boolean(conversation?.awaitingAccept);
+  const canType = !pausedBy && !blockedByMe && !isRequest && !(iAmGhosted && ghost.level === 'permanent');
   const isDead = status === 'ready' && isDeadChat(conversation);
   // Read by deliver(), which is a stable callback
   const emojiOnlyRef = useRef(emojiOnly);
@@ -227,7 +233,8 @@ export default function ChatWindow({ conversationId }) {
     if (suppressRead.current) return;
     clearTimeout(readTimer.current);
     readTimer.current = setTimeout(() => {
-      if (!suppressRead.current) markAsRead(conversationId);
+      // 📬 Reading a request isn't "seen": whoever wrote gets no tick until I accept
+      if (!suppressRead.current && !conversationRef.current?.isRequest) markAsRead(conversationId);
     }, 400);
   }, [markAsRead, conversationId]);
   useEffect(() => () => clearTimeout(readTimer.current), []);
@@ -282,7 +289,8 @@ export default function ChatWindow({ conversationId }) {
         // Something happened while I was away (a "miss you", being forgiven…)
         const moment = opened.findLast((m) => isNewMoment(m, myId));
         if (moment) showMoment(moment);
-        if (hadUnread) setUndoSeen(hadUnread);
+        // 📬 …but reading a request was never a "seen" in the first place
+        if (hadUnread && !conversationRef.current?.isRequest) setUndoSeen(hadUnread);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -290,7 +298,10 @@ export default function ChatWindow({ conversationId }) {
         setErrorText(err.message);
       })
       // Marked as read only after loading, so unseen notes are still recognisable
-      .finally(() => !cancelled && markAsRead(conversationId));
+      // — and 📬 never while the chat is still a request waiting for my answer
+      .finally(() => {
+        if (!cancelled && !conversationRef.current?.isRequest) markAsRead(conversationId);
+      });
 
     return () => {
       cancelled = true;
@@ -939,6 +950,30 @@ export default function ChatWindow({ conversationId }) {
     }
   }
 
+  // 📬 "Yes, let's talk": the chat leaves Requests and becomes an ordinary one,
+  // and from now on we can both see each other again
+  async function acceptRequest() {
+    try {
+      await api(`/api/conversations/${conversationId}/accept`, { method: 'POST' });
+      updateConversation(conversationId, { isRequest: false });
+      readNow();
+      showNotice(`✅ You can now chat with ${otherUser?.name}`);
+    } catch (err) {
+      showNotice(err.message);
+    }
+  }
+
+  // 👻 "Ghost them forever": they're blocked, the chat leaves my list, and they're
+  // never told — to them it just looks like nobody ever answered
+  async function declineRequest() {
+    try {
+      await api(`/api/conversations/${conversationId}/decline`, { method: 'POST' });
+      removeConversation(conversationId);
+    } catch (err) {
+      showNotice(err.message);
+    }
+  }
+
   // Clicking a quoted message scrolls to the original, loading older pages if needed
   const jumpTo = useCallback(
     async (messageId) => {
@@ -1141,13 +1176,19 @@ export default function ChatWindow({ conversationId }) {
   const presence = otherUser?.isOnline ? 'online' : otherUser ? formatLastSeen(otherUser.lastSeen) : '';
   // 🎭 Their mood goes first: "🧠 overthinking · online"
   const mood = !isGroupChat && MOODS[otherUser?.mood];
+  // 📬 Neither side's presence is on show until a request is answered, so the
+  // line under the name says where it stands instead
+  const requestStatus = isRequest
+    ? 'Wants to talk to you'
+    : awaitingAccept
+      ? 'Waiting for them to accept'
+      : '';
   const statusText = typing
     ? typing
     : isGroupChat
       ? memberSummary(conversation, myId)
-      : mood
-        ? `${mood.emoji} ${mood.label} · ${presence}`
-        : presence;
+      : requestStatus ||
+        (mood ? `${mood.emoji} ${mood.label} · ${presence}` : presence);
   const statusIsHighlighted = Boolean(typing) || (!isGroupChat && otherUser?.isOnline);
   const badges = conversation?.badges || [];
   // 💖 Nicknames: the one I gave them, and the one they gave me
@@ -1167,14 +1208,18 @@ export default function ChatWindow({ conversationId }) {
         </button>
         <button
           type="button"
-          // Groups: group info. One-to-one chats: 💖 give them a nickname.
+          // Groups: group info. One-to-one chats: 💖 give them a nickname —
+          // 📬 but not to someone whose request I haven't answered: a nickname
+          // is announced in the chat, and they get nothing from me until I accept.
           onClick={() => {
             if (isGroupChat) setShowInfo(true);
-            else if (otherUser && !blockedByMe) setDialog('nickname');
+            else if (otherUser && !blockedByMe && !isRequest) setDialog('nickname');
           }}
           className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-xl py-1 text-left"
-          aria-label={isGroupChat ? 'Group info' : `Give ${otherUser?.name || 'them'} a nickname`}
-          title={isGroupChat ? undefined : 'Tap to give a nickname'}
+          aria-label={
+            isGroupChat ? 'Group info' : isRequest ? otherUser?.name || 'Them' : `Give ${otherUser?.name || 'them'} a nickname`
+          }
+          title={isGroupChat || isRequest ? undefined : 'Tap to give a nickname'}
         >
           {conversation && <ChatAvatar conversation={conversation} size={40} viewable />}
           <div className="min-w-0 flex-1">
@@ -1182,7 +1227,9 @@ export default function ChatWindow({ conversationId }) {
               <span className="truncate">{conversationTitle(conversation) || '…'}</span>
               {/* 💖 Their real name next to the nickname I gave them */}
               {theirNickname && <span className="shrink-0 text-xs font-normal text-muted">{otherUser?.name}</span>}
-              {!isGroupChat && otherUser && !blockedByMe && <Pencil size={12} className="shrink-0 text-muted" aria-hidden />}
+              {!isGroupChat && otherUser && !blockedByMe && !isRequest && (
+                <Pencil size={12} className="shrink-0 text-muted" aria-hidden />
+              )}
             </h2>
             <p className={`truncate text-xs ${statusIsHighlighted ? 'text-brand' : 'text-muted'}`}>{statusText}</p>
           </div>
@@ -1190,6 +1237,8 @@ export default function ChatWindow({ conversationId }) {
 
         {/* Two dropdowns keep the header tidy: 📞 calls, and ⋮ for everything else */}
         {conversation &&
+          !isRequest &&
+          !awaitingAccept &&
           (canJoinCall ? (
             <button
               onClick={() => handleCall(activeCall.video)}
@@ -1445,6 +1494,30 @@ export default function ChatWindow({ conversationId }) {
         </div>
       )}
 
+      {/* 📬 Their message is here; now I decide whether they get to stay */}
+      {isRequest && (
+        <div className="shrink-0 border-t border-line bg-panel-soft px-4 py-3 pb-[max(0.75rem,var(--safe-bottom))]">
+          <p className="text-sm">
+            <span className="font-medium">{otherUser?.name}</span> wants to talk to you. They can’t see whether you
+            read this until you accept.
+          </p>
+          <div className="mt-2.5 flex gap-2">
+            <button
+              onClick={acceptRequest}
+              className="flex-1 rounded-full bg-brand py-2 text-sm font-medium text-on-brand hover:bg-brand-strong"
+            >
+              Accept
+            </button>
+            <button
+              onClick={() => setDialog('decline')}
+              className="flex-1 rounded-full border border-line py-2 text-sm font-medium hover:bg-hover"
+            >
+              👻 Ghost forever
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 🚫 I blocked them */}
       {blockedByMe && !pausedBy && (
         <div className="flex shrink-0 items-center gap-3 border-t border-line bg-panel-soft px-4 py-3 pb-[max(0.75rem,var(--safe-bottom))] text-sm">
@@ -1536,6 +1609,16 @@ export default function ChatWindow({ conversationId }) {
         )}
         {dialog === 'nickname' && conversation && (
           <NicknameDialog key="nickname-dialog" conversation={conversation} onClose={closeDialog} onError={showNotice} />
+        )}
+        {dialog === 'decline' && (
+          <ConfirmDialog
+            key="decline-dialog"
+            title="Ghost them forever?"
+            text={`${otherUser?.name || 'They'} will never be able to message or call you again, and this chat leaves your list. They aren’t told — it just looks like nobody answered.`}
+            confirmLabel="👻 Ghost forever"
+            onConfirm={declineRequest}
+            onClose={closeDialog}
+          />
         )}
         {dialog === 'clear' && (
           <ConfirmDialog

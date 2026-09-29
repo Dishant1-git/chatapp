@@ -77,6 +77,10 @@ const conversationSchema = new mongoose.Schema(
     blockedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     // 🗑️ "Delete chat": hidden from these people's lists until a new message arrives
     hiddenFor: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    // 📬 A chat started by someone this person has never talked to waits in their
+    // Requests tab. This is who still has to decide; null once they've accepted
+    // (and for every chat that existed before requests).
+    requestFor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     // 💖 One-to-one chats: nicknames, userId → the nickname the other person gave them.
     // Both people see it.
     nicknames: { type: Map, of: String, default: {} },
@@ -139,9 +143,18 @@ export function formatConversation(conversation, userId, unreadCount = 0) {
     // Only the person who blocked is told; the other one just can't send
     const blockedBy = (conv.blockedBy || []).map(String);
     result.blockedByMe = blockedBy.includes(String(userId));
-    // Someone who blocked me doesn't show me when they're online
+
+    // 📬 A request: either it's waiting for me to decide, or I started it and
+    // they haven't said yes yet
+    const requestFor = conv.requestFor ? String(conv.requestFor) : null;
+    result.isRequest = requestFor === String(userId);
+    result.awaitingAccept = Boolean(requestFor) && !result.isRequest;
+
+    // Someone who blocked me doesn't show me when they're online — and neither
+    // does someone I haven't been accepted by yet: until a chat is accepted,
+    // both sides are strangers and nobody's comings and goings are on show.
     const otherId = result.otherUser?._id && String(result.otherUser._id);
-    if (otherId && blockedBy.includes(otherId)) {
+    if (otherId && (blockedBy.includes(otherId) || requestFor)) {
       const hidden = { isOnline: false, lastSeen: null, mood: '' };
       result.otherUser = { ...result.otherUser, ...hidden };
       result.participants = participants.map((p) => (String(p._id) === otherId ? { ...p, ...hidden } : p));

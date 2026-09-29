@@ -7,7 +7,6 @@ import { PeopleSkeleton } from './Skeleton';
 import { useChat } from './ChatProvider';
 import Avatar from './Avatar';
 import { api } from '@/lib/client';
-import { formatLastSeen } from '@/lib/format';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 // "New chat" panel: search all users by name or email and open a conversation
@@ -85,14 +84,12 @@ export default function UserSearch({ initialQuery = '', onClose }) {
               disabled={Boolean(openingId)}
               className="mx-2 flex w-[calc(100%-1rem)] items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition hover:bg-hover disabled:opacity-60"
             >
-              <Avatar user={person} size={46} showStatus viewable />
+              <Avatar user={person} size={46} viewable />
               <div className="min-w-0 flex-1">
-                <p className="flex min-w-0 items-baseline gap-1.5">
-                  <span className="truncate font-medium">{person.name}</span>
-                  {person.username && <span className="shrink-0 text-xs text-muted">@{person.username}</span>}
-                </p>
-                <p className={`truncate text-sm ${person.isOnline ? 'text-brand' : 'text-muted'}`}>
-                  {person.isOnline ? 'online' : formatLastSeen(person.lastSeen)}
+                <p className="truncate font-medium">{person.name}</p>
+                {/* Their handle, not when they were last online — see the search route */}
+                <p className="truncate text-sm text-muted">
+                  {person.username ? `@${person.username}` : 'Tap to say hello'}
                 </p>
               </div>
               {openingId === person._id && <Loader2 size={18} className="animate-spin text-muted" />}

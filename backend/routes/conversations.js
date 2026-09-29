@@ -26,6 +26,20 @@ export function badRequest(res, error) {
 }
 
 // Loads a conversation only if the logged-in user is part of it
+// 📬 Answers the request with a 403 and returns true if this chat is still
+// waiting for an answer. Nothing that would reach the other person — a nudge, a
+// ghost, an inside joke — happens before someone has said yes.
+export function notAcceptedYet(conversation, req, res) {
+  if (!conversation.requestFor) return false;
+  res.status(403).json({
+    error:
+      String(conversation.requestFor) === req.userId
+        ? 'Accept their message request first.'
+        : "They haven't accepted your message yet.",
+  });
+  return true;
+}
+
 export async function findMyConversation(req, res) {
   const { id } = req.params;
   const conversation = isValidObjectId(id)
@@ -155,7 +169,14 @@ router.post('/', async (req, res) => {
     conversation = await Conversation.findOneAndUpdate(
       { key },
       {
-        $setOnInsert: { key, type: 'direct', participants: [req.userId, otherUserId], lastMessageAt: new Date() },
+        // 📬 Until they accept, this chat sits in their Requests tab
+        $setOnInsert: {
+          key,
+          type: 'direct',
+          participants: [req.userId, otherUserId],
+          lastMessageAt: new Date(),
+          requestFor: otherUserId,
+        },
       },
       { upsert: true, returnDocument: 'after' }
     );
@@ -176,6 +197,55 @@ router.post('/', async (req, res) => {
   ]);
 
   res.json({ conversation: formatConversation(conversation, req.userId) });
+});
+
+// 📬 POST /api/conversations/:id/accept — "yes, I'll talk to them".
+// The chat moves out of Requests and both sides can see each other again.
+router.post('/:id/accept', async (req, res) => {
+  const conversation = await findMyConversation(req, res);
+  if (!conversation) return;
+  if (String(conversation.requestFor || '') !== req.userId) {
+    return badRequest(res, 'This chat is not waiting for your answer.');
+  }
+
+  conversation.requestFor = null;
+  await conversation.save();
+  await conversation.populate([{ path: 'participants', select: PARTICIPANT_FIELDS }, { path: 'lastMessage' }]);
+
+  // Each side is told separately: how much you may see of the other person
+  // (online, last seen, mood) depends on which side of the chat you're on.
+  // Only the fields that changed, so nobody's opened last message is replaced.
+  conversation.participants.forEach((person) => {
+    const id = String(person._id);
+    const { isRequest, awaitingAccept, otherUser, participants } = formatConversation(conversation, id);
+    getIO()
+      ?.to(userRoom(id))
+      .emit('conversation:updated', {
+        conversation: { _id: String(conversation._id), isRequest, awaitingAccept, otherUser, participants },
+      });
+  });
+
+  res.json({ conversation: formatConversation(conversation, req.userId) });
+});
+
+// 📬 POST /api/conversations/:id/decline — "ghost them forever".
+// They're blocked (so they can't write again) and the chat leaves my list.
+// They are never told; it simply looks like their message went nowhere.
+router.post('/:id/decline', async (req, res) => {
+  const conversation = await findMyConversation(req, res);
+  if (!conversation) return;
+  if (String(conversation.requestFor || '') !== req.userId) {
+    return badRequest(res, 'This chat is not waiting for your answer.');
+  }
+
+  await Conversation.updateOne(
+    { _id: conversation._id },
+    { $addToSet: { blockedBy: req.userId, hiddenFor: req.userId }, $set: { requestFor: null } }
+  );
+  // Only my own tabs need to know
+  getIO()?.to(userRoom(req.userId)).emit('conversation:removed', { conversationId: String(conversation._id) });
+
+  res.json({ declined: true });
 });
 
 // Ends a pause: the chat is back in the list for the one who left,
@@ -399,6 +469,9 @@ router.get('/:id/messages', async (req, res) => {
 router.post('/:id/read', async (req, res) => {
   const conversation = await findMyConversation(req, res);
   if (!conversation) return;
+  // 📬 Reading a request doesn't count as seeing it — whoever wrote first gets
+  // no read receipt until I've let them in
+  if (String(conversation.requestFor || '') === req.userId) return res.json({ updated: 0 });
 
   const me = new mongoose.Types.ObjectId(req.userId);
   const result = await Message.updateMany(
@@ -503,6 +576,9 @@ async function sendNudge(req, res, type, cooldownMs, cooldownError) {
 
   const blocked = blockError(conversation, req.userId);
   if (blocked) return res.status(403).json({ error: blocked });
+
+  // 📬 Nobody gets poked over a request they haven't answered
+  if (notAcceptedYet(conversation, req, res)) return;
 
   // Ghosting limits what you can send; this mustn't be a way around it
   const ghostedByThem = conversation.ghost?.by && String(conversation.ghost.by) !== req.userId;

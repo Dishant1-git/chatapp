@@ -26,6 +26,11 @@ export async function publishMessage(conversation, fields, clientId = null) {
     ?.to([conversationRoom(conversation._id), ...conversation.participants.map((p) => userRoom(p))])
     .emit('message:new', { message, clientId });
 
+  // 📬 Answering someone's request is the same as accepting it
+  if (conversation.requestFor && String(conversation.requestFor) === String(fields.senderId)) {
+    conversation.requestFor = null;
+  }
+
   // The chat list shows the newest message, so an older one that finishes
   // saving later must not take its place
   const isNewest = !conversation.lastMessageAt || message.createdAt >= conversation.lastMessageAt;

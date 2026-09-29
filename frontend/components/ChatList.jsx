@@ -64,12 +64,16 @@ export default function ChatList() {
   const closeMenu = useCallback(() => setMenu(null), []);
   const menuConversation = menu && conversations.find((c) => c._id === menu.conversationId);
 
+  // Which tab a chat belongs to: 📬 someone I've never talked to who wrote
+  // first waits in Requests, whatever kind of chat it is
+  const tabOf = (c) => (c.isRequest ? 'requests' : isGroup(c) ? 'groups' : 'friends');
+
   // Remember the tab between visits (private browsing can block storage)
   const tabWasChosen = useRef(false);
   useEffect(() => {
     try {
       const saved = localStorage.getItem('ghosted:chatTab');
-      if (saved === 'friends' || saved === 'groups') {
+      if (saved === 'friends' || saved === 'groups' || saved === 'requests') {
         tabWasChosen.current = true;
         setTab(saved);
       }
@@ -82,20 +86,27 @@ export default function ChatList() {
   // so someone whose only chat is a group doesn't land on an empty list
   useEffect(() => {
     if (tabWasChosen.current) return;
-    const hasGroups = conversations.some((c) => isGroup(c));
-    const hasFriends = conversations.some((c) => !isGroup(c));
-    if (tab === 'friends' && !hasFriends && hasGroups) setTab('groups');
-    else if (tab === 'groups' && !hasGroups && hasFriends) setTab('friends');
+    if (conversations.some((c) => tabOf(c) === tab)) return;
+    const withSomething = ['friends', 'groups', 'requests'].find((which) =>
+      conversations.some((c) => tabOf(c) === which)
+    );
+    if (withSomething) setTab(withSomething);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversations, tab]);
 
-  // Opening a chat switches to its tab, so the open one is always in the list
+  // Opening a chat switches to its tab, so the open one is always in the list —
+  // and 📬 accepting a request moves the open chat from Requests to Friends,
+  // which the list follows rather than sitting on an empty tab
   const syncedTabFor = useRef(null);
   useEffect(() => {
-    if (!activeConversationId || syncedTabFor.current === activeConversationId) return;
+    if (!activeConversationId) return;
     const active = conversations.find((c) => c._id === activeConversationId);
     if (!active) return; // not loaded yet — this runs again when it is
-    syncedTabFor.current = activeConversationId;
-    setTab(isGroup(active) ? 'groups' : 'friends');
+    const moved = `${activeConversationId}:${tabOf(active)}`;
+    if (syncedTabFor.current === moved) return;
+    syncedTabFor.current = moved;
+    setTab(tabOf(active));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConversationId, conversations]);
 
   function pickTab(next) {
@@ -152,16 +163,18 @@ export default function ChatList() {
     );
   }, [conversations, query]);
 
-  // The tab splits the list — but a search looks through everything, so a group
-  // you're looking for is never hidden behind the other tab
+  // The tab splits the list — but a search looks through everything, so a chat
+  // you're looking for is never hidden behind another tab
   const isSearching = query.trim().length > 0;
   const visible = useMemo(
-    () => (isSearching ? filtered : filtered.filter((c) => isGroup(c) === (tab === 'groups'))),
+    () => (isSearching ? filtered : filtered.filter((c) => tabOf(c) === tab)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [filtered, isSearching, tab]
   );
-  // Unread waiting on the tab you're not looking at
-  const unreadOn = (wantGroups) =>
-    conversations.some((c) => isGroup(c) === wantGroups && !c.isMuted && c.unreadCount > 0);
+  // Unread waiting on a tab you're not looking at
+  const unreadOn = (which) =>
+    conversations.some((c) => tabOf(c) === which && !c.isMuted && c.unreadCount > 0);
+  const requestCount = conversations.filter((c) => c.isRequest).length;
 
   // ⭐ Trusted Ghosts are pinned in their own section at the top
   const trustedIds = user?.trusted || [];
@@ -245,20 +258,28 @@ export default function ChatList() {
         </div>
       </div>
 
-      {/* 👥 One-to-one chats or groups. A search looks through both. */}
+      {/* 👥 Friends, groups, or 📬 people waiting to be let in. A search looks
+          through all three. */}
       {!isSearching && (
-        <div className="flex items-center gap-2 px-3 pb-2">
+        <div className="flex items-center gap-1.5 px-3 pb-2">
           <TabPill
             label="Friends"
             isActive={tab === 'friends'}
-            hasUnread={tab !== 'friends' && unreadOn(false)}
+            hasUnread={tab !== 'friends' && unreadOn('friends')}
             onClick={() => pickTab('friends')}
           />
           <TabPill
             label="Groups"
             isActive={tab === 'groups'}
-            hasUnread={tab !== 'groups' && unreadOn(true)}
+            hasUnread={tab !== 'groups' && unreadOn('groups')}
             onClick={() => pickTab('groups')}
+          />
+          <TabPill
+            label="Requests"
+            count={requestCount}
+            isActive={tab === 'requests'}
+            hasUnread={tab !== 'requests' && unreadOn('requests')}
+            onClick={() => pickTab('requests')}
           />
         </div>
       )}
@@ -266,7 +287,7 @@ export default function ChatList() {
       {/* The panel curves up over the header strip and holds the conversations */}
       <ul className="scroll-thin surface mt-1 min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-t-[2rem] pt-3 pb-[env(safe-area-inset-bottom)] text-fg">
         <li className="flex items-center justify-between px-5 pb-1">
-          <h2 className="text-lg font-semibold">Recent</h2>
+          <h2 className="text-lg font-semibold">{tab === 'requests' ? 'Waiting for you' : 'Recent'}</h2>
           <span className="text-xs text-muted">{visible.length}</span>
         </li>
         {trustedChats.length > 0 && (
@@ -316,8 +337,17 @@ export default function ChatList() {
           </li>
         )}
 
-        {/* Nothing on this tab, but chats exist on the other one */}
-        {conversations.length > 0 && !isSearching && visible.length === 0 && (
+        {/* Nothing on this tab, but chats exist on another one */}
+        {conversations.length > 0 && !isSearching && visible.length === 0 && tab === 'requests' && (
+          <li className="px-8 py-14 text-center">
+            <p className="font-medium">No requests</p>
+            <p className="mt-1 text-sm text-muted">
+              When someone you’ve never talked to writes to you, their message waits here until you decide.
+            </p>
+          </li>
+        )}
+
+        {conversations.length > 0 && !isSearching && visible.length === 0 && tab !== 'requests' && (
           <li className="px-8 py-14 text-center">
             <p className="font-medium">{tab === 'groups' ? 'No group chats yet' : 'No one-to-one chats yet'}</p>
             <p className="mt-1 text-sm text-muted">
@@ -401,18 +431,27 @@ export default function ChatList() {
 
 // One of the two switches above the list. The dot means: unread over there.
 // The Calls screen uses the same pair.
-export function TabPill({ label, isActive, hasUnread, onClick }) {
+export function TabPill({ label, isActive, hasUnread, count = 0, onClick }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={isActive}
-      className={`relative flex flex-1 items-center justify-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition ${
+      className={`relative flex flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition ${
         isActive ? 'bg-brand-soft text-brand' : 'text-muted hover:bg-hover'
       }`}
     >
       {isActive && <Check size={15} className="shrink-0" />}
       {label}
+      {count > 0 && (
+        <span
+          className={`rounded-full px-1.5 text-[11px] font-semibold ${
+            isActive ? 'bg-brand text-on-brand' : 'bg-brand-soft text-brand'
+          }`}
+        >
+          {count > 99 ? '99+' : count}
+        </span>
+      )}
       {hasUnread && (
         <span className="absolute top-1.5 right-3 h-2 w-2 rounded-full bg-brand" aria-label="Unread messages" />
       )}
@@ -544,7 +583,7 @@ const ConversationItem = memo(function ConversationItem({
   onSwipe,
   onDelete,
 }) {
-  const { lastMessage, lastMessageAt, unreadCount, isMuted, ghost, streak = 0 } = conversation;
+  const { lastMessage, lastMessageAt, unreadCount, isMuted, ghost, streak = 0, isRequest, awaitingAccept } = conversation;
   const longPress = useRef({ timer: null, fired: false });
   const touch = useRef({ startX: 0, startY: 0, axis: null, moved: false, at: 0 });
   const [dragX, setDragX] = useState(null); // how far the row follows the finger, while swiping
@@ -678,6 +717,17 @@ const ConversationItem = memo(function ConversationItem({
               {isDead && (
                 <span className="shrink-0 text-sm" title="This chat is officially dead">
                   🪦
+                </span>
+              )}
+              {/* 📬 Where this chat stands if nobody has said yes yet */}
+              {isRequest && (
+                <span className="shrink-0 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand">
+                  Wants to talk
+                </span>
+              )}
+              {awaitingAccept && (
+                <span className="shrink-0 text-[11px] text-muted" title="They haven’t accepted your chat yet">
+                  Waiting
                 </span>
               )}
             </p>

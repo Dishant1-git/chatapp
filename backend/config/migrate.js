@@ -33,6 +33,13 @@ export async function migrate() {
   }
   if (withoutUsername.length > 0) console.log(`> Gave ${withoutUsername.length} accounts a username`);
 
+  // 📬 Chats that existed before message requests are already accepted
+  const accepted = await Conversation.updateMany(
+    { requestFor: { $exists: false } },
+    { $set: { requestFor: null } }
+  );
+  if (accepted.modifiedCount > 0) console.log(`> ${accepted.modifiedCount} existing chats marked as accepted`);
+
   // ✉️ Accounts that existed before email verification keep working as they are
   const verified = await User.updateMany({ emailVerified: { $exists: false } }, { $set: { emailVerified: true } });
   if (verified.modifiedCount > 0) console.log(`> ${verified.modifiedCount} existing accounts marked as verified`);

@@ -5,7 +5,7 @@ import Conversation, { formatNicknames } from '../models/Conversation.js';
 import Message from '../models/Message.js';
 import { requireAuth } from '../middleware/auth.js';
 import { groupLimiter } from '../middleware/rateLimits.js';
-import { badRequest, findMyConversation } from './conversations.js';
+import { badRequest, findMyConversation, notAcceptedYet } from './conversations.js';
 import { publishEvent } from '../utils/publish.js';
 import { getIO, emitToConversation, userRoom } from '../socket/io.js';
 
@@ -83,6 +83,8 @@ router.put('/:id/nickname', groupLimiter, async (req, res) => {
   const conversation = await findMyDirectChat(req, res);
   if (!conversation) return;
   if ((conversation.blockedBy || []).length) return res.status(403).json({ error: "You can't do that in this chat." });
+  // 📬 A nickname is announced in the chat, so it waits for the request to be answered
+  if (notAcceptedYet(conversation, req, res)) return;
 
   const nickname = String(req.body?.nickname ?? '').trim().replace(/\s+/g, ' ');
   if (nickname.length > MAX_NICKNAME) return badRequest(res, `A nickname can be up to ${MAX_NICKNAME} characters.`);

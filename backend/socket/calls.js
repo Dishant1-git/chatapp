@@ -143,7 +143,7 @@ export function registerCallHandlers(io, socket) {
     if (userCalls.has(userId)) return reply({ error: "You're already in a call." });
 
     const conversation = await Conversation.findOne({ _id: conversationId, participants: userId }).select(
-      'type participants ghost pausedBy blockedBy'
+      'type participants ghost pausedBy blockedBy requestFor'
     );
     if (!conversation) return reply({ error: 'Conversation not found.' });
 
@@ -151,6 +151,16 @@ export function registerCallHandlers(io, socket) {
     const blockedBy = (conversation.blockedBy || []).map(String);
     if (conversation.type !== 'group' && blockedBy.length) {
       return reply({ error: blockedBy.includes(userId) ? 'You blocked this person. Unblock them to call.' : "You can't call this person." });
+    }
+
+    // 📬 A chat nobody has accepted yet isn't a chat you can ring
+    if (conversation.requestFor) {
+      return reply({
+        error:
+          String(conversation.requestFor) === userId
+            ? 'Accept their message request first.'
+            : "They haven't accepted your message yet.",
+      });
     }
 
     // Ghosted (anything but soft) or they stepped away: no calls
