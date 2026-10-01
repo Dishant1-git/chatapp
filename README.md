@@ -264,6 +264,15 @@ Routes live in `backend/routes/social.js`; labels in `frontend/lib/ghost.js` and
 - **📳 Buzz** (header button, one-to-one chats): vibrates the other person's phone and shakes their
   chat if it's open. One buzz every 15 seconds. Muted and soft-ghosted chats don't vibrate. Browsers only
   allow vibration on Android phones; on iPhones and computers there's just the shake and notification.
+- **🎁 Gift messages** (😀 → 🎁 Gift tab above the message box): pick a mood — ❤️ Love, 😂 Funny,
+  🥹 Emotional, 🎉 Celebration, 😈 Teasing, 🤫 Secret, 🫶 Appreciation — and the message arrives
+  wrapped. Each mood brings its own way to open it, or pick one of ten: 🎁 wrapped, 💌 love letter,
+  🧊 frozen (tap to crack the ice), 🔐 secret (hold), 🎟️ ticket, 🌌 galaxy, 🎈 balloons (pop them
+  all), 🧩 puzzle, 🪄 magic (word by word), 📦 mystery box. The chat list and notifications say
+  "🎁 Sent you something" until it's opened. **💞 Open together** (one-to-one chats): it only opens
+  while you both hold it at the same time, on both screens at once — after 15 seconds, or if they're
+  offline, it can be opened alone. The mood and style are inside the encryption; the server only
+  records *who opened it* (`POST /api/messages/:id/unwrap`) and relays "I'm holding it" (`gift:hold`).
 - Not end-to-end encrypted (plain data): inside-joke names, moods, ghost/pause state, and the
   answers to requests. Message text — including forgiveness requests — stays encrypted.
 

@@ -355,6 +355,31 @@ router.post('/:id/opened', async (req, res) => {
   res.json({ ghostClick: updated.ghostClick });
 });
 
+// POST /api/messages/:id/unwrap — a recipient opened a 🎁 gift message.
+// The gift itself (mood, reveal style) is encrypted, so this only records who
+// opened it: their other devices stop showing it wrapped and the sender sees "Opened".
+router.post('/:id/unwrap', async (req, res) => {
+  const message = await findMyMessage(req, res);
+  if (!message) return;
+  if (String(message.senderId) === req.userId) return res.status(400).json({ error: "You can't unwrap your own gift." });
+  if (message.isDeleted || !message.ciphertext) return res.status(404).json({ error: 'Message not found.' });
+
+  const updated = await Message.findOneAndUpdate(
+    { _id: message._id, unwrappedBy: { $ne: req.userId } },
+    { $addToSet: { unwrappedBy: req.userId } },
+    { returnDocument: 'after' }
+  );
+  // Already unwrapped (another tab got there first) — nothing more to do
+  if (!updated) return res.json({ unwrappedBy: message.unwrappedBy || [] });
+
+  emitToConversation(updated.conversationId, 'message:updated', {
+    conversationId: String(updated.conversationId),
+    messageId: String(updated._id),
+    changes: { unwrappedBy: updated.unwrappedBy.map(String) },
+  });
+  res.json({ unwrappedBy: updated.unwrappedBy });
+});
+
 // POST /api/messages/:id/reveal — see which emoji the anonymous reactions are (3 a day)
 router.post('/:id/reveal', async (req, res) => {
   const message = await findMyMessage(req, res);

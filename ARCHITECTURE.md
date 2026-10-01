@@ -183,6 +183,7 @@ person, not once per message.
 | Ticks, reactions (emoji), read state | Document names, sizes and types (inside the ciphertext) |
 | Profile and group photos, chat backgrounds, sticker-pack pictures | Which built-in sticker was sent |
 | Emoji-only messages from someone being ghosted (plain, so the rule can be enforced) | — |
+| Who has opened a 🎁 gift (`unwrappedBy`), and when someone is holding one | Whether a message is a gift at all until it's opened, its mood and reveal style |
 
 `backend/utils/encrypted.js` (`checkEncrypted`) refuses a message that isn't locked for **every**
 current member, or that used a stale `keyId` — the browser then refreshes the member list and tries
@@ -201,7 +202,7 @@ wrapped for them), and **resetting your keys makes your own old messages unreada
 (`text | image | audio | video | file | event`), the encrypted envelope (`ciphertext`, `iv`,
 `senderKey`, `keys[]`), `image` / `media` (URLs of encrypted files), `replyTo`, `reactions[]`,
 `deliveredTo[]` / `readBy[]` with the derived `isDelivered` / `isRead`, `isDeleted`, `deletedFor[]`,
-`editedAt`, `disappearAfter` / `expiresAt` / `disappeared` (⏳ §5), plus `event`, `forgiveness`, `badge` and `ghostClick` for the special kinds.
+`editedAt`, `disappearAfter` / `expiresAt` / `disappeared` (⏳ §5), plus `event`, `forgiveness`, `badge`, `ghostClick` and `unwrappedBy` (🎁 gifts) for the special kinds.
 
 Indexes: `{conversationId, _id}`, `{recipients, isRead}`, `{recipients, isDelivered}`,
 `{conversationId, createdAt}`, and `{expiresAt}` (partial: only messages still waiting to disappear).
@@ -319,8 +320,8 @@ so decryption speed can't reshuffle them.
 
 ### The events
 
-**Browser → server** (only three; everything else is an HTTP call): `typing`, `stopTyping`,
-`almostSaid`, plus the `call:*` signalling. Each is only relayed to a room the socket has actually
+**Browser → server** (only four; everything else is an HTTP call): `typing`, `stopTyping`,
+`almostSaid`, `gift:hold`, plus the `call:*` signalling. Each is only relayed to a room the socket has actually
 joined, so nobody can type into someone else's chat.
 
 **Server → browser:**
@@ -337,6 +338,7 @@ joined, so nobody can type into someone else's chat.
 | `messages:unread` | "Undo seen" put the ticks back |
 | `presence` | Someone came online or went offline (`lastSeen`) |
 | `typing` / `stopTyping` / `almostSaid` | Relayed from the other person |
+| `gift:hold` | 💞 Someone is holding (or let go of) a gift to open it together — `{ messageId, userId, holding }` |
 | `conversation:updated` / `:mute` / `:cleared` / `:removed` / `:ghost` / `:pause` | The chat itself changed |
 | `user:updated` | A profile changed (name, photo, mood) |
 | `keys:changed` | Someone reset their encryption keys — re-fetch them before sending |
@@ -431,6 +433,17 @@ and `backend/routes/chatActions.js`; labels and rules the browser needs are mirr
   travels as **just its id inside the ciphertext**, so the server never learns which one you sent.
   Packs people make are ordinary uploaded pictures (up to 30 per pack, 20 packs each, public or
   "just for me"); sending one encrypts a *copy* of the picture like any photo.
+- **🎁 Gift messages** (`lib/gifts.js`, `GiftPicker`, `GiftReveal`). A text message with
+  `gift: { mood, style, together }` **inside the encrypted payload**, so the server can't tell a gift
+  from any other message. For the receiver it stays wrapped — in the bubble, the chat list, toasts
+  (`messagePreview`) and read-aloud — until they play its reveal; then `POST /messages/:id/unwrap`
+  adds them to `unwrappedBy`, which un-wraps it on their other devices and shows the sender "opened".
+  Gifts can't be edited: an edit re-encrypts `{ text }` alone and would drop the wrapping.
+  **💞 Open together** (one-to-one only) is decided entirely in the two browsers: each sends
+  `gift:hold` while its button is held (repeated every 1.5 s; the other side forgets a hold after
+  3.5 s, so a dropped connection can't leave one stuck), and each opens it once it has seen *both*
+  holds for 1.2 s. If the receiver's "unwrapped" reaches the sender first, the sender's screen opens
+  too. The reveal code (all ten styles) is loaded only when a gift is opened.
 - **🎞️ GIFs** are proxied: the GIPHY key never leaves the server, and the file is downloaded
   server-side (https, a giphy.com host, 5 MB cap — all checked) so the browser can encrypt and send
   it as a normal photo. No key means no GIF tab at all.
@@ -668,7 +681,7 @@ confirmed email address.
 | **conversations** | `GET /conversations`, `POST /conversations`, `POST /conversations/groups`, `PATCH /conversations/:id`, `POST|DELETE /:id/members…`, `POST /:id/admins/:userId`, `GET /:id`, `GET /:id/messages?before=`, `POST /:id/read`, `/:id/accept`, `/:id/decline`, `/:id/mute`, `PUT|DELETE /:id/background`, `PUT /:id/disappearing`, `POST /:id/miss-you`, `/:id/buzz` |
 | **social** | `POST|DELETE /:id/ghost`, `POST /:id/ghost/answer`, `POST|DELETE /:id/pause`, `POST /:id/revive`, `/:id/revive/:messageId`, `POST|DELETE /:id/badges…`, `POST /:id/unread` (undo seen), `GET /:id/insights` |
 | **chat actions** | `DELETE /:id/block` (legacy unblock), `POST /:id/clear`, `DELETE /:id`, `PUT /:id/nickname` |
-| **messages** | `POST /messages`, `PATCH /messages/:id`, `DELETE /messages/:id?for=`, `POST /:id/reaction`, `/:id/opened` (view-once), `/:id/reveal` (anonymous reaction) |
+| **messages** | `POST /messages`, `PATCH /messages/:id`, `DELETE /messages/:id?for=`, `POST /:id/reaction`, `/:id/opened` (view-once), `/:id/reveal` (anonymous reaction), `/:id/unwrap` (🎁 gift opened) |
 | **files** | `POST /upload` (plain image), `POST /upload/encrypted` (raw bytes), `GET /uploads/:name` (public, unguessable) |
 | **keys** | `GET /keys/backup`, `PUT /keys` |
 | **calls** | `GET /calls/config` (ICE servers), `GET /calls/history?before=` |
@@ -699,6 +712,7 @@ verification codes 6/h, key changes 10/h, group changes 60 per 10 min.
 | Add a setting people can toggle | `components/Profile.jsx`, with the value in `localStorage` and a class on `<html>` if it affects the whole app (see `lib/privacy.js`) |
 | Change how a chat is ordered or paged | `routes/conversations.js` (`GET /:id/messages`) and `addOrReplace` in `ChatWindow.jsx` |
 | Send a new kind of email | `backend/utils/mailer.js` — add a template next to `verificationMail` |
+| Add a 🎁 gift mood or reveal style | `frontend/lib/gifts.js` (`MOODS` / `STYLES`), then a stage in `components/GiftReveal.jsx` (`STAGES`) |
 | Touch the crypto | `frontend/lib/e2ee.js` only. Everything else treats it as opaque, and `backend/utils/encrypted.js` is the server's half of the contract |
 
 ---

@@ -1,6 +1,7 @@
 // Date/time helpers for the UI
 import { PAUSE_REASONS, REVIVE_ANSWERS } from './social';
 import { disappearWhen, isGone } from './disappearing';
+import { MOODS, isWrappedFor } from './gifts';
 
 // Built once and reused. Making an Intl formatter is surprisingly slow, and a
 // long chat asks for the time on every bubble, on every render.
@@ -154,6 +155,11 @@ export function messagePreview(message, { nameOf = () => 'Someone', myId = null 
   if (message.forgiveness) return '🕊️ Forgiveness request';
   if (message.sticker || message.stickerImage) return '🌟 Sticker';
   if (message.ghostClick) return '👻 Ghost Click';
+  // 🎁 An unopened gift mustn't spoil itself in the chat list or a notification.
+  // Without myId (a reply quote in the composer) it stays wrapped too.
+  if (message.gift && (!myId || isWrappedFor(message, myId))) {
+    return `🎁 Sent you something ${MOODS[message.gift.mood].emoji}`;
+  }
   if (message.undecryptable) return "🔒 This message can't be decrypted";
   if (message.messageType === 'image') return message.text ? `📷 ${message.text}` : '📷 Photo';
   if (message.messageType === 'file') return `📎 ${message.fileName || 'Document'}`;
