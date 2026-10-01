@@ -5,6 +5,7 @@ import { Camera, Check, Eye, EyeOff, KeyRound, Loader2, LogOut, Trash2 } from 'l
 import { useChat } from './ChatProvider';
 import Avatar from './Avatar';
 import ThemeToggle from './ThemeToggle';
+import LegalFooter from './LegalFooter';
 import { SidePanel } from './UserSearch';
 import { checkImageFile } from './ImagePreview';
 import { api } from '@/lib/client';
@@ -172,6 +173,7 @@ export default function Profile({ onClose }) {
           >
             <LogOut size={18} /> Log out
           </button>
+          <LegalFooter className="px-5 pt-1 pb-5" />
         </div>
       </div>
     </SidePanel>

@@ -11,6 +11,7 @@ import { FORGIVE_COOLDOWN_MS, formatGhost, ghostLevel, isOnlyEmoji } from '../ut
 import { bumpStat, emitMessageUpdate, publishMessage, useDailyAllowance } from '../utils/publish.js';
 import { resumeConversation } from './conversations.js';
 import { checkEncrypted } from '../utils/encrypted.js';
+import { stillVisible } from '../utils/disappearing.js';
 import { getIO, isUserOnline, emitToConversation, conversationRoom, userRoom } from '../socket/io.js';
 
 const REVEALS_PER_DAY = 3;
@@ -67,7 +68,7 @@ router.post('/', messageLimiter, async (req, res) => {
   const recipients = conversation.participants.filter((p) => String(p) !== req.userId);
 
   if (replyTo) {
-    const original = isValidObjectId(replyTo) && (await Message.exists({ _id: replyTo, conversationId }));
+    const original = isValidObjectId(replyTo) && (await Message.exists({ _id: replyTo, conversationId, ...stillVisible() }));
     if (!original) return res.status(404).json({ error: 'The message you are replying to no longer exists.' });
   }
 
@@ -293,7 +294,9 @@ router.post('/:id/reaction', async (req, res) => {
 
   const message = await findMyMessage(req, res);
   if (!message) return;
-  if (message.isDeleted || message.messageType === 'event') return res.status(404).json({ error: 'Message not found.' });
+  if (message.isDeleted || message.disappeared || message.messageType === 'event') {
+    return res.status(404).json({ error: 'Message not found.' });
+  }
 
   // Permanently ghosted or paused chats: no reactions either (emoji reactions are fine otherwise)
   const conversation = await Conversation.findById(message.conversationId).select('type ghost pausedBy blockedBy');

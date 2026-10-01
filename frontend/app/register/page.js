@@ -280,6 +280,13 @@ export default function RegisterPage() {
         <SubmitButton loading={loading} disabled={handle.state === 'taken'}>
           Create account
         </SubmitButton>
+        <p className="text-center text-xs text-muted">
+          By creating an account, you agree to our{' '}
+          <Link href="/terms" target="_blank" className="font-medium text-brand hover:underline">
+            Terms of Service
+          </Link>
+          .
+        </p>
       </form>
     </AuthCard>
   );

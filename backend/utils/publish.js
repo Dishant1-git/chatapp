@@ -2,17 +2,24 @@ import Message, { REPLY_FIELDS } from '../models/Message.js';
 import User from '../models/User.js';
 import Conversation from '../models/Conversation.js';
 import { getIO, conversationRoom, userRoom, isUserOnline } from '../socket/io.js';
+import { disappearAfterFor } from './disappearing.js';
 
 // Saves a message, makes it the conversation's last message and pushes it to
 // everyone in the chat. Messages are never broadcast before they're saved.
 export async function publishMessage(conversation, fields, clientId = null) {
   const recipients = (fields.recipients || []).map(String);
   const deliveredTo = (fields.deliveredTo || []).map(String);
+  // ⏳ In a chat with disappearing messages on, the clock starts once it's seen —
+  // straight away if there's nobody else to see it
+  const disappearAfter = disappearAfterFor(conversation, fields);
+  const isRead = recipients.length === 0;
   const message = await Message.create({
     conversationId: conversation._id,
     ...fields,
+    disappearAfter,
+    expiresAt: disappearAfter && isRead ? new Date(Date.now() + disappearAfter * 1000) : null,
     isDelivered: recipients.every((id) => deliveredTo.includes(id)),
-    isRead: recipients.length === 0,
+    isRead,
   });
   if (message.replyTo) await message.populate('replyTo', REPLY_FIELDS);
 

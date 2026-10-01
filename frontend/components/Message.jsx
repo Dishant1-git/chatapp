@@ -16,6 +16,7 @@ import {
   Reply,
   RotateCw,
   Trash2,
+  Timer,
   Volume2,
 } from 'lucide-react';
 import { speak } from '@/lib/accessibility';
@@ -281,6 +282,10 @@ function Message({
   const time = (
     <>
       {isEdited && <span className="italic">edited</span>}
+      {/* ⏳ This one will disappear once it's been seen */}
+      {message.disappearAfter > 0 && !isDeleted && (
+        <Timer size={11} className="shrink-0" aria-label="Disappearing message" />
+      )}
       {formatTime(message.createdAt)}
       {isMine && !isDeleted && <MessageTicks message={message} onBrand={!imageOnly && !isVideoNote && !bare} />}
     </>
@@ -455,11 +460,13 @@ function Message({
               className={`private text-[15px] leading-snug break-words whitespace-pre-wrap ${hasImage ? 'px-1.5 pt-1' : ''}`}
             >
               <Linkified text={message.text} />
-              {/* Spacer so the time never overlaps the last line of text */}
+              {/* Spacer so the time never overlaps the last line of text
+                  (a little wider when the ⏳ timer sits next to it) */}
               <span
-                className={`inline-block ${
-                  isMine ? (isEdited ? 'w-[7.4rem]' : 'w-[4.6rem]') : isEdited ? 'w-[5.8rem]' : 'w-12'
-                }`}
+                className="inline-block"
+                style={{
+                  width: `${(isMine ? (isEdited ? 7.4 : 4.6) : isEdited ? 5.8 : 3) + (message.disappearAfter > 0 ? 1 : 0)}rem`,
+                }}
               />
             </p>
           )}

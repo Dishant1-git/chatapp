@@ -1,5 +1,6 @@
 // Date/time helpers for the UI
 import { PAUSE_REASONS, REVIVE_ANSWERS } from './social';
+import { disappearWhen, isGone } from './disappearing';
 
 // Built once and reused. Making an Intl formatter is surprisingly slow, and a
 // long chat asks for the time on every bubble, on every render.
@@ -126,6 +127,11 @@ export function describeEvent(message, nameOf, myId) {
       if (!event.name) return isMine ? `You removed ${targets}’s nickname` : `${actor} removed your nickname`;
       return isMine ? `💖 You named ${targets} “${event.name}”` : `💖 ${actor} named you “${event.name}”`;
     }
+    case 'disappearing': {
+      const who = String(message.senderId) === myId ? 'You' : actor;
+      if (!event.duration) return `⏳ ${who} turned off disappearing messages`;
+      return `⏳ ${who} turned on disappearing messages. New messages will disappear ${disappearWhen(event.duration)}.`;
+    }
     case 'call': {
       const kind = event.video ? 'video call' : 'voice call';
       if (event.duration) return `${event.video ? 'Video' : 'Voice'} call · ${formatDuration(event.duration)}`;
@@ -142,6 +148,7 @@ export function describeEvent(message, nameOf, myId) {
 // Short preview of a message for the chat list, notifications and reply quotes
 export function messagePreview(message, { nameOf = () => 'Someone', myId = null } = {}) {
   if (!message) return '';
+  if (isGone(message)) return '⏳ This message disappeared';
   if (message.isDeleted) return 'This message was deleted';
   if (message.messageType === 'event') return describeEvent(message, nameOf, myId);
   if (message.forgiveness) return '🕊️ Forgiveness request';

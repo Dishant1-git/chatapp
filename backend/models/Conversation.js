@@ -84,6 +84,9 @@ const conversationSchema = new mongoose.Schema(
     // 💖 One-to-one chats: nicknames, userId → the nickname the other person gave them.
     // Both people see it.
     nicknames: { type: Map, of: String, default: {} },
+    // ⏳ Disappearing messages: seconds a new message lives for (0 = off).
+    // One of DISAPPEAR_OPTIONS in utils/disappearing.js.
+    disappearAfter: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
@@ -113,7 +116,9 @@ export function formatConversation(conversation, userId, unreadCount = 0) {
   if (lastMessage) {
     const hiddenForMe = (lastMessage.deletedFor || []).some((id) => String(id) === String(userId));
     const { deletedFor, __v, ...rest } = lastMessage;
-    lastMessage = hiddenForMe ? null : { ...rest, reactions: maskReactions(rest.reactions, userId) };
+    // ⏳ A message that disappeared isn't previewed either
+    const gone = rest.disappeared || (rest.expiresAt && new Date(rest.expiresAt) <= new Date());
+    lastMessage = hiddenForMe || gone ? null : { ...rest, reactions: maskReactions(rest.reactions, userId) };
   }
 
   const result = {
@@ -130,6 +135,7 @@ export function formatConversation(conversation, userId, unreadCount = 0) {
     background: conv.background?.url
       ? { url: conv.background.url, dim: conv.background.dim, by: String(conv.background.by) }
       : null,
+    disappearAfter: conv.disappearAfter || 0,
   };
 
   if (result.type === 'group') {

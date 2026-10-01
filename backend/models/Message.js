@@ -73,6 +73,7 @@ const eventSchema = new mongoose.Schema(
         'returned', // … and came back
         'revive', // "Should we revive this?" on a dead chat
         'nickname', // 💖 someone gave the other person a nickname (name: the nickname, '' = removed)
+        'disappearing', // ⏳ disappearing messages changed (duration: seconds, 0 = off)
       ],
       required: true,
     },
@@ -154,6 +155,15 @@ const messageSchema = new mongoose.Schema(
     deletedFor: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     // ✏️ When the sender last edited it (text messages only)
     editedAt: { type: Date, default: null },
+    // ⏳ Disappearing messages: how long it lives once it's been seen (seconds,
+    // 0 = it stays), taken from the chat's setting when it was sent. The clock
+    // starts when every recipient has read it: that's when expiresAt is set (see
+    // REFRESH_TICKS). Once it's gone the content is wiped and `disappeared` is set;
+    // the bare row (who, when) is kept so streaks and "read the vibe" still add up.
+    // See utils/disappearing.js
+    disappearAfter: { type: Number, default: 0 },
+    expiresAt: { type: Date, default: null },
+    disappeared: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -165,17 +175,41 @@ messageSchema.index({ recipients: 1, isRead: 1 });
 messageSchema.index({ recipients: 1, isDelivered: 1 });
 // 🔥 Streaks and the call log look at a date range inside one conversation
 messageSchema.index({ conversationId: 1, createdAt: -1 });
+// ⏳ The sweep looks for messages whose time is up. Only messages that are still
+// waiting to disappear are in this index.
+messageSchema.index({ expiresAt: 1 }, { partialFilterExpression: { expiresAt: { $type: 'date' } } });
 
 // Fields of the quoted message loaded with a reply
-export const REPLY_FIELDS = 'text image media messageType senderId isDeleted ciphertext iv senderKey keys';
+export const REPLY_FIELDS =
+  'text image media messageType senderId isDeleted ciphertext iv senderKey keys disappearAfter expiresAt disappeared';
 
 // Recomputes isDelivered / isRead after deliveredTo / readBy changed.
 // Written as an update pipeline so MongoDB does it in one step.
+// ⏳ It also runs the disappearing clock: a disappearing message that has just
+// been seen by everyone starts counting down now (a countdown already running is
+// kept), and one that is no longer read by everyone ("undo seen") stops again.
 export const REFRESH_TICKS = [
   {
     $set: {
       isDelivered: { $setIsSubset: ['$recipients', { $ifNull: ['$deliveredTo', []] }] },
       isRead: { $setIsSubset: ['$recipients', { $ifNull: ['$readBy', []] }] },
+    },
+  },
+  {
+    $set: {
+      expiresAt: {
+        $cond: [
+          { $and: [{ $gt: [{ $ifNull: ['$disappearAfter', 0] }, 0] }, { $ne: ['$disappeared', true] }] },
+          {
+            $cond: [
+              '$isRead',
+              { $ifNull: ['$expiresAt', { $add: ['$$NOW', { $multiply: ['$disappearAfter', 1000] }] }] },
+              null,
+            ],
+          },
+          { $ifNull: ['$expiresAt', null] },
+        ],
+      },
     },
   },
 ];

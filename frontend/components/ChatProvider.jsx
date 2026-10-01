@@ -370,6 +370,13 @@ export default function ChatProvider({ children }) {
       );
     }
 
+    // ⏳ Messages disappeared: the chat list stops previewing the last one
+    function handleDisappeared({ conversationId, messageIds }) {
+      updateConversation(conversationId, (c) =>
+        c.lastMessage && messageIds.includes(c.lastMessage._id) ? { lastMessage: null } : {}
+      );
+    }
+
     function handleRead({ conversationId, readerId }) {
       const myId = userRef.current?._id;
       updateConversation(conversationId, (c) => {
@@ -421,6 +428,7 @@ export default function ChatProvider({ children }) {
     socket.on('typing', handleTyping);
     socket.on('stopTyping', handleStopTyping);
     socket.on('message:deleted', handleDeleted);
+    socket.on('messages:disappeared', handleDisappeared);
     socket.on('messages:read', handleRead);
     socket.on('messages:delivered', handleDelivered);
     socket.on('conversation:mute', handleMute);
@@ -440,6 +448,7 @@ export default function ChatProvider({ children }) {
       socket.off('typing', handleTyping);
       socket.off('stopTyping', handleStopTyping);
       socket.off('message:deleted', handleDeleted);
+      socket.off('messages:disappeared', handleDisappeared);
       socket.off('messages:read', handleRead);
       socket.off('messages:delivered', handleDelivered);
       socket.off('conversation:mute', handleMute);

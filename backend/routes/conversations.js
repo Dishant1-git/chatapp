@@ -11,6 +11,7 @@ import { deleteImage, saveImage } from '../utils/storage.js';
 import { publishEvent } from '../utils/publish.js';
 import { ghostLevel } from '../utils/ghost.js';
 import { parseOffset, streaksFor } from '../utils/streak.js';
+import { DISAPPEAR_OPTIONS, announceCountdowns, stillVisible } from '../utils/disappearing.js';
 import { getIO, userRoom, conversationRoom, emitToConversation } from '../socket/io.js';
 import { leaveCallsFor } from '../socket/calls.js';
 
@@ -446,7 +447,8 @@ router.get('/:id/messages', async (req, res) => {
   const conversation = await findMyConversation(req, res);
   if (!conversation) return;
 
-  const filter = { conversationId: conversation._id, deletedFor: { $ne: req.userId } };
+  // ⏳ Messages that disappeared aren't shown at all, not even as "deleted"
+  const filter = { conversationId: conversation._id, deletedFor: { $ne: req.userId }, ...stillVisible() };
   const before = req.query.before;
   if (before && isValidObjectId(before)) filter._id = { $lt: before };
 
@@ -474,8 +476,15 @@ router.post('/:id/read', async (req, res) => {
   if (String(conversation.requestFor || '') === req.userId) return res.json({ updated: 0 });
 
   const me = new mongoose.Types.ObjectId(req.userId);
+  // ⏳ Which ones this read touches, so the disappearing ones whose clock it
+  // starts can be announced
+  const unread = await Message.find({ conversationId: conversation._id, recipients: me, isRead: false, readBy: { $ne: me } })
+    .select('_id disappearAfter')
+    .lean();
+  if (!unread.length) return res.json({ updated: 0 });
+
   const result = await Message.updateMany(
-    { conversationId: conversation._id, recipients: me, isRead: false, readBy: { $ne: me } },
+    { _id: { $in: unread.map((m) => m._id) }, readBy: { $ne: me } },
     [
       {
         $set: {
@@ -493,6 +502,8 @@ router.post('/:id/read', async (req, res) => {
       conversationId: String(conversation._id),
       readerId: req.userId,
     });
+    const disappearing = unread.filter((m) => m.disappearAfter > 0).map((m) => m._id);
+    await announceCountdowns(conversation._id, disappearing);
   }
 
   res.json({ updated: result.modifiedCount });
@@ -563,6 +574,45 @@ function broadcastBackground(conversation) {
     },
   });
 }
+
+// ⏳ PUT /api/conversations/:id/disappearing { seconds } — how long new messages
+// last in this chat (0 = they stay). Messages already sent keep the timer they had.
+// One-to-one: either person. Groups: admins only.
+router.put('/:id/disappearing', groupLimiter, async (req, res) => {
+  const conversation = await findMyConversation(req, res);
+  if (!conversation) return;
+
+  const seconds = Number(req.body?.seconds);
+  if (!DISAPPEAR_OPTIONS.includes(seconds)) return badRequest(res, 'Please pick one of the options.');
+
+  if (conversation.type === 'group') {
+    if (!conversation.admins.some((a) => String(a) === req.userId)) {
+      return res.status(403).json({ error: 'Only group admins can change this.' });
+    }
+  } else {
+    const blocked = blockError(conversation, req.userId);
+    if (blocked) return res.status(403).json({ error: blocked });
+    if (notAcceptedYet(conversation, req, res)) return;
+    // Being ghosted or stepped away from limits what you can do to their chat
+    if (conversation.ghost?.by && String(conversation.ghost.by) !== req.userId) {
+      return res.status(403).json({ error: "You can't change this while they're ghosting you." });
+    }
+    if (conversation.pausedBy?.by && String(conversation.pausedBy.by) !== req.userId) {
+      return res.status(403).json({ error: "They're taking some space right now." });
+    }
+  }
+
+  if ((conversation.disappearAfter || 0) === seconds) return res.json({ disappearAfter: seconds });
+
+  conversation.disappearAfter = seconds;
+  await conversation.save();
+  // A note in the chat, so nobody is surprised when messages start vanishing
+  const message = await publishEvent(conversation, req.userId, { type: 'disappearing', duration: seconds });
+  emitToConversation(conversation._id, 'conversation:updated', {
+    conversation: { _id: String(conversation._id), disappearAfter: seconds },
+  });
+  res.json({ disappearAfter: seconds, message });
+});
 
 const MISS_YOU_COOLDOWN_MS = 60 * 1000;
 const BUZZ_COOLDOWN_MS = 15 * 1000;

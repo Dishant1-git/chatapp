@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, ChevronsDown, X, Heart, Loader2, Lock, MessageSquareOff, Pencil, Phone, PhoneCall, Video } from 'lucide-react';
+import { ArrowLeft, ChevronsDown, X, Heart, Loader2, Lock, MessageSquareOff, Pencil, Phone, PhoneCall, Timer, Video } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import { useCalls } from './CallProvider';
 import { ChatAvatar } from './Avatar';
@@ -27,6 +27,7 @@ import {
   BackgroundDialog,
   BadgeDialog,
   ConfirmDialog,
+  DisappearingDialog,
   EditMessageDialog,
   GhostDialog,
   LeaveDialog,
@@ -39,6 +40,7 @@ import { backgroundStyle } from '@/lib/chatBackground';
 import { api } from '@/lib/client';
 import { MOODS, PAUSE_REASONS, REVIVE_ANSWERS, isDeadChat, shakeElement, timezoneOffset } from '@/lib/social';
 import { describeEvent, formatDayDivider, formatLastSeen, formatTime, isDifferentDay } from '@/lib/format';
+import { disappearWhen, isGone } from '@/lib/disappearing';
 import { decryptImage, decryptMedia, encryptFile, encryptMessage, openMessage, openMessages, prepareImage, rememberImage } from '@/lib/e2ee';
 import {
   conversationTitle,
@@ -89,6 +91,25 @@ function addOrReplace(list, message, clientId, { keepExisting = false } = {}) {
 }
 
 // Notes that get a little moment on screen the first time I see them
+// ⏳ Disappearing messages: takes out the ones that are gone (by id, or because
+// their time is up), and blanks quotes of them. Returns the same list if nothing went.
+function withoutGone(list, ids = []) {
+  const now = Date.now();
+  const goneIds = new Set(ids);
+  const gone = (m) => goneIds.has(m._id) || isGone(m, now);
+  if (!list.some((m) => gone(m) || (m.replyTo && !m.replyTo.disappeared && gone(m.replyTo)))) return list;
+  return list
+    .filter((m) => !gone(m))
+    .map((m) =>
+      m.replyTo && !m.replyTo.disappeared && gone(m.replyTo)
+        ? { ...m, replyTo: { ...m.replyTo, disappeared: true, text: '', image: '', media: '' } }
+        : m
+    );
+}
+
+// A long countdown is checked again after a day rather than in one huge timer
+const MAX_TIMER_MS = 24 * 60 * 60 * 1000;
+
 const MOMENT_EVENTS = ['missYou', 'buzz', 'forgiven', 'stillGhosted', 'nickname'];
 
 // One of those notes from the other person that I haven't seen yet
@@ -457,6 +478,25 @@ export default function ChatWindow({ conversationId }) {
         .catch(() => {});
     }
 
+    // ⏳ Messages were seen, and their disappearing clock started
+    function onExpiring({ conversationId: id, messages: counting }) {
+      if (id !== conversationId) return;
+      const when = new Map(counting.map((m) => [m._id, m.expiresAt]));
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (when.has(m._id)) return { ...m, expiresAt: when.get(m._id) };
+          if (m.replyTo && when.has(m.replyTo._id)) return { ...m, replyTo: { ...m.replyTo, expiresAt: when.get(m.replyTo._id) } };
+          return m;
+        })
+      );
+    }
+
+    // ⏳ The server wiped messages whose time was up
+    function onDisappeared({ conversationId: id, messageIds }) {
+      if (id !== conversationId) return;
+      setMessages((prev) => withoutGone(prev, messageIds));
+    }
+
     // 🧹 I cleared this chat (maybe in another tab)
     function onCleared({ conversationId: id }) {
       if (id !== conversationId) return;
@@ -467,9 +507,17 @@ export default function ChatWindow({ conversationId }) {
     }
 
     // They used "undo seen": my ticks go back to delivered
-    function onUnread({ conversationId: id, readerId }) {
-      if (id !== conversationId || readerId === myId) return;
-      setMessages((prev) => prev.map((m) => (m.senderId === myId ? markUnreadBy(m, readerId) : m)));
+    // ⏳ Unseen again, so their disappearing clock stops (for the reader too)
+    function onUnread({ conversationId: id, readerId, messageIds = [] }) {
+      if (id !== conversationId) return;
+      const unseen = new Set(messageIds);
+      setMessages((prev) =>
+        prev.map((m) => {
+          let next = unseen.has(m._id) && m.expiresAt ? { ...m, expiresAt: null } : m;
+          if (readerId !== myId && next.senderId === myId) next = markUnreadBy(next, readerId);
+          return next;
+        })
+      );
     }
 
     // 🫥 They typed something... then deleted it
@@ -509,6 +557,8 @@ export default function ChatWindow({ conversationId }) {
     socket.on('message:deleted', onDeleted);
     socket.on('message:reaction', onReaction);
     socket.on('message:updated', onUpdated);
+    socket.on('messages:expiring', onExpiring);
+    socket.on('messages:disappeared', onDisappeared);
     socket.on('conversation:cleared', onCleared);
     socket.on('messages:read', onRead);
     socket.on('messages:unread', onUnread);
@@ -521,6 +571,8 @@ export default function ChatWindow({ conversationId }) {
       socket.off('message:deleted', onDeleted);
       socket.off('message:reaction', onReaction);
       socket.off('message:updated', onUpdated);
+      socket.off('messages:expiring', onExpiring);
+      socket.off('messages:disappeared', onDisappeared);
       socket.off('conversation:cleared', onCleared);
       socket.off('messages:read', onRead);
       socket.off('messages:unread', onUnread);
@@ -529,6 +581,26 @@ export default function ChatWindow({ conversationId }) {
       socket.off('connect', onReconnect);
     };
   }, [socket, conversationId, myId, readNow, showMoment]);
+
+  // ⏳ Take a message off the screen the moment its time is up, without waiting
+  // for the server's sweep (which runs every 5 seconds)
+  useEffect(() => {
+    const now = Date.now();
+    let next = Infinity;
+    for (const m of messages) {
+      for (const when of [m.expiresAt, m.replyTo?.disappeared ? null : m.replyTo?.expiresAt]) {
+        const at = when ? new Date(when).getTime() : Infinity;
+        if (at < next) next = at;
+      }
+    }
+    if (next === Infinity) return;
+    if (next <= now) {
+      setMessages((prev) => withoutGone(prev));
+      return;
+    }
+    const timer = setTimeout(() => setMessages((prev) => withoutGone(prev)), Math.min(next - now + 50, MAX_TIMER_MS));
+    return () => clearTimeout(timer);
+  }, [messages]);
 
   // Coming back to the tab counts as reading the new messages
   useEffect(() => {
@@ -1194,6 +1266,11 @@ export default function ChatWindow({ conversationId }) {
   // 💖 Nicknames: the one I gave them, and the one they gave me
   const theirNickname = isGroupChat ? '' : nicknameOf(conversation, otherUser?._id);
   const myNickname = isGroupChat ? '' : nicknameOf(conversation, myId);
+  const disappearing = disappearWhen(conversation?.disappearAfter);
+  // Same rule as the ⋮ menu: group admins, or either person unless they're ghosting me
+  const canSetDisappearing = isGroupChat
+    ? (conversation?.admins || []).includes(myId)
+    : !(conversation?.ghost && conversation.ghost.by !== myId);
   const hasPendingRevive = messages.some((m) => m.event?.type === 'revive' && !m.event.answer);
 
   return (
@@ -1261,9 +1338,20 @@ export default function ChatWindow({ conversationId }) {
         )}
       </header>
 
-      {/* 🧩 Inside jokes, and 💖 the nickname they gave me */}
-      {(badges.length > 0 || myNickname) && (
+      {/* 🧩 Inside jokes, 💖 the nickname they gave me, and ⏳ disappearing messages */}
+      {(badges.length > 0 || myNickname || disappearing) && (
         <div className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-line bg-panel px-3 py-1.5 md:px-4">
+          {disappearing && (
+            <button
+              type="button"
+              onClick={() => setDialog('disappearing')}
+              disabled={!canSetDisappearing}
+              className="flex shrink-0 items-center gap-1 rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-medium text-brand disabled:cursor-default"
+              title="Disappearing messages"
+            >
+              <Timer size={12} aria-hidden /> Messages disappear {disappearing}
+            </button>
+          )}
           {myNickname && (
             <span className="flex shrink-0 items-center gap-1 rounded-full bg-pink-100 px-2.5 py-0.5 text-xs font-medium text-pink-700 dark:bg-pink-400/15 dark:text-pink-300">
               💖 {otherUser?.name?.split(' ')[0]} calls you “{myNickname}”
@@ -1595,6 +1683,21 @@ export default function ChatWindow({ conversationId }) {
             onClose={closeDialog}
             onError={showNotice}
             onChanged={(updated) => updateConversation(conversationId, { ghost: updated })}
+          />
+        )}
+        {dialog === 'disappearing' && conversation && (
+          <DisappearingDialog
+            key="disappearing-dialog"
+            conversation={conversation}
+            onClose={closeDialog}
+            onError={showNotice}
+            onChanged={({ disappearAfter, message }) => {
+              updateConversation(conversationId, { disappearAfter });
+              if (message) {
+                stickToBottom.current = true;
+                setMessages((prev) => addOrReplace(prev, message));
+              }
+            }}
           />
         )}
         {dialog === 'leave' && conversation && (

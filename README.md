@@ -24,7 +24,7 @@ and **password reset** by code, profiles with photos, user search by name or han
 **group chats** (admins, add/remove members, rename, group photo), **end-to-end encrypted**
 messages and photos, **voice and video calls** (one-to-one and groups of up to 6),
 real-time messages, online status and last seen, typing indicator, sent/delivered/read ticks,
-photo sharing, **document sharing**, reactions, replies (swipe a message to the right), editing your
+photo sharing, **document sharing**, **disappearing messages** (instantly, or 1, 2, 4, 8 or 24 hours after they're seen, per chat), reactions, replies (swipe a message to the right), editing your
 own messages, **Friends / Groups / Requests tabs** over the chat list, a **call log**, in-app notifications with unread counts, delete for
 me/everyone, message pagination, **skeleton placeholders** while things load, and light/dark mode.
 

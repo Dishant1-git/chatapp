@@ -3,6 +3,7 @@
 import { useId, useState } from 'react';
 import { Check, Eye, EyeOff, X } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
+import LegalFooter from './LegalFooter';
 import { passwordRules, passwordStrength } from '@/lib/password';
 
 // Shared frame for the login, sign-up, verification and reset pages.
@@ -42,6 +43,7 @@ export default function AuthCard({ title, subtitle, children, footer, greeting =
         </div>
 
         <p className="mt-6 text-center text-sm text-muted">{footer}</p>
+        <LegalFooter className="mt-4 text-center" />
       </div>
     </main>
   );

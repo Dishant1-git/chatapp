@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Brain, DoorOpen, EllipsisVertical, Eraser, Ghost, Heart, Image, Puzzle, Vibrate } from 'lucide-react';
+import { Brain, DoorOpen, EllipsisVertical, Eraser, Ghost, Heart, Image, Puzzle, Timer, Vibrate } from 'lucide-react';
 import { GHOST_LEVEL_INFO } from '@/lib/ghost';
+import { disappearLabel } from '@/lib/disappearing';
 
 // The ⋮ menu in the chat header. 💕 Miss you and 📳 buzz work here; the rest
-// opens a dialog owned by ChatWindow (onOpen('ghost' | 'vibe' | 'badge' | 'leave' | 'clear')).
+// opens a dialog owned by ChatWindow (onOpen('ghost' | 'disappearing' | 'vibe' | 'badge' | 'leave' | 'clear')).
 // Mute, Trusted Ghosts and Delete chat are in the chat list's right-click menu.
 export default function ChatMenu({ conversation, myId, onOpen, onMissYou, onBuzz, isBusy }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -20,6 +21,11 @@ export default function ChatMenu({ conversation, myId, onOpen, onMissYou, onBuzz
   const isRequest = Boolean(conversation.isRequest || conversation.awaitingAccept);
   const ghostedByMe = ghost?.by === myId;
   const ghostedByThem = Boolean(ghost) && !ghostedByMe;
+  // ⏳ In a group only admins can change it; everyone can see what it's set to
+  const isAdmin = !isDirect && (conversation.admins || []).includes(myId);
+  const disappearing = disappearLabel(conversation.disappearAfter);
+  const disappearingState = disappearing ? `On · ${disappearing}` : 'Off';
+  const disappearingHint = !isDirect && !isAdmin ? `${disappearingState} · admins can change it` : disappearingState;
 
   // Close the menu when tapping anywhere else
   useEffect(() => {
@@ -91,6 +97,15 @@ export default function ChatMenu({ conversation, myId, onOpen, onMissYou, onBuzz
               hint={ghostedByThem ? `${otherUser.name} is ghosting you` : ''}
               disabled={ghostedByThem}
               onClick={() => open('ghost')}
+            />
+          )}
+          {!isRequest && (
+            <MenuItem
+              icon={Timer}
+              label="⏳ Disappearing messages"
+              hint={ghostedByThem && isDirect ? `${otherUser?.name} is ghosting you` : disappearingHint}
+              disabled={(isDirect && ghostedByThem) || (!isDirect && !isAdmin)}
+              onClick={() => open('disappearing')}
             />
           )}
           {!isRequest && (

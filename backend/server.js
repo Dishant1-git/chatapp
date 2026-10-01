@@ -6,6 +6,7 @@ import { migrate } from './config/migrate.js';
 import { setupSocket } from './socket/index.js';
 import User from './models/User.js';
 import { startScheduler } from './utils/scheduler.js';
+import { startDisappearingSweep } from './utils/disappearing.js';
 import { mailerReady } from './utils/mailer.js';
 
 dotenv.config({ quiet: true });
@@ -52,3 +53,5 @@ await migrate();
 await User.updateMany({ isOnline: true }, { isOnline: false });
 // ⏰ Send scheduled messages when their time comes
 startScheduler();
+// ⏳ Wipe messages whose time is up in chats with disappearing messages
+startDisappearingSweep();

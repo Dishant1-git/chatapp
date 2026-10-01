@@ -201,10 +201,10 @@ wrapped for them), and **resetting your keys makes your own old messages unreada
 (`text | image | audio | video | file | event`), the encrypted envelope (`ciphertext`, `iv`,
 `senderKey`, `keys[]`), `image` / `media` (URLs of encrypted files), `replyTo`, `reactions[]`,
 `deliveredTo[]` / `readBy[]` with the derived `isDelivered` / `isRead`, `isDeleted`, `deletedFor[]`,
-`editedAt`, plus `event`, `forgiveness`, `badge` and `ghostClick` for the special kinds.
+`editedAt`, `disappearAfter` / `expiresAt` / `disappeared` (⏳ §5), plus `event`, `forgiveness`, `badge` and `ghostClick` for the special kinds.
 
 Indexes: `{conversationId, _id}`, `{recipients, isRead}`, `{recipients, isDelivered}`,
-`{conversationId, createdAt}`.
+`{conversationId, createdAt}`, and `{expiresAt}` (partial: only messages still waiting to disappear).
 
 ### Sending
 
@@ -243,6 +243,34 @@ The chat-list preview follows the same rule — an older message can't replace a
   which is also how the decryption cache knows to redo it.
 - "Delete for me" adds you to `deletedFor`; "delete for everyone" wipes the content, sets
   `isDeleted` and deletes the files.
+
+### ⏳ Disappearing messages
+
+A chat's `disappearAfter` (seconds after being seen: 0 = off, 10 = "instantly", or 1, 2, 4, 8 or 24 hours —
+`DISAPPEAR_OPTIONS` in `backend/utils/disappearing.js`, mirrored in `frontend/lib/disappearing.js`) is set with
+`PUT /api/conversations/:id/disappearing`. Either person can change it in a one-to-one chat (not while
+the other is ghosting you or has stepped away, and not before a request is accepted); in a group,
+admins only. Every change posts a `disappearing` note so nobody is caught out.
+
+- **The clock starts when a message has been seen.** `publishMessage` copies the chat's setting onto
+  the message as its own `disappearAfter`, so changing the setting never touches messages already
+  sent. `expiresAt` stays empty until **every** recipient has read it (in a group, the last reader
+  starts it); the second stage of `REFRESH_TICKS` sets it to *now + disappearAfter* the moment
+  `isRead` turns true, and clears it again if `isRead` turns false (👀 undo seen). Since every
+  change to read state goes through `REFRESH_TICKS` — reading, undo seen, delivery — that's the only
+  place the clock lives. A message nobody reads never disappears. With no recipients at all it starts
+  at once. `POST /:id/read` then emits `messages:expiring` with the new `expiresAt`s so open chats
+  know when to drop them. Notes (`event`) and forgiveness requests never disappear.
+- **A sweep every 5 seconds** (`sweepExpired`, started in `server.js`) finds what's due, wipes it
+  like *delete for everyone* — text, ciphertext, keys, files, reactions, the reply link — sets
+  `disappeared` and clears `expiresAt`, then emits `messages:disappeared` once per chat.
+- **The row stays**, holding only sender, recipients and time, because 🔥 streaks and 🧠 read the vibe
+  count rows. That's metadata the server sees anyway (§4), and it's what the Terms page promises.
+- **Nothing lists it.** `stillVisible()` keeps it out of the message pages (including messages whose
+  time is up but the sweep hasn't reached yet), it can't be replied to or reacted to, the chat list
+  stops previewing it, and it's marked read so it doesn't count as unread. The browser doesn't wait
+  for the sweep either: `ChatWindow` sets a timer for the next `expiresAt` and drops it on time.
+  A quote of a message that disappeared reads "⏳ This message disappeared".
 
 ### Attachments
 
@@ -302,6 +330,8 @@ joined, so nobody can type into someone else's chat.
 | `message:new` | A message was saved — `{ message, clientId }` |
 | `message:updated` | Part of a message changed (a forgiveness answer, a revive reply, a badge) |
 | `message:deleted` | Deleted for everyone |
+| `messages:expiring` | ⏳ `{ conversationId, messages: [{ _id, expiresAt }] }` — seen by everyone, the countdown started |
+| `messages:disappeared` | ⏳ `{ conversationId, messageIds }` — their time was up and they were wiped |
 | `message:reaction` | Reactions changed |
 | `messages:delivered` / `messages:read` | Ticks moved |
 | `messages:unread` | "Undo seen" put the ticks back |
@@ -452,6 +482,7 @@ chats only. Up to 20 recipients per message, 50 pending per person, a year ahead
 | `/login`, `/register`, `/forgot`, `/verify` | Auth screens, all built on `AuthCard` |
 | `/chat` | The shell: chat list, and "pick a conversation" |
 | `/chat/[id]` | A conversation |
+| `/terms` | Terms of Service and copyright notice. Public: not in the proxy matcher, so it opens logged in or out |
 
 `app/chat/layout.js` stays mounted while you move between chats, so the socket and the conversation
 list survive navigation.
@@ -608,11 +639,11 @@ sorted for a direct chat, `group:<random>` otherwise, which is what makes duplic
 impossible), `name` / `image` / `admins[]` / `createdBy` for groups, `lastMessage` +
 `lastMessageAt`, `mutedBy[]`, `background`, `ghost`, `pausedBy`, `badges[]` (max 5), `blockedBy[]`
 (legacy unblock, and 👻 ghost forever), `hiddenFor[]` (deleted chats), `requestFor` (📬 who still has
-to accept, `null` once they have), `nicknames` (map).
+to accept, `null` once they have), `nicknames` (map), `disappearAfter` (⏳ seconds after being seen, 0 = off).
 
 **`messages`** — see §5. The `event` sub-document covers group changes and everything social:
 `created`, `added`, `removed`, `left`, `renamed`, `photo`, `call`, `missYou`, `buzz`, `forgiven`,
-`stillGhosted`, `paused`, `returned`, `revive`, `nickname`.
+`stillGhosted`, `paused`, `returned`, `revive`, `nickname`, `disappearing`.
 
 **`emailcodes`** — one live code per account per purpose (`verify` | `reset`): the hash, `expiresAt`
 (TTL index), `attempts`.
@@ -634,7 +665,7 @@ confirmed email address.
 | --- | --- |
 | **auth** | `POST /auth/register`, `/auth/login`, `/auth/logout`, `GET /auth/me`, `POST /auth/verify`, `/auth/verify/resend`, `GET /auth/username?u=`, `POST /auth/password/forgot`, `/password/reset`, `/password/change` |
 | **users** | `GET /users/search?q=`, `PATCH /users/me`, `PUT|DELETE /users/me/trusted/:userId` |
-| **conversations** | `GET /conversations`, `POST /conversations`, `POST /conversations/groups`, `PATCH /conversations/:id`, `POST|DELETE /:id/members…`, `POST /:id/admins/:userId`, `GET /:id`, `GET /:id/messages?before=`, `POST /:id/read`, `/:id/accept`, `/:id/decline`, `/:id/mute`, `PUT|DELETE /:id/background`, `POST /:id/miss-you`, `/:id/buzz` |
+| **conversations** | `GET /conversations`, `POST /conversations`, `POST /conversations/groups`, `PATCH /conversations/:id`, `POST|DELETE /:id/members…`, `POST /:id/admins/:userId`, `GET /:id`, `GET /:id/messages?before=`, `POST /:id/read`, `/:id/accept`, `/:id/decline`, `/:id/mute`, `PUT|DELETE /:id/background`, `PUT /:id/disappearing`, `POST /:id/miss-you`, `/:id/buzz` |
 | **social** | `POST|DELETE /:id/ghost`, `POST /:id/ghost/answer`, `POST|DELETE /:id/pause`, `POST /:id/revive`, `/:id/revive/:messageId`, `POST|DELETE /:id/badges…`, `POST /:id/unread` (undo seen), `GET /:id/insights` |
 | **chat actions** | `DELETE /:id/block` (legacy unblock), `POST /:id/clear`, `DELETE /:id`, `PUT /:id/nickname` |
 | **messages** | `POST /messages`, `PATCH /messages/:id`, `DELETE /messages/:id?for=`, `POST /:id/reaction`, `/:id/opened` (view-once), `/:id/reveal` (anonymous reaction) |

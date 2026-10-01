@@ -9,6 +9,7 @@ import { api } from '@/lib/client';
 import { prepareImage } from '@/lib/e2ee';
 import { backgroundStyle } from '@/lib/chatBackground';
 import { GHOST_LEVEL_INFO } from '@/lib/ghost';
+import { DISAPPEAR_OPTIONS } from '@/lib/disappearing';
 import { PAUSE_REASONS, formatShortDuration, timezoneOffset } from '@/lib/social';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 
@@ -105,6 +106,56 @@ export function GhostDialog({ conversation, myId, onClose, onError, onChanged })
           {busy === 'unghost' ? 'Unghosting…' : '🕊️ Unghost'}
         </button>
       )}
+    </Modal>
+  );
+}
+
+// ⏳ How long new messages last in this chat
+export function DisappearingDialog({ conversation, onClose, onError, onChanged }) {
+  const [busy, setBusy] = useState(null);
+  const current = conversation.disappearAfter || 0;
+  const isGroup = conversation.type === 'group';
+
+  async function choose(seconds) {
+    if (seconds === current) return onClose();
+    setBusy(seconds);
+    try {
+      const data = await api(`/api/conversations/${conversation._id}/disappearing`, {
+        method: 'PUT',
+        body: { seconds },
+      });
+      onChanged(data);
+      onClose();
+    } catch (err) {
+      onError(err.message);
+      setBusy(null);
+    }
+  }
+
+  return (
+    <Modal title="Disappearing messages" onClose={onClose}>
+      <p className="mb-3 text-sm text-muted">
+        New messages {isGroup ? 'in this group' : 'in this chat'} will vanish for everyone a while after
+        they&apos;re seen{isGroup ? ' — the clock starts once everyone has seen them' : ''}. Messages already here
+        aren&apos;t affected.
+      </p>
+      <div className="space-y-2">
+        {DISAPPEAR_OPTIONS.map((option) => (
+          <Option
+            key={option.seconds}
+            emoji={option.emoji}
+            label={busy === option.seconds ? 'Saving…' : option.label}
+            hint={option.hint}
+            selected={current === option.seconds}
+            disabled={busy !== null}
+            onClick={() => choose(option.seconds)}
+          />
+        ))}
+      </div>
+      <p className="mt-3 text-xs text-muted">
+        Everyone {isGroup ? 'in the group' : 'here'} is told when this changes. Disappearing doesn&apos;t stop someone
+        from taking a screenshot.
+      </p>
     </Modal>
   );
 }
