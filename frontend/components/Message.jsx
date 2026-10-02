@@ -494,7 +494,11 @@ function Message({
           )}
 
           {bare && (
-            <span className={`flex items-center gap-1 pt-0.5 text-[11px] ${isMine ? 'justify-end text-bubble-out-fg/70' : 'text-muted'}`}>
+            // No bubble behind it, so the time gets the same dark pill as on a
+            // photo: readable in light and dark mode, and over a chat background
+            <span
+              className={`mt-0.5 flex w-fit items-center gap-1 rounded-full bg-black/45 px-2 py-0.5 text-[11px] text-white ${isMine ? 'ml-auto' : ''}`}
+            >
               {time}
             </span>
           )}

@@ -379,10 +379,10 @@ export default function MessageInput({
                           setShowEmojis(false);
                           onSendCustomSticker(sticker.url);
                         }}
-                        className="flex items-center justify-center rounded-xl p-1.5 transition hover:bg-hover active:scale-95"
+                        className="flex items-center justify-center group/sticker rounded-xl p-1.5 transition-colors hover:z-10 hover:bg-hover"
                         aria-label={`Send sticker from ${pack.name}`}
                       >
-                        <img src={sticker.url} alt="" className="h-16 w-16 object-contain" draggable={false} />
+                        <img src={sticker.url} alt="" className="h-16 w-16 object-contain transition-transform duration-150 group-hover/sticker:scale-125" draggable={false} />
                       </button>
                     ))}
                   </div>
@@ -402,11 +402,11 @@ export default function MessageInput({
                           setShowEmojis(false);
                           onSendSticker(sticker.id);
                         }}
-                        className="flex items-center justify-center rounded-xl p-1.5 transition hover:bg-hover active:scale-95"
+                        className="flex items-center justify-center group/sticker rounded-xl p-1.5 transition-colors hover:z-10 hover:bg-hover"
                         aria-label={`Send sticker: ${sticker.label}`}
                         title={sticker.label}
                       >
-                        <img src={stickerUrl(sticker.id)} alt="" className="h-16 w-16" draggable={false} />
+                        <img src={stickerUrl(sticker.id)} alt="" className="h-16 w-16 transition-transform duration-150 group-hover/sticker:scale-125" draggable={false} />
                       </button>
                     ))}
                   </div>
