@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Camera, Check, Eye, EyeOff, KeyRound, Loader2, LogOut, Trash2 } from 'lucide-react';
+import { Bell, BellOff, Camera, Check, Eye, EyeOff, KeyRound, Loader2, LogOut, Trash2 } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import Avatar from './Avatar';
 import ThemeToggle from './ThemeToggle';
@@ -12,6 +12,7 @@ import { api } from '@/lib/client';
 import { moveKeysToNewPassword } from '@/lib/accountKeys';
 import { passwordIsValid, passwordRules } from '@/lib/password';
 import { privacyOn, setPrivacy } from '@/lib/privacy';
+import { disablePush, enablePush, pushState } from '@/lib/push';
 import { MOODS } from '@/lib/social';
 import { FONT_SIZES, TEXT_COLORS, loadAccessibility, saveAccessibility, speak } from '@/lib/accessibility';
 
@@ -157,6 +158,7 @@ export default function Profile({ onClose }) {
 
         <ChangePassword />
 
+        <PushNotifications />
         <PrivacyScreen />
         <MoodPicker />
         <SocialStats />
@@ -437,6 +439,73 @@ function ChangePassword() {
           {message.text}
         </p>
       )}
+    </div>
+  );
+}
+
+// 🔔 Notifications on this device for new messages, even with the app closed
+function PushNotifications() {
+  // unsupported | unavailable | blocked | on | off — see lib/push.js
+  const [state, setState] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    pushState().then(setState);
+  }, []);
+
+  // The server isn't set up for it: nothing to offer
+  if (!state || state === 'unavailable') return null;
+
+  const on = state === 'on';
+  const canToggle = state === 'on' || state === 'off';
+
+  async function toggle() {
+    setBusy(true);
+    setError('');
+    try {
+      if (on) await disablePush();
+      else await enablePush();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setState(await pushState());
+      setBusy(false);
+    }
+  }
+
+  const hint =
+    state === 'unsupported'
+      ? 'This browser can’t show them. On an iPhone, add Ghost-ed to your Home Screen first (Share → Add to Home Screen), then open it from there.'
+      : state === 'blocked'
+        ? 'Blocked for this site. Allow notifications in your browser’s site settings, then come back.'
+        : 'Tells you about new messages when the app isn’t open. It says who wrote, never what.';
+
+  return (
+    <div className="mt-6 border-t border-line px-5 pt-4">
+      <p className="mb-1.5 text-sm font-medium text-brand">Notifications</p>
+      <button
+        type="button"
+        onClick={toggle}
+        disabled={!canToggle || busy}
+        aria-pressed={on}
+        className="flex w-full items-center gap-3 rounded-xl border border-line px-3.5 py-3 text-left transition hover:bg-hover disabled:cursor-default disabled:hover:bg-transparent"
+      >
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${on ? 'bg-brand text-on-brand' : 'bg-panel-soft text-muted'}`}>
+          {on ? <Bell size={18} /> : <BellOff size={18} />}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">{busy ? 'One moment…' : on ? 'On' : 'Off'}</span>
+          <span className="block text-xs text-muted">{hint}</span>
+        </span>
+        {canToggle && (
+          <span className={`relative h-6 w-11 shrink-0 rounded-full transition ${on ? 'bg-brand' : 'bg-line'}`} aria-hidden>
+            <span className={`absolute top-1 h-4 w-4 rounded-full bg-panel transition-all ${on ? 'left-6' : 'left-1'}`} />
+          </span>
+        )}
+      </button>
+      {error && <p className="mt-1.5 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      <p className="mt-1.5 text-xs text-muted">Set on this device only — turn it on on each one you use.</p>
     </div>
   );
 }

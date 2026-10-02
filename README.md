@@ -84,6 +84,7 @@ npm start         # starts backend + frontend
 | `TURN_USERNAME`    |                                      | TURN username                                          |
 | `TURN_CREDENTIAL`  |                                      | TURN password                                          |
 | `GIPHY_API_KEY`    |                                      | Optional. Turns on 🎞️ GIF search (free key from developers.giphy.com). Without it the GIF tab is hidden |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` |                     | Optional. Turn on 🔔 push notifications (make a pair with `npx web-push generate-vapid-keys`). Without them the notifications switch is hidden |
 | `BREVO_API_KEY`    | `xkeysib-…`                          | ✉️ Sends the sign-up verification code. Free at brevo.com (300 emails/day). Without it the code is printed in the server log |
 | `MAIL_FROM`        | `you@gmail.com`                      | The address the code comes from — must be confirmed in Brevo under *Senders* |
 | `MAIL_FROM_NAME`   | `Ghost-ed`                           | Optional. The name shown in the inbox |

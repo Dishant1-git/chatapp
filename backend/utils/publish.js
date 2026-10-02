@@ -3,6 +3,7 @@ import User from '../models/User.js';
 import Conversation from '../models/Conversation.js';
 import { getIO, conversationRoom, userRoom, isUserOnline } from '../socket/io.js';
 import { disappearAfterFor } from './disappearing.js';
+import { pushNewMessage } from './push.js';
 
 // Saves a message, makes it the conversation's last message and pushes it to
 // everyone in the chat. Messages are never broadcast before they're saved.
@@ -32,6 +33,8 @@ export async function publishMessage(conversation, fields, clientId = null) {
     // The user rooms cover sockets that haven't joined the conversation room yet.
     ?.to([conversationRoom(conversation._id), ...conversation.participants.map((p) => userRoom(p))])
     .emit('message:new', { message, clientId });
+  // 🔔 …and to their devices, for when the app isn't open. Not waited for.
+  pushNewMessage(conversation, message);
 
   // 📬 Answering someone's request is the same as accepting it
   if (conversation.requestFor && String(conversation.requestFor) === String(fields.senderId)) {

@@ -245,6 +245,23 @@ The chat-list preview follows the same rule — an older message can't replace a
 - "Delete for me" adds you to `deletedFor`; "delete for everyone" wipes the content, sets
   `isDeleted` and deletes the files.
 
+### 🔔 Push notifications
+
+For when the app isn't in front of someone (tab in the background, browser closed, phone locked).
+A browser signs up from Profile → Notifications: `frontend/lib/push.js` registers `public/sw.js`,
+subscribes with the server's VAPID public key (`GET /api/push/config`) and posts the subscription to
+`POST /api/push/subscribe` (stored in `pushsubscriptions`, at most 10 per account). `publishMessage`
+calls `pushNewMessage` (`backend/utils/push.js`) without waiting for it: every recipient's browsers
+get one, except people who muted the chat and someone soft-ghosting the sender. Because messages are
+end-to-end encrypted the payload only says **who** wrote ("New message"), never what. The service
+worker skips the notification while an app window is focused (the in-app toast covers that), and a
+tap opens the chat. 📞 `call:start` also pushes "Incoming call" (`pushIncomingCall`, only deliverable
+while it rings) to everyone it rings; that notification stays up and vibrates. It is taken down by a
+`call-over` push when the person answers or declines on another device or the call goes ahead without
+them, and replaced by the "Missed call" one otherwise. Opening the app while it still rings brings
+up the ringing screen (`ringingCallFor`, sent on connect). Logging out unsubscribes the browser; a subscription the push service reports
+gone (404/410) is deleted. With `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` unset the switch is hidden.
+
 ### ⏳ Disappearing messages
 
 A chat's `disappearAfter` (seconds after being seen: 0 = off, 10 = "instantly", or 1, 2, 4, 8 or 24 hours —

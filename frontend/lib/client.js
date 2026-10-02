@@ -1,4 +1,5 @@
 import { clearDeviceKeys } from './e2ee';
+import { disablePush } from './push';
 
 // Small fetch wrapper for the browser. Throws an Error with the server's
 // friendly message so components can just show err.message.
@@ -40,6 +41,7 @@ export async function api(url, { method = 'GET', body, formData, file } = {}) {
 export async function logoutAndRedirect(target = '/login') {
   try {
     await clearDeviceKeys();
+    await disablePush();
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
   } finally {
     window.location.href = target;

@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { api, logoutAndRedirect } from '@/lib/client';
+import { disablePush, syncPush } from '@/lib/push';
 import { messagePreview } from '@/lib/format';
 import { clearDeviceKeys, getSessionKeyId, openMessage, restoreSession } from '@/lib/e2ee';
 import { conversationTitle, makeNameOf, markDeliveredTo, markReadBy, openConversation } from '@/lib/conversations';
@@ -178,6 +179,21 @@ export default function ChatProvider({ children }) {
     if (hasNavigated.current) router.back();
     else router.replace('/chat');
   }, [router]);
+
+  // 🔔 Push notifications: keep this browser signed up, and open the chat when
+  // a notification is tapped while the app is already open (see public/sw.js)
+  const userId = user?._id;
+  useEffect(() => {
+    if (!userId) return;
+    syncPush();
+    if (!('serviceWorker' in navigator)) return;
+    function onWorkerMessage(event) {
+      if (event.data?.type !== 'open-chat') return;
+      router.push(event.data.conversationId ? `/chat/${event.data.conversationId}` : '/chat');
+    }
+    navigator.serviceWorker.addEventListener('message', onWorkerMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onWorkerMessage);
+  }, [userId, router]);
 
   const dismissToast = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -514,6 +530,7 @@ export default function ChatProvider({ children }) {
   const logout = useCallback(async () => {
     try {
       await clearDeviceKeys();
+      await disablePush(); // 🔔 this browser stops getting my notifications
       await api('/api/auth/logout', { method: 'POST' });
     } finally {
       socket?.disconnect();

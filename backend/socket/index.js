@@ -5,7 +5,7 @@ import Conversation from '../models/Conversation.js';
 import Message, { REFRESH_TICKS } from '../models/Message.js';
 import { TOKEN_COOKIE, verifyToken } from '../utils/jwt.js';
 import { setIO, onlineUsers, userRoom, conversationRoom } from './io.js';
-import { registerCallHandlers, activeCallsIn } from './calls.js';
+import { registerCallHandlers, activeCallsIn, ringingCallFor } from './calls.js';
 
 function readCookie(cookieHeader = '', name) {
   const match = cookieHeader.split(';').find((part) => part.trim().startsWith(`${name}=`));
@@ -158,6 +158,9 @@ async function joinRoomsAndGoOnline(io, socket, isFirstConnection) {
   // Calls going on in my chats (so the chat can offer "Join")
   const calls = activeCallsIn(conversations.map((c) => c._id));
   if (calls.length) socket.emit('call:active', { calls });
+  // 📞 …and one that's ringing for me right now (I opened the app from its notification)
+  const ringing = ringingCallFor(userId);
+  if (ringing) socket.emit('call:incoming', ringing);
 
   if (!isFirstConnection) return;
 

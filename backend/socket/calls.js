@@ -3,6 +3,7 @@ import { isValidObjectId } from 'mongoose';
 import Conversation from '../models/Conversation.js';
 import { publishEvent } from '../utils/publish.js';
 import { ghostLevel } from '../utils/ghost.js';
+import { pushCallOver, pushIncomingCall } from '../utils/push.js';
 import { getIO, userRoom, conversationRoom } from './io.js';
 
 // Voice and video calls use WebRTC: audio and video go directly between the
@@ -69,6 +70,9 @@ async function endCall(call, reason) {
   const everyone = new Set([...call.invited, ...call.participants.keys(), call.callerId]);
   everyone.forEach((userId) => io?.to(userRoom(userId)).emit('call:ended', { callId: call.id, reason }));
   broadcastState(call, false);
+  // 🔔 Devices still showing "incoming call" for a call that went ahead without
+  // them. (A missed call's own notification replaces it instead.)
+  if (call.answeredAt) pushCallOver(call.conversationId, [...call.invited].filter((id) => !call.participants.has(id)));
 
   // Leave a note in the chat: "Voice call · 3:12" or "Missed video call"
   try {
@@ -119,6 +123,17 @@ export function activeCallsIn(conversationIds) {
   return [...calls.values()].filter((c) => ids.has(c.conversationId)).map(publicCall);
 }
 
+// 🔔 A call that is still ringing for this person, if any. Someone who opens
+// the app from the "incoming call" notification gets the ringing screen from it.
+export function ringingCallFor(userId) {
+  const id = String(userId);
+  if (userCalls.has(id)) return null;
+  for (const call of calls.values()) {
+    if (!call.hadOthers && call.invited.has(id) && !call.declined.has(id)) return publicCall(call);
+  }
+  return null;
+}
+
 export function registerCallHandlers(io, socket) {
   const userId = socket.userId;
 
@@ -143,7 +158,7 @@ export function registerCallHandlers(io, socket) {
     if (userCalls.has(userId)) return reply({ error: "You're already in a call." });
 
     const conversation = await Conversation.findOne({ _id: conversationId, participants: userId }).select(
-      'type participants ghost pausedBy blockedBy requestFor'
+      'type name participants ghost pausedBy blockedBy requestFor mutedBy'
     );
     if (!conversation) return reply({ error: 'Conversation not found.' });
 
@@ -202,10 +217,11 @@ export function registerCallHandlers(io, socket) {
     }, RING_TIMEOUT_MS);
 
     const incoming = publicCall(call);
-    others.forEach((id) => {
-      // People already in another call don't get a ringing screen
-      if (!userCalls.has(id)) io.to(userRoom(id)).emit('call:incoming', incoming);
-    });
+    // People already in another call don't get a ringing screen
+    const ringing = others.filter((id) => !userCalls.has(id));
+    ringing.forEach((id) => io.to(userRoom(id)).emit('call:incoming', incoming));
+    // 🔔 …and their devices ring too, for when the app isn't open
+    pushIncomingCall(conversation, call, ringing, RING_TIMEOUT_MS / 1000);
     broadcastState(call, true);
 
     reply({ call: incoming });
@@ -237,6 +253,7 @@ export function registerCallHandlers(io, socket) {
     emitToParticipants(call, 'call:participant-joined', { callId: call.id, userId }, userId);
     // Stop the ringing on this user's other tabs and devices
     socket.to(userRoom(userId)).emit('call:answered-elsewhere', { callId: call.id });
+    pushCallOver(call.conversationId, [userId]);
     broadcastState(call, true);
 
     reply({ call: publicCall(call), peers: existingParticipants });
@@ -249,6 +266,7 @@ export function registerCallHandlers(io, socket) {
 
     call.declined.add(userId);
     socket.to(userRoom(userId)).emit('call:answered-elsewhere', { callId: call.id });
+    pushCallOver(call.conversationId, [userId]);
     emitToParticipants(call, 'call:declined', { callId: call.id, userId });
 
     const everyoneDeclined = [...call.invited].every((id) => call.declined.has(id));
