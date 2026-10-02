@@ -29,6 +29,27 @@ const TYPING_IDLE_MS = 2000; // send "stopTyping" after 2s without a keystroke
 const ALMOST_SAID_MS = 8000;
 const ALMOST_SAID_CHARS = 10;
 
+// 📝 What's typed but not sent yet is kept per chat, so going back by mistake
+// doesn't lose it. sessionStorage: it stays on this device and goes with the tab.
+const draftKey = (conversationId) => `draft:${conversationId}`;
+
+function readDraft(conversationId) {
+  try {
+    return sessionStorage.getItem(draftKey(conversationId)) || '';
+  } catch {
+    return '';
+  }
+}
+
+function saveDraft(conversationId, value) {
+  try {
+    if (value) sessionStorage.setItem(draftKey(conversationId), value);
+    else sessionStorage.removeItem(draftKey(conversationId));
+  } catch {
+    // Storage is off or full: the draft just isn't kept
+  }
+}
+
 export default function MessageInput({
   conversationId,
   replyingTo,
@@ -48,7 +69,7 @@ export default function MessageInput({
   onError,
 }) {
   const { socket, stickerPacks } = useChat();
-  const [text, setText] = useState('');
+  const [text, setTextState] = useState('');
   const [showEmojis, setShowEmojis] = useState(emojiOnly);
   const [panel, setPanel] = useState('emoji'); // emoji | stickers | gifs | gift
   // 🎁 Set while the next message is going to be sent as a gift
@@ -68,6 +89,16 @@ export default function MessageInput({
   }, [socket]);
 
   useEffect(() => setRecordingSupported(canRecord()), []);
+
+  function setText(value) {
+    setTextState(value);
+    saveDraft(conversationId, value);
+  }
+
+  // 📝 Bring back what was being typed in this chat
+  useEffect(() => {
+    setTextState(readDraft(conversationId));
+  }, [conversationId]);
 
   // 🎞️ The GIF tab only exists when the server can search GIFs
   useEffect(() => {
@@ -172,8 +203,10 @@ export default function MessageInput({
   function handleKeyDown(event) {
     // On a physical keyboard Enter sends and Shift+Enter adds a new line.
     // On phones Enter adds a new line and the send button sends.
-    const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
-    if (event.key === 'Enter' && !event.shiftKey && !isTouchDevice) {
+    // A touchscreen laptop counts as a keyboard: it has a mouse or trackpad too.
+    const hasKeyboard = window.matchMedia('(any-pointer: fine)').matches;
+    // Enter that picks a suggestion while composing (IME) isn't "send"
+    if (event.key === 'Enter' && !event.shiftKey && hasKeyboard && !event.nativeEvent.isComposing) {
       event.preventDefault();
       send();
     }
