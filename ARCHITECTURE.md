@@ -565,6 +565,9 @@ that undoes one of them.
 
 - The verification check is remembered in memory instead of a lookup per request.
 - The message is announced as soon as it's saved.
+- The conversation, the quoted message and the members' keys are fetched together, not one after
+  the other (`loadKeyHolders`), and `POST /api/messages` answers without waiting for the chat-list
+  bookkeeping — two round trips before the sender gets a tick instead of four or five.
 - The "un-hide this chat" write only happens when the chat was actually hidden.
 - Read receipts from a busy chat are collected into one call rather than one per message.
 

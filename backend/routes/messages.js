@@ -10,7 +10,7 @@ import { REACTIONS } from '../utils/reactions.js';
 import { FORGIVE_COOLDOWN_MS, formatGhost, ghostLevel, isOnlyEmoji } from '../utils/ghost.js';
 import { bumpStat, emitMessageUpdate, publishMessage, useDailyAllowance } from '../utils/publish.js';
 import { resumeConversation } from './conversations.js';
-import { checkEncrypted } from '../utils/encrypted.js';
+import { checkEncrypted, loadKeyHolders } from '../utils/encrypted.js';
 import { stillVisible } from '../utils/disappearing.js';
 import { getIO, isUserOnline, emitToConversation, conversationRoom, userRoom } from '../socket/io.js';
 
@@ -61,16 +61,19 @@ router.post('/', messageLimiter, async (req, res) => {
     return res.status(400).json({ error: mediaKind === 'file' ? 'Invalid document.' : 'Invalid recording.' });
   }
 
-  // The sender must be a participant; everyone else in the chat receives it
-  const conversation = await Conversation.findOne({ _id: conversationId, participants: req.userId });
+  // The sender must be a participant; everyone else in the chat receives it.
+  // The quoted message and the members' keys are looked up at the same time
+  // rather than one after the other: each is a trip to the database.
+  const [conversation, original, keyHolders] = await Promise.all([
+    Conversation.findOne({ _id: conversationId, participants: req.userId }),
+    replyTo ? isValidObjectId(replyTo) && Message.exists({ _id: replyTo, conversationId, ...stillVisible() }) : true,
+    loadKeyHolders(body),
+  ]);
   if (!conversation) return res.status(404).json({ error: 'Conversation not found.' });
 
   const recipients = conversation.participants.filter((p) => String(p) !== req.userId);
 
-  if (replyTo) {
-    const original = isValidObjectId(replyTo) && (await Message.exists({ _id: replyTo, conversationId, ...stillVisible() }));
-    if (!original) return res.status(404).json({ error: 'The message you are replying to no longer exists.' });
-  }
+  if (!original) return res.status(404).json({ error: 'The message you are replying to no longer exists.' });
 
   const receiverId = conversation.type === 'group' ? null : recipients[0];
 
@@ -118,12 +121,13 @@ router.post('/', messageLimiter, async (req, res) => {
         replyTo,
         deliveredTo: recipients.filter((id) => isUserOnline(id)),
       },
-      clientId
+      clientId,
+      { waitForBookkeeping: false }
     );
     return res.status(201).json({ message });
   }
 
-  const checked = await checkEncrypted(conversation, body, req.userId);
+  const checked = await checkEncrypted(conversation, body, req.userId, keyHolders);
   if (checked.error) return res.status(checked.status).json({ error: checked.error, code: checked.code });
 
   if (isForgivenessRequest) {
@@ -169,7 +173,8 @@ router.post('/', messageLimiter, async (req, res) => {
       // Recipients with the app open get the message right away
       deliveredTo: recipients.filter((id) => isUserOnline(id)),
     },
-    clientId
+    clientId,
+    { waitForBookkeeping: false }
   );
 
   if (isForgivenessRequest) {

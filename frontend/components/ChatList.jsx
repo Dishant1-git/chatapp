@@ -746,7 +746,7 @@ const ConversationItem = memo(function ConversationItem({
               ) : (
                 <>
                   {isMine && !lastMessage.isDeleted && lastMessage.messageType !== 'event' && (
-                    <MessageTicks message={lastMessage} />
+                    <MessageTicks message={lastMessage} className="shrink-0" />
                   )}
                   <span
                     className={`private truncate ${lastMessage?.isDeleted || lastMessage?.undecryptable ? 'italic' : ''}`}

@@ -7,7 +7,10 @@ import { pushNewMessage } from './push.js';
 
 // Saves a message, makes it the conversation's last message and pushes it to
 // everyone in the chat. Messages are never broadcast before they're saved.
-export async function publishMessage(conversation, fields, clientId = null) {
+// waitForBookkeeping: false returns as soon as the message is saved and sent
+// out, so the sender isn't kept waiting for the chat-list update. Only for
+// callers that don't touch `conversation` again afterwards.
+export async function publishMessage(conversation, fields, clientId = null, { waitForBookkeeping = true } = {}) {
   const recipients = (fields.recipients || []).map(String);
   const deliveredTo = (fields.deliveredTo || []).map(String);
   // ⏳ In a chat with disappearing messages on, the clock starts once it's seen —
@@ -36,8 +39,16 @@ export async function publishMessage(conversation, fields, clientId = null) {
   // 🔔 …and to their devices, for when the app isn't open. Not waited for.
   pushNewMessage(conversation, message);
 
+  const bookkeeping = recordLastMessage(conversation, message, fields.senderId);
+  if (waitForBookkeeping) await bookkeeping;
+  else bookkeeping.catch((err) => console.error('[publish] failed to update the conversation:', err.message));
+
+  return message;
+}
+
+async function recordLastMessage(conversation, message, senderId) {
   // 📬 Answering someone's request is the same as accepting it
-  if (conversation.requestFor && String(conversation.requestFor) === String(fields.senderId)) {
+  if (conversation.requestFor && String(conversation.requestFor) === String(senderId)) {
     conversation.requestFor = null;
   }
 
@@ -53,8 +64,6 @@ export async function publishMessage(conversation, fields, clientId = null) {
   if (conversation.hiddenFor?.length) {
     await Conversation.updateOne({ _id: conversation._id }, { hiddenFor: [] });
   }
-
-  return message;
 }
 
 // Tells everyone in the chat that part of a message changed (a forgiveness
