@@ -23,6 +23,8 @@ const GhostClickViewer = dynamic(() => import('./GhostClick').then((m) => m.Ghos
 const StickerStore = dynamic(() => import('./StickerStore'), { ssr: false });
 // 🎁 The gift reveal (all ten styles) only loads when a gift is opened
 const GiftReveal = dynamic(() => import('./GiftReveal'), { ssr: false });
+// ↪️ …and the chat picker only when a message is forwarded
+const ForwardDialog = dynamic(() => import('./ForwardDialog'), { ssr: false });
 import { MessagesSkeleton } from './Skeleton';
 import { loadAccessibility, speak } from '@/lib/accessibility';
 import Celebration from './Celebration';
@@ -200,6 +202,7 @@ export default function ChatWindow({ conversationId }) {
 // ghost | vibe | badge | leave | background | stickers | nickname | clear
   const [dialog, setDialog] = useState(null);
   const [editing, setEditing] = useState(null); // ✏️ the message being edited
+  const [forwarding, setForwarding] = useState(null); // ↪️ the message being forwarded
   const [almostSaid, setAlmostSaid] = useState(false);
   const [undoSeen, setUndoSeen] = useState(0); // how many new messages I just saw (0 = hide "Undo seen")
   const rootRef = useRef(null);
@@ -1235,6 +1238,17 @@ export default function ChatWindow({ conversationId }) {
   const closeDialog = useCallback(() => setDialog(null), []);
   const closeDeleteDialog = useCallback(() => setDeleting(null), []);
   const closeEditDialog = useCallback(() => setEditing(null), []);
+  const closeForwardDialog = useCallback(() => setForwarding(null), []);
+  // ↪️ A copy forwarded into this very chat shows up here, even if the socket is slow
+  const showForwarded = useCallback(
+    async (id, message) => {
+      if (id !== conversationId) return;
+      const opened = await openMessage(message, conversationId);
+      stickToBottom.current = true;
+      setMessages((prev) => addOrReplace(prev, opened, null, { keepExisting: true }));
+    },
+    [conversationId]
+  );
 
   // ⎋ Escape closes the chat (like WhatsApp Web) — or first cancels a reply.
   // Open dialogs and menus handle Escape themselves and mark it as used
@@ -1594,6 +1608,7 @@ export default function ChatWindow({ conversationId }) {
                     onReply={setReplyingTo}
                     onReact={react}
                     onEdit={setEditing}
+                    onForward={setForwarding}
                     onDelete={requestDelete}
                     onRetry={retry}
                     onJumpTo={jumpTo}
@@ -1824,6 +1839,15 @@ export default function ChatWindow({ conversationId }) {
           />
         )}
         {editing && <EditMessageDialog key="edit-dialog" message={editing} onSave={saveEdit} onClose={closeEditDialog} />}
+        {forwarding && (
+          <ForwardDialog
+            key="forward-dialog"
+            message={forwarding}
+            onSent={showForwarded}
+            onNotice={showNotice}
+            onClose={closeForwardDialog}
+          />
+        )}
         {ghostCamera && (
           <GhostClickCamera
             key="ghost-camera"

@@ -533,7 +533,17 @@ export function ConfirmDialog({ title, text, confirmLabel, onConfirm, onClose })
 export function EditMessageDialog({ message, onSave, onClose }) {
   const [text, setText] = useState(message.text);
   const [busy, setBusy] = useState(false);
+  const boxRef = useRef(null);
   const trimmed = text.trim();
+
+  // Start typing where the message ends, not at its first letter
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+    el.scrollTop = el.scrollHeight;
+  }, []);
 
   async function save(event) {
     event.preventDefault();
@@ -553,7 +563,7 @@ export function EditMessageDialog({ message, onSave, onClose }) {
             // Enter saves, Shift+Enter adds a new line (like sending)
             if (e.key === 'Enter' && !e.shiftKey) save(e);
           }}
-          autoFocus
+          ref={boxRef}
           rows={3}
           className="scroll-thin w-full resize-none rounded-xl border border-line bg-panel-soft px-3.5 py-2.5 text-base outline-none focus:border-brand md:text-sm"
         />

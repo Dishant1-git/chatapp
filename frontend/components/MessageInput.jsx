@@ -10,6 +10,7 @@ import { isChatImage } from './ImagePreview';
 const GifPicker = dynamic(() => import('./GifPicker'), { ssr: false });
 import GiftPicker from './GiftPicker';
 import { messagePreview } from '@/lib/format';
+import { readDraft, saveDraft } from '@/lib/drafts';
 import { isOnlyEmoji } from '@/lib/ghost';
 import { canRecord } from '@/lib/recording';
 import { gifsAvailable } from '@/lib/gifs';
@@ -28,27 +29,6 @@ const TYPING_IDLE_MS = 2000; // send "stopTyping" after 2s without a keystroke
 // "Almost said": a draft typed for at least 8s and 10 characters, then deleted
 const ALMOST_SAID_MS = 8000;
 const ALMOST_SAID_CHARS = 10;
-
-// 📝 What's typed but not sent yet is kept per chat, so going back by mistake
-// doesn't lose it. sessionStorage: it stays on this device and goes with the tab.
-const draftKey = (conversationId) => `draft:${conversationId}`;
-
-function readDraft(conversationId) {
-  try {
-    return sessionStorage.getItem(draftKey(conversationId)) || '';
-  } catch {
-    return '';
-  }
-}
-
-function saveDraft(conversationId, value) {
-  try {
-    if (value) sessionStorage.setItem(draftKey(conversationId), value);
-    else sessionStorage.removeItem(draftKey(conversationId));
-  } catch {
-    // Storage is off or full: the draft just isn't kept
-  }
-}
 
 export default function MessageInput({
   conversationId,

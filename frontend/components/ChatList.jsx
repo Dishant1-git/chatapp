@@ -21,6 +21,7 @@ import { MessageTicks } from './Message';
 import { formatListDate, messagePreview } from '@/lib/format';
 import { conversationTitle, isGroup, makeNameOf, typingText } from '@/lib/conversations';
 import { isDeadChat } from '@/lib/social';
+import { useDraft } from '@/lib/drafts';
 
 export default function ChatList() {
   const {
@@ -663,6 +664,9 @@ const ConversationItem = memo(function ConversationItem({
     !lastMessage.forgiveness &&
     new Date(lastMessage.createdAt) >= new Date(ghost.since || 0);
   const isDead = isDeadChat(conversation);
+  // 📝 Something I typed here and left unsent (not shown for the chat that's open)
+  const draft = useDraft(conversation._id).trim();
+  const showDraft = Boolean(draft) && !isActive;
 
   return (
     <li className="relative mx-2 overflow-hidden rounded-xl">
@@ -743,6 +747,11 @@ const ConversationItem = memo(function ConversationItem({
             <p className="flex min-w-0 items-center gap-1 text-sm text-muted">
               {typing ? (
                 <span className="truncate font-medium text-brand">{typing}</span>
+              ) : showDraft ? (
+                <>
+                  <span className="shrink-0 font-medium text-emerald-600 dark:text-emerald-400">Draft:</span>
+                  <span className="private truncate">{draft}</span>
+                </>
               ) : (
                 <>
                   {isMine && !lastMessage.isDeleted && lastMessage.messageType !== 'event' && (

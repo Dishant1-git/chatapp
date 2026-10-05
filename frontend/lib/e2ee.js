@@ -280,7 +280,8 @@ async function wrappingKeyFor(publicKey) {
 // payload: { text, image?: { type, width, height },
 //            media?: { kind: 'audio' | 'video', type, duration, waveform?, mirrored? },
 //            file?: { name, type, size },  — a shared document; even its name is encrypted
-//            gift?: { mood, style, together } }  — 🎁 a gift message (see lib/gifts.js)
+//            gift?: { mood, style, together },  — 🎁 a gift message (see lib/gifts.js)
+//            forwarded?: true }  — ↪️ a copy of a message from another chat (see lib/forward.js)
 export async function encryptMessage({ conversationId, members, payload }) {
   if (!session) throw new Error('Encryption is locked. Please reload the page.');
 
@@ -370,6 +371,8 @@ export async function openMessage(message, conversationId = message?.conversatio
           stickerImage: result.payload.stickerImage === true,
           // 🎁 Arrives wrapped and opens with an animation
           gift: readGift(result.payload.gift),
+          // ↪️ A copy of a message from another chat
+          forwarded: result.payload.forwarded === true,
           imageType: result.payload.image?.type || '',
           imageWidth: result.payload.image?.width || 0,
           imageHeight: result.payload.image?.height || 0,

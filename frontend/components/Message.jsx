@@ -11,6 +11,7 @@ import {
   Clock3,
   Copy,
   Download,
+  Forward,
   Lock,
   Pencil,
   Reply,
@@ -28,6 +29,7 @@ import { VideoNote, VoiceNote } from './MediaNote';
 import FileCard from './FileCard';
 import { isSticker, stickerLabel, stickerUrl } from '@/lib/stickers';
 import { MOODS, STYLES, isUnwrappedByAll, isWrappedFor } from '@/lib/gifts';
+import { canForward } from '@/lib/forward';
 
 // ↩️ Swipe-to-reply: how far the bubble follows the finger, and the point
 // past which letting go starts a reply
@@ -85,6 +87,7 @@ function Message({
   onReply,
   onReact,
   onEdit,
+  onForward,
   onDelete,
   onRetry,
   onJumpTo,
@@ -354,6 +357,13 @@ function Message({
               style={{ color: colorFor(nameOf(message.senderId)) }}
             >
               {nameOf(message.senderId)}
+            </p>
+          )}
+
+          {/* ↪️ A copy of a message from another chat */}
+          {message.forwarded && !isDeleted && !undecryptable && (
+            <p className={`mb-0.5 flex items-center gap-1 text-[11px] italic opacity-70 ${imageOnly ? 'px-1.5' : ''}`}>
+              <Forward size={12} className="shrink-0" /> Forwarded
             </p>
           )}
 
@@ -685,6 +695,10 @@ function Message({
               )}
               {canEdit && (
                 <MenuItem icon={Pencil} label="Edit" onClick={() => runAndClose(() => onEdit(message))} />
+              )}
+              {/* ↪️ Encrypted again for the chats it's sent on to */}
+              {onForward && !ghostedView && canForward(message, myId) && (
+                <MenuItem icon={Forward} label="Forward" onClick={() => runAndClose(() => onForward(message))} />
               )}
               {hasText && (
                 <MenuItem
