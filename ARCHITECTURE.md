@@ -240,7 +240,8 @@ The chat-list preview follows the same rule — an older message can't replace a
 - `POST /api/conversations/:id/read` marks everything read; the client collects rapid arrivals into
   one call rather than one per message. It does nothing while the chat is still a 📬 request waiting
   for your answer — reading a stranger's message doesn't give them a read tick (§8).
-- Editing is text-only, by the sender (`PATCH /api/messages/:id`); the new ciphertext gets a new IV,
+- Editing is text-only, by the sender, for two minutes after sending (`EDIT_WINDOW_MS`; the server
+  allows one more minute so an edit started in time still saves) (`PATCH /api/messages/:id`); the new ciphertext gets a new IV,
   which is also how the decryption cache knows to redo it.
 - "Delete for me" adds you to `deletedFor`; "delete for everyone" wipes the content, sets
   `isDeleted` and deletes the files.

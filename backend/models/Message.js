@@ -5,6 +5,12 @@ import mongoose from 'mongoose';
 // fits comfortably in a MongoDB document (16 MB).
 export const MAX_CIPHERTEXT_LENGTH = 4_000_000;
 
+// ✏️ How long after sending a message can still be edited. The browser hides
+// the Edit option after this (EDIT_WINDOW_MS in frontend/components/Message.jsx);
+// the server allows a little longer, so an edit started in time can still be saved.
+export const EDIT_WINDOW_MS = 2 * 60 * 1000;
+export const EDIT_GRACE_MS = 60 * 1000;
+
 const reactionSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },

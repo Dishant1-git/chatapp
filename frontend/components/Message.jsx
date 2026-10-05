@@ -76,6 +76,10 @@ function Linkified({ text }) {
   );
 }
 
+// ✏️ A message can be edited for two minutes after it was sent.
+// Keep in sync with EDIT_WINDOW_MS in backend/models/Message.js
+const EDIT_WINDOW_MS = 2 * 60 * 1000;
+
 function Message({
   message,
   isMine,
@@ -166,7 +170,8 @@ function Message({
     !message.forgiveness &&
     !gift && // an edit would re-encrypt the text alone and unwrap it for good
     !message.pending &&
-    !message.failed;
+    !message.failed &&
+    Date.now() - new Date(message.createdAt).getTime() < EDIT_WINDOW_MS;
   const isEdited = Boolean(message.editedAt) && !isDeleted;
   // ↩️ Swipe to reply — the same messages the Reply menu item allows
   const canSwipeToReply = !isDeleted && !undecryptable && !message.failed && !message.pending && !isViewOnce;

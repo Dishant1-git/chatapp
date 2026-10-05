@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { isValidObjectId } from 'mongoose';
 import Conversation, { blockError } from '../models/Conversation.js';
-import Message, { maskReactions } from '../models/Message.js';
+import Message, { EDIT_GRACE_MS, EDIT_WINDOW_MS, maskReactions } from '../models/Message.js';
 import User from '../models/User.js';
 import { requireAuth } from '../middleware/auth.js';
 import { messageLimiter } from '../middleware/rateLimits.js';
@@ -210,6 +210,9 @@ router.patch('/:id', messageLimiter, async (req, res) => {
     !message.forgiveness &&
     !message.ghostClick;
   if (!editable) return res.status(403).json({ error: 'You can only edit your own text messages.' });
+  if (Date.now() - message.createdAt.getTime() > EDIT_WINDOW_MS + EDIT_GRACE_MS) {
+    return res.status(403).json({ error: 'This message can no longer be edited.' });
+  }
 
   const conversation = await Conversation.findOne({ _id: message.conversationId, participants: req.userId });
   if (!conversation) return res.status(404).json({ error: 'Conversation not found.' });
