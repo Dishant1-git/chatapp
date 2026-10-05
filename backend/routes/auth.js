@@ -9,6 +9,7 @@ import { saveImage } from '../utils/storage.js';
 import EmailCode, { CODE_TTL_MINUTES, MAX_ATTEMPTS, codeMatches, hashCode, makeCode } from '../models/EmailCode.js';
 import { sendMail, verificationMail, resetMail } from '../utils/mailer.js';
 import { passwordProblem } from '../utils/password.js';
+import { isDisposableEmail } from '../utils/disposableEmail.js';
 import {
   freeUsernameFrom,
   normalizeUsername,
@@ -74,6 +75,13 @@ router.post('/register', registerLimiter, imageUpload.single('profileImage'), as
 
   if (name.length < 2 || name.length > 50) return res.status(400).json({ error: 'Name must be 2–50 characters.' });
   if (!EMAIL_PATTERN.test(email)) return res.status(400).json({ error: 'Please enter a valid email address.' });
+  // 🚫 A throwaway inbox can confirm the code and then vanish
+  if (isDisposableEmail(email)) {
+    return res.status(400).json({
+      error: 'Temporary email addresses can’t be used here. Please sign up with your real email.',
+      code: 'EMAIL_DISPOSABLE',
+    });
+  }
 
   // 🏷️ A username is optional in the request: one is made from their name
   // if the form didn't send it (older clients).
