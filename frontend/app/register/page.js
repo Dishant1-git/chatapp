@@ -284,6 +284,10 @@ export default function RegisterPage() {
           By creating an account, you agree to our{' '}
           <Link href="/terms" target="_blank" className="font-medium text-brand hover:underline">
             Terms of Service
+          </Link>{' '}
+          and{' '}
+          <Link href="/cookies" target="_blank" className="font-medium text-brand hover:underline">
+            Cookie Policy
           </Link>
           .
         </p>
