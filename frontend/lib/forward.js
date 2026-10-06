@@ -70,12 +70,18 @@ async function attachmentOf(message) {
   return null;
 }
 
+// Photos can go out with a caption written (or changed) while forwarding
+export function canCaptionForward(message) {
+  return Boolean(message.image) && !message.stickerImage;
+}
+
 // Sends a copy of `message` to `conversation`. Resolves to the saved message.
-export async function forwardMessage(message, conversation) {
+// caption: the words to send with it instead of the message's own
+export async function forwardMessage(message, conversation, { caption } = {}) {
   const conversationId = conversation._id;
   const attachment = await attachmentOf(message);
   const payload = {
-    text: message.text || '',
+    text: caption ?? (message.text || ''),
     forwarded: true,
     ...(message.sticker && { sticker: message.sticker }),
     ...(message.stickerImage && { stickerImage: true }),

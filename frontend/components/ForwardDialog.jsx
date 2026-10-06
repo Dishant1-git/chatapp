@@ -7,7 +7,7 @@ import { useChat } from './ChatProvider';
 import { ChatAvatar } from './Avatar';
 import { conversationTitle, isGroup } from '@/lib/conversations';
 import { messagePreview } from '@/lib/format';
-import { MAX_FORWARD_CHATS, canForwardTo, forwardMessage } from '@/lib/forward';
+import { MAX_FORWARD_CHATS, canCaptionForward, canForwardTo, forwardMessage } from '@/lib/forward';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 // ↪️ Pick the chats a message is forwarded to. It's encrypted again for each
@@ -19,6 +19,9 @@ export default function ForwardDialog({ message, onClose, onSent, onNotice }) {
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState([]); // conversation ids
   const [busy, setBusy] = useState(false);
+  // A photo's caption can be written or changed on the way out
+  const withCaption = canCaptionForward(message);
+  const [caption, setCaption] = useState(message.text || '');
   useEscapeKey(busy ? () => {} : onClose);
 
   const chats = useMemo(() => {
@@ -46,7 +49,7 @@ export default function ForwardDialog({ message, onClose, onSent, onNotice }) {
     for (const id of picked) {
       const conversation = conversations.find((c) => c._id === id);
       try {
-        const saved = await forwardMessage(message, conversation);
+        const saved = await forwardMessage(message, conversation, withCaption ? { caption: caption.trim() } : {});
         onSent(id, saved);
       } catch (err) {
         failed.push(conversationTitle(conversation));
@@ -134,6 +137,17 @@ export default function ForwardDialog({ message, onClose, onSent, onNotice }) {
           })}
           {!chats.length && <li className="px-3 py-6 text-center text-sm text-muted">No chats found.</li>}
         </ul>
+
+        {withCaption && (
+          <input
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+            disabled={busy}
+            placeholder="Add a caption…"
+            aria-label="Caption"
+            className="mt-3 w-full rounded-full border border-line bg-panel-soft px-4 py-2 text-base outline-none placeholder:text-muted md:text-sm"
+          />
+        )}
 
         <button
           onClick={forward}
