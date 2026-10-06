@@ -448,8 +448,9 @@ export default function MessageInput({
             onBlur={stopTyping}
             rows={1}
             placeholder={placeholder}
-            // text-base (16px) stops iOS from zooming into the field
-            className="no-scrollbar max-h-32 min-w-0 flex-1 resize-none rounded-3xl border border-line bg-panel px-4 py-2.5 text-base leading-6 text-fg outline-none placeholder:text-muted focus:border-brand/40 md:text-[15px]"
+            // text-base (16px) stops iOS from zooming into the field.
+            // placeholder:truncate keeps the hint on one line when the box is narrow
+            className="no-scrollbar max-h-32 min-w-0 flex-1 resize-none rounded-3xl border border-line bg-panel px-4 py-2.5 text-base leading-6 text-fg outline-none placeholder:truncate placeholder:text-muted focus:border-brand/40 md:text-[15px]"
           />
 
           {/* 📎 Any file: pictures go the photo way, everything else is sent as
