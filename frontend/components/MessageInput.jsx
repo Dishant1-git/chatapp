@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useChatAsk } from '@/lib/voice';
 import { Camera, Gift, Mic, Paperclip, Plus, SendHorizontal, Smile, X } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import dynamic from 'next/dynamic';
@@ -136,6 +137,8 @@ export default function MessageInput({
   const canSend = Boolean(trimmed) && (!emojiOnly || isOnlyEmoji(trimmed));
   // With nothing typed, the send button becomes a mic (like WhatsApp)
   const canRecordVoice = recordingSupported && !emojiOnly && Boolean(onSendVoice);
+  // 🎙️ "Hey Boo, send a voice note to Harinder" (lib/voiceActions.js)
+  useChatAsk(conversationId, 'recorder', () => canRecordVoice && setIsRecording(true));
   // Being ghosted means emojis only — no stickers until that's over
   const canSendStickers = !emojiOnly && Boolean(onSendSticker);
   const canSendGifts = !emojiOnly && Boolean(onSendGift);

@@ -468,21 +468,38 @@ and `backend/routes/chatActions.js`; labels and rules the browser needs are mirr
   Flipping the switch plays `BooShow` (a roaming entrance, or a crying exit). Boo being out is a
   per-device switch (Profile → Boo, or the header of Boo's chat); Boo's row stays regardless. With no `GROK_API_KEY`, or when Grok doesn't answer,
   Boo uses the lines written in `utils/boo.js`.
-- **🎙️ Voice commands** (`components/VoiceAssistant.jsx`, `lib/voice.js`, `backend/utils/assistant.js`).
-  The microphone button above the chat list switches on hands-free listening (per device). The
-  browser's own speech recognition (Web Speech API — in Chrome the audio goes to Google) hears
-  "Hey Boo" and the sentence after it; **only then** is anything sent on: the sentence goes to
-  `POST /api/assistant/command`, where Kimi (Moonshot AI, `KIMI_API_KEY`) turns it into one of five
-  actions — `call`, `video_call`, `message`, `open`, `none`. The server forces the answer into
-  `{ action, name, text, say }` and drops everything else, so the key can't be used as a general
-  chatbot through the app; with no key (or no answer) a few regular expressions handle the plain
-  commands. The contact list never leaves the browser: `findChat` matches the spoken name against
-  chat titles, real names and first names, tolerating spelling slips, and asks rather than guesses
-  when two fit. A call is announced and placed after 3.5 s unless "cancel" is said; a message is
-  read back and **only sent after "yes"**, then encrypted like any other (`sendTextTo`). A dictated
-  message is therefore seen by the speech service and by Kimi before it's encrypted — the one place
-  besides Boo's chat where words leave the device in the clear. Listening stops during calls and
-  while the tab is hidden; a web page can't listen with the phone locked or the app closed.
+- **🎙️ Voice assistant** (`components/VoiceAssistant.jsx`, `lib/voice.js`, `lib/voiceActions.js`,
+  `backend/utils/assistant.js`). Boo's button above the new-chat button (the microphone in the
+  header on a computer) switches on hands-free listening, per device. The browser's own speech
+  recognition (Web Speech API — in Chrome the audio goes to Google) hears "Hey Boo"; what follows is
+  gathered until three seconds of silence and **only then** sent on, to
+  `POST /api/assistant/command { text, tz }`. There Kimi (Moonshot AI, `KIMI_API_KEY`) turns the
+  sentence into one action; the server forces the answer into
+  `{ action, name, text, when, option, say }` and drops everything else, so the key can't be used
+  as a general chatbot through the app. With no key (or no answer) a table of regular expressions
+  does the same job for the usual phrasings in English and Latin-script Hindi/Punjabi, including
+  times ("at 5 pm", "in 10 minutes", "tomorrow morning") read on the speaker's own clock.
+  The actions (`ACTIONS` in both files — add one in each): `call`, `video_call`, `message`,
+  `schedule`, `open`, `read` (new messages read aloud, then marked read), `unread` (who wrote),
+  `delete_last` and `edit_last` (my own last message; an edit keeps the two-minute rule), `buzz`,
+  `miss_you`, `find` (people search; one match opens their chat), `mute` / `unmute`, `ghost` /
+  `unghost`, `online`, `show` (profile, calls, scheduled, new group, new chat), `boo`, `privacy`,
+  `stop`, `group_create` / `group_add` / `group_remove` / `group_leave`, `nickname`, `profile_name`,
+  `mood`, `clear_chat`, `delete_chat`, `react` (to their last message), `sticker` (a built-in one, by
+  name), `gift`, and `camera` / `voice_note` — which can't be done by talking, so the chat is opened
+  and asked to start its camera or recorder (`askChat` / `useChatAsk` in `lib/voice.js`). A command
+  without a name is about the chat that's open. The contact list never leaves
+  the browser: `findChat` matches the spoken name against chat titles, real names and first names,
+  tolerating spelling slips, and asks rather than guesses when two fit.
+  `perform()` runs an action with the same API calls the screens make. Anything that reaches
+  other people and can't simply be taken back — a message, a gift, a scheduled one, an edit, a
+  deletion, a ghosting, a group made or changed, a new name or nickname, a chat cleared — is read
+  back and **only done after "yes"**; a call is announced and placed after 4.5 s unless "cancel" is
+  said; a buzz, a "miss you", a reaction, a sticker and whatever only changes my own screen happen
+  at once.
+  A dictated message is seen by the speech service and by Kimi before it's encrypted — the one
+  place besides Boo's chat where words leave the device in the clear. Listening stops during calls
+  and while the tab is hidden; a web page can't listen with the phone locked or the app closed.
 - **🕊️ Forgiveness request**: one at a time, 24 hours between requests (claimed atomically, so two
   taps can't slip through), text only, encrypted like any message — only its *status* is plain.
   "Ask me later" isn't an API call at all; it's local to the bubble. Forgiving — or simply

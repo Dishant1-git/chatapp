@@ -7,7 +7,7 @@
 // message — goes to /api/assistant/command to be understood. The contact list
 // never does: names are matched here. The message itself is then encrypted and
 // sent like any other.
-import { useSyncExternalStore } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { api } from './client';
 import { encryptMessage } from './e2ee';
 import { conversationTitle, isGroup } from './conversations';
@@ -134,14 +134,17 @@ function findByName(conversations, wanted) {
 
 // ---- Doing ----
 
-// Sends `text` to a chat, encrypted for its members like any typed message.
+// Sends a message to a chat, encrypted for its members like any typed one.
+// payload: what lib/e2ee.js encrypts — { text }, { text: '', sticker }, { text, gift }.
 // The open chat (and the list) pick it up from the socket, as they would a
 // message sent from another tab.
-export async function sendTextTo(conversation, text) {
+export const sendTextTo = (conversation, text) => sendTo(conversation, { text });
+
+export async function sendTo(conversation, payload) {
   const conversationId = conversation._id;
 
   async function encryptAndSend(members) {
-    const { encrypted } = await encryptMessage({ conversationId, members, payload: { text } });
+    const { encrypted } = await encryptMessage({ conversationId, members, payload });
     return api('/api/messages', { method: 'POST', body: { conversationId, ...encrypted } });
   }
 
@@ -153,4 +156,37 @@ export async function sendTextTo(conversation, text) {
     const { conversation: fresh } = await api(`/api/conversations/${conversationId}`);
     return (await encryptAndSend(fresh.participants)).message;
   }
+}
+
+// ---- Asking a chat's screen to do something ----
+
+// Opening the camera or starting a voice note belongs to the chat screen, which
+// may not even be on screen yet when the assistant asks for it. So the request
+// is left here, and the chat picks it up — at once if it's open, or as soon as
+// it is. One that nobody collects is forgotten after a few seconds.
+const ASK_LASTS_MS = 15 * 1000;
+const askListeners = new Set();
+let asked = null; // { conversationId, what, at }
+
+// what: 'camera' | 'recorder'
+export function askChat(conversationId, what) {
+  asked = { conversationId, what, at: Date.now() };
+  askListeners.forEach((listener) => listener());
+}
+
+// In the chat's own components: calls handle() when this chat is asked for `what`
+export function useChatAsk(conversationId, what, handle) {
+  const handler = useRef(handle);
+  handler.current = handle;
+  useEffect(() => {
+    function check() {
+      if (!asked || asked.conversationId !== conversationId || asked.what !== what) return;
+      const fresh = Date.now() - asked.at < ASK_LASTS_MS;
+      asked = null;
+      if (fresh) handler.current();
+    }
+    check();
+    askListeners.add(check);
+    return () => askListeners.delete(check);
+  }, [conversationId, what]);
 }

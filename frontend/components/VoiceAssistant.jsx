@@ -6,10 +6,9 @@ import { Loader2, Mic, X } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import { useCalls } from './CallProvider';
 import { api } from '@/lib/client';
-import { conversationTitle } from '@/lib/conversations';
-import { canForwardTo } from '@/lib/forward';
 import { playListeningSound, unlockAudio } from '@/lib/sounds';
-import { afterWakeWords, findChat, isNo, isYes, sendTextTo, setVoice, useVoiceOn, voiceSupported } from '@/lib/voice';
+import { afterWakeWords, isNo, isYes, setVoice, useVoiceOn, voiceSupported } from '@/lib/voice';
+import { perform } from '@/lib/voiceActions';
 
 const COMMAND_WINDOW_MS = 8000; // how long "Hey Boo" waits for the command
 const CONFIRM_WINDOW_MS = 15000; // how long a "send it?" waits for yes or no
@@ -24,16 +23,21 @@ function commandIn({ parts, interim }) {
   return /^(?:yes|yeah|yep|ok|okay|hello|hi|hey)[.!?]*$/i.test(command) ? '' : command;
 }
 
-const HINT = 'Say “Hey Boo”, then “call Harinder” or “tell Simran I’m on my way”.';
 
-// 🎙️ Hands-free voice commands. While it's switched on (the microphone button
-// above the chat list) the app listens for "Hey Boo" and then does what it's
-// told: call or video call someone, send them a message, open their chat.
+// 🎙️ Hands-free voice commands. While it's switched on (Boo's button above the
+// new-chat button, or the microphone in the header) the app listens for
+// "Hey Boo" and then does what it's told — anything in lib/voiceActions.js:
+// calling, writing, scheduling, reading messages out, editing or deleting the
+// last one, a buzz, a "miss you", finding people, muting, ghosting, opening
+// screens. Said without a name, a command is about the chat that's open.
 //
-// It answers out loud, so the screen never has to be looked at or touched:
+// This file is the ears and the mouth: hearing the wake words, gathering the
+// sentence until they stop talking, asking the server what was meant, and
+// saying the answer. It answers out loud, so the screen never has to be looked
+// at or touched:
 //  - a call is announced and goes out after a few seconds unless "cancel" is said;
-//  - a message is read back first and only sent after a "yes" — a misheard
-//    name or sentence can't be unsent, so that one is always asked.
+//  - anything that reaches someone and can't be taken back is read out first
+//    and only done after a "yes" — a misheard name or sentence can't be unsent.
 //
 // Listening stops during a call (the microphone is busy, and a conversation
 // isn't a list of commands) and whenever the app isn't in front. A browser can
@@ -41,14 +45,17 @@ const HINT = 'Say “Hey Boo”, then “call Harinder” or “tell Simran I’
 // locked or the app closed.
 export default function VoiceAssistant() {
   const on = useVoiceOn();
-  const { user, conversations } = useChat();
+  const chat = useChat();
+  const { user } = chat;
   const { currentCall, startCall } = useCalls();
   const router = useRouter();
 
   const [phase, setPhase] = useState('idle'); // idle | command | thinking | confirm | reply
   const [heard, setHeard] = useState(''); // what's being said right now
   const [line, setLine] = useState(''); // what the assistant last said
-  const [pending, setPending] = useState(null); // { kind: 'message' | 'call', conversation, text?, video? }
+  // What's waiting for a yes or a no: { kind: 'confirm', question, yes, run } or
+  // { kind: 'call', conversation, video } — see lib/voiceActions.js
+  const [pending, setPending] = useState(null);
   // ⌨️ The same commands can be typed: for a noisy room, a browser that mishears,
   // or just to check that a command does what it should
   const [isOpen, setIsOpen] = useState(false);
@@ -60,7 +67,11 @@ export default function VoiceAssistant() {
   const speakingRef = useRef(false);
   const timer = useRef(null);
   const latest = useRef({});
-  latest.current = { conversations, myId: user?._id, startCall, router };
+  latest.current = {
+    startCall,
+    // What an action may use (lib/voiceActions.js)
+    ctx: { ...chat, myId: user?._id, activeId: chat.activeConversationId, router },
+  };
 
   // The command while it's still being spoken: a recogniser hands a sentence over
   // in pieces, one at every breath. `parts` are the finished pieces, `interim`
@@ -138,14 +149,14 @@ export default function VoiceAssistant() {
     [backToIdle, reply]
   );
 
-  const sendPending = useCallback(
-    async ({ conversation, text }) => {
+  // "Yes": do what was asked about
+  const confirmPending = useCallback(
+    async ({ run: doIt }) => {
       go('thinking');
       try {
-        await sendTextTo(conversation, text);
-        reply('Sent.');
+        reply(await doIt());
       } catch (err) {
-        reply(`It didn’t send. ${err.message}`);
+        reply(`That didn’t work. ${err.message}`);
       }
     },
     [go, reply]
@@ -159,34 +170,25 @@ export default function VoiceAssistant() {
       setHeard(command);
       try {
         const result = await Promise.race([
-          api('/api/assistant/command', { method: 'POST', body: { text: command } }),
+          // tz: so "at 5 pm" means five on this device's clock
+          api('/api/assistant/command', { method: 'POST', body: { text: command, tz: -new Date().getTimezoneOffset() } }),
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error('The server took too long. Try again.')), UNDERSTAND_TIMEOUT_MS)
           ),
         ]);
         if (phaseRef.current !== 'thinking') return; // switched off meanwhile
         if (!result?.action || result.action === 'none') {
-          return reply(`I heard “${command}”. ${result?.say || 'I can call, video call, message or open a chat.'}`);
+          return reply(result?.say || `Sorry, I didn’t get “${command}”.`);
         }
 
-        const { conversations: chats, myId, router: nav } = latest.current;
-        const found = findChat(chats, result.name);
-        if (found.several) return reply(`I found ${found.several.join(' and ')}. Say it again with the full name.`);
-        if (!found.conversation) return reply(`I couldn’t find “${result.name}” in your chats.`);
-        const conversation = found.conversation;
-        const who = conversationTitle(conversation);
+        const outcome = await perform(result, latest.current.ctx);
+        if (phaseRef.current !== 'thinking') return;
 
-        if (result.action === 'open') {
-          nav.push(`/chat/${conversation._id}`);
-          return reply(`Opening ${who}.`);
-        }
-
-        if (!canForwardTo(conversation, myId)) return reply(`You can’t reach ${who} right now.`);
-
-        if (result.action === 'message') {
-          const waiting = { kind: 'message', conversation, text: result.text };
+        // Something that can't be taken back: asked about first
+        if (outcome.confirm) {
+          const waiting = { kind: 'confirm', ...outcome.confirm };
           go('confirm', waiting);
-          await say(`To ${who}: ${result.text}. Say yes to send, or no to cancel.`);
+          await say(`${waiting.question} Say yes, or no to cancel.`);
           if (pendingRef.current !== waiting) return; // answered by a tap meanwhile
           timer.current = setTimeout(() => {
             if (pendingRef.current === waiting) cancelPending();
@@ -196,13 +198,17 @@ export default function VoiceAssistant() {
 
         // A call: announced, then placed unless it's called off in time. The
         // countdown doesn't wait for the announcement to finish being spoken.
-        const video = result.action === 'video_call';
-        const waiting = { kind: 'call', conversation, video };
-        go('confirm', waiting);
-        say(`${video ? 'Video calling' : 'Calling'} ${who}. Say cancel to stop.`);
-        timer.current = setTimeout(() => {
-          if (pendingRef.current === waiting) placeCall(waiting);
-        }, CALL_COUNTDOWN_MS);
+        if (outcome.call) {
+          const waiting = { kind: 'call', ...outcome.call };
+          go('confirm', waiting);
+          say(`${waiting.video ? 'Video calling' : 'Calling'} ${waiting.who}. Say cancel to stop.`);
+          timer.current = setTimeout(() => {
+            if (pendingRef.current === waiting) placeCall(waiting);
+          }, CALL_COUNTDOWN_MS);
+          return;
+        }
+
+        reply(outcome.say);
       } catch (err) {
         // Whatever went wrong, say so — never sit on "Working on it…"
         reply(err?.message || 'Something went wrong. Try again.');
@@ -251,7 +257,7 @@ export default function VoiceAssistant() {
         const waiting = pendingRef.current;
         if (!waiting) return;
         if (isNo(sentence)) return cancelPending();
-        if (waiting.kind === 'message' && isYes(sentence)) return sendPending(waiting);
+        if (waiting.kind === 'confirm' && isYes(sentence)) return confirmPending(waiting);
         return;
       }
       if (phaseNow !== 'idle') return;
@@ -267,7 +273,7 @@ export default function VoiceAssistant() {
       if (start) gather(start, true);
       else playListeningSound();
     },
-    [go, gather, backToIdle, cancelPending, sendPending]
+    [go, gather, backToIdle, cancelPending, confirmPending]
   );
   const handleHeardRef = useRef(handleHeard);
   handleHeardRef.current = handleHeard;
@@ -348,11 +354,10 @@ export default function VoiceAssistant() {
     []
   );
 
-  // Just switched on: say how it works. And once things go quiet again, what
-  // was last said is cleared, leaving only the small "listening" chip.
+  // Once things go quiet again, what was last said is cleared, leaving only the
+  // small "listening" chip.
   useEffect(() => {
     if (!on) return;
-    setLine(HINT);
     unlockAudio(); // for the "I'm listening" blip
   }, [on]);
   useEffect(() => {
@@ -419,7 +424,7 @@ export default function VoiceAssistant() {
                 value={typed}
                 onChange={(event) => setTyped(event.target.value)}
                 maxLength={400}
-                placeholder="…or type it: call Harinder"
+                placeholder="…or type it"
                 aria-label="Type a command"
                 className="min-w-0 flex-1 rounded-full bg-panel-soft px-3 py-1.5 text-base outline-none placeholder:text-muted focus:ring-2 focus:ring-brand/25 md:text-sm"
               />
@@ -432,13 +437,13 @@ export default function VoiceAssistant() {
           {/* The same answers, for when a tap is easier than talking */}
           {phase === 'confirm' && pending && (
             <div className="mt-2 flex gap-2">
-              {pending.kind === 'message' ? (
+              {pending.kind === 'confirm' ? (
                 <button
                   type="button"
-                  onClick={() => sendPending(pending)}
+                  onClick={() => confirmPending(pending)}
                   className="flex-1 rounded-full bg-brand py-1.5 font-medium text-on-brand hover:bg-brand-strong"
                 >
-                  Yes, send
+                  {pending.yes}
                 </button>
               ) : (
                 <button

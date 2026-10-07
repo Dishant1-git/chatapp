@@ -46,6 +46,7 @@ import { checkDocumentFile } from './FileCard';
 import { backgroundStyle } from '@/lib/chatBackground';
 import { api } from '@/lib/client';
 import { useBooOn } from '@/lib/boo';
+import { useChatAsk } from '@/lib/voice';
 import { MOODS, PAUSE_REASONS, REVIVE_ANSWERS, isDeadChat, shakeElement, timezoneOffset } from '@/lib/social';
 import { isUnwrappedByAll, isWrappedFor } from '@/lib/gifts';
 import { describeEvent, formatDayDivider, formatLastSeen, formatTime, isDifferentDay } from '@/lib/format';
@@ -187,6 +188,8 @@ export default function ChatWindow({ conversationId }) {
   const [replyingTo, setReplyingTo] = useState(null);
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [ghostCamera, setGhostCamera] = useState(false); // 👻 Ghost Click camera open
+  // 🎙️ "Hey Boo, take a photo for Harinder" (lib/voiceActions.js)
+  useChatAsk(conversationId, 'camera', () => setGhostCamera(true));
   const [ghostView, setGhostView] = useState(null); // { src, kind, mode, caption, senderName }
   const [giftViewId, setGiftViewId] = useState(null); // 🎁 the gift being opened
   // 💞 Gifts the other person is holding right now ("open together"): { [messageId]: true }
