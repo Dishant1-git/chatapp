@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useCalls } from './CallProvider';
+import { FestiveCap } from './Logo';
 import { shakeElement } from '@/lib/social';
 import { BOO_ENTRANCE_MS, BOO_NAME, BOO_PICTURES, onBooToggled, useBooOn } from '@/lib/boo';
 
@@ -249,13 +250,14 @@ function Roamer() {
         <motion.button
           type="button"
           onClick={handleTap}
-          className="pointer-events-auto block cursor-pointer opacity-90"
+          className="pointer-events-auto relative block cursor-pointer opacity-90"
           style={{ width: SIZE, height: SIZE }}
           animate={{ y: [0, -6, 0], rotate: [-4, 4, -4] }}
           transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
           aria-label={`${BOO_NAME}, floating about. Tap to poke.`}
         >
           <img src={picture} alt="" draggable={false} className="h-full w-full drop-shadow-lg" />
+          <FestiveCap />
         </motion.button>
       </motion.div>
     </div>

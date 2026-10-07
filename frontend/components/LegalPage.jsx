@@ -1,3 +1,4 @@
+import Logo from './Logo';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
@@ -24,7 +25,7 @@ export default function LegalPage({ title, updated, sections, intro, children })
         </Link>
 
         <header className="mb-6 flex items-center gap-4 text-fg">
-          <img src="/logo-128.webp" alt="" width={56} height={56} className="h-14 w-14 rounded-2xl shadow-md" />
+          <Logo size={56} className="rounded-2xl shadow-md" />
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
             <p className="mt-0.5 text-sm text-muted">Last updated {updated}</p>

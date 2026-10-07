@@ -1,5 +1,6 @@
 'use client';
 
+import Logo from './Logo';
 import { useId, useState } from 'react';
 import { Check, Eye, EyeOff, X } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
@@ -26,13 +27,9 @@ export default function AuthCard({ title, subtitle, children, footer, greeting =
       {/* The page sits on the warm wash, with the form as a floating card */}
       <div className={`relative w-full ${wide ? 'max-w-md' : 'max-w-sm'}`}>
         <div className="mb-6 flex flex-col items-center text-center text-fg">
-          <img
-            src="/logo-128.webp"
-            alt=""
-            width={64}
-            height={64}
-            className="mb-3 h-16 w-16 rounded-[1.15rem] shadow-md"
-          />
+          <span className="mb-3">
+            <Logo size={64} className="rounded-[1.15rem] shadow-md" />
+          </span>
           {greeting}
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
           <p className="mt-1 text-sm text-muted">{subtitle}</p>

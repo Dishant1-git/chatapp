@@ -3,6 +3,7 @@ import './globals.css';
 import { ACCESSIBILITY_SCRIPT } from '@/lib/accessibility';
 import { PRIVACY_SCRIPT } from '@/lib/privacy';
 import Shield from '@/components/Shield';
+import FestiveGate from '@/components/FestiveGate';
 
 // The handwriting on the loading screen and the login page. Downloaded at build
 // time and served from our own domain, so no request goes to Google at runtime.
@@ -52,6 +53,8 @@ export default function RootLayout({ children }) {
         {children}
         {/* 🛡️ Turns off the developer-tools shortcuts and right-click "Inspect" */}
         <Shield />
+        {/* 🪔 Lights and colours on festival days, on every page */}
+        <FestiveGate />
       </body>
     </html>
   );

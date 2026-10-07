@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Users } from 'lucide-react';
 import { MOODS } from '@/lib/social';
 import { BOO_PICTURES } from '@/lib/boo';
+import { FestiveCap } from './Logo';
 import { openProfileViewer } from './ProfileViewer';
 
 // Profile picture with a fallback to the person's initials
@@ -88,10 +89,11 @@ export default function Avatar({ user, size = 44, showStatus = false, isGroup = 
 export function BooAvatar({ size = 44, picture = BOO_PICTURES.wave }) {
   return (
     <span
-      className="flex shrink-0 items-center justify-center rounded-full bg-brand-soft"
+      className="relative flex shrink-0 items-center justify-center rounded-full bg-brand-soft"
       style={{ width: size, height: size }}
     >
       <img src={picture} alt="" className="h-[82%] w-[82%]" draggable={false} />
+      <FestiveCap />
     </span>
   );
 }

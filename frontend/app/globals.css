@@ -60,6 +60,245 @@
   color-scheme: dark;
 }
 
+/* 🪔 Festivals (lib/festivals.js puts data-festival on <html> on the day).
+   Each palette changes the wash, the top bars and the accent — brand, my own
+   bubbles, the soft tints — and leaves the panels and the text alone, so
+   everything stays as readable as on any other day.
+   The light ones are written :not(.dark) on purpose: html[data-festival] would
+   outrank .dark, and a light tint would leak into dark mode wherever the dark
+   palette doesn't name that colour. */
+
+/* Saffron: Navratri, Dussehra, Lohri, Baisakhi — marigold and rani pink */
+html:not(.dark)[data-festival='saffron'] {
+  --app: #fdebd0;
+  --brand-deep: #f9d4a0;
+  --brand-mid: #fde3c0;
+  --brand-light: #fff4e2;
+  --panel-soft: #fdf0df;
+  --hover: #fbe3c7;
+  --line: #f6ddbd;
+  --header: #fdebd3;
+  --bubble-in: #fdeacf;
+  --bubble-out: #b3123e;
+  --bubble-out-fg: #fff6ee;
+  --brand: #b3123e;
+  --brand-strong: #8f0d31;
+  --brand-soft: #fde2c8;
+  --on-brand: #fff8f0;
+}
+html.dark[data-festival='saffron'] {
+  --app: #140a0c;
+  --brand-deep: #160b0e;
+  --brand-mid: #1d0f13;
+  --brand-light: #27141a;
+  --header: #1c1014;
+  --hover: #33202a;
+  --bubble-out: #9c1a3e;
+  --bubble-out-fg: #fff1e6;
+  --brand: #ffb347;
+  --brand-strong: #ffc978;
+  --brand-soft: #3d1a24;
+  --on-brand: #2b1005;
+}
+
+/* Gold: Diwali — lamps against a deep purple night */
+html:not(.dark)[data-festival='gold'] {
+  --app: #fdefc4;
+  --brand-deep: #f8d98a;
+  --brand-mid: #fdeab8;
+  --brand-light: #fff6dc;
+  --panel-soft: #fdf3d9;
+  --hover: #fbe9c0;
+  --line: #f3e0b0;
+  --header: #fff1cf;
+  --bubble-in: #fbeecb;
+  --bubble-out: #6d28a8;
+  --bubble-out-fg: #fff8ea;
+  --brand: #6d28a8;
+  --brand-strong: #581c87;
+  --brand-soft: #f3e3ff;
+  --on-brand: #fffaf0;
+}
+html.dark[data-festival='gold'] {
+  --app: #0d0a17;
+  --brand-deep: #0f0b1a;
+  --brand-mid: #151026;
+  --brand-light: #1c1533;
+  --header: #141026;
+  --hover: #2a2040;
+  --bubble-out: #5b2a91;
+  --bubble-out-fg: #fff3d6;
+  --brand: #f5c542;
+  --brand-strong: #ffd970;
+  --brand-soft: #33264d;
+  --on-brand: #2a1c00;
+}
+
+/* Colours: Holi */
+html:not(.dark)[data-festival='colours'] {
+  --app: #fdeaf3;
+  --brand-deep: #fff3c4;
+  --brand-mid: #e6f5ff;
+  --brand-light: #ffeef6;
+  --panel-soft: #fdf0f6;
+  --hover: #fbe2ee;
+  --line: #f6dbe8;
+  --header: #ffeef6;
+  --bubble-in: #fde8f1;
+  --bubble-out: #d6246e;
+  --bubble-out-fg: #fff5f9;
+  --brand: #d6246e;
+  --brand-strong: #b01558;
+  --brand-soft: #ffe0ee;
+  --on-brand: #fff8fb;
+}
+html.dark[data-festival='colours'] {
+  --app: #120b10;
+  --brand-deep: #0d1418;
+  --brand-mid: #171019;
+  --brand-light: #22131c;
+  --header: #1a1016;
+  --hover: #33202b;
+  --bubble-out: #a01d58;
+  --bubble-out-fg: #ffeaf3;
+  --brand: #ff7ab8;
+  --brand-strong: #ff9ccb;
+  --brand-soft: #3b1b2c;
+  --on-brand: #2b0718;
+}
+
+/* Tricolour: Republic Day, Independence Day */
+html:not(.dark)[data-festival='tricolor'] {
+  --app: #fff1df;
+  --brand-deep: #dff2e1;
+  --brand-mid: #ffffff;
+  --brand-light: #ffe9cf;
+  --panel-soft: #f4f8f1;
+  --hover: #e9f3e6;
+  --line: #e2eddf;
+  --header: #fff0de;
+  --bubble-in: #eef6ec;
+  --bubble-out: #0f7a2a;
+  --bubble-out-fg: #f4fff6;
+  --brand: #0f7a2a;
+  --brand-strong: #0a5c1f;
+  --brand-soft: #dcf2e0;
+  --on-brand: #f6fff8;
+}
+html.dark[data-festival='tricolor'] {
+  --app: #0c110d;
+  --brand-deep: #0b130d;
+  --brand-mid: #121512;
+  --brand-light: #1f170e;
+  --header: #17140e;
+  --hover: #22301f;
+  --bubble-out: #156b2b;
+  --bubble-out-fg: #ecffef;
+  --brand: #ffb054;
+  --brand-strong: #ffc680;
+  --brand-soft: #1d3322;
+  --on-brand: #2b1600;
+}
+
+/* Winter: December — snow on pine, and Santa's red */
+html:not(.dark)[data-festival='winter'] {
+  --app: #e8f1f8;
+  --brand-deep: #d3e4f2;
+  --brand-mid: #e6f0f8;
+  --brand-light: #f6fafd;
+  --panel-soft: #eef4f9;
+  --hover: #e0ebf4;
+  --line: #d9e6f0;
+  --header: #edf4fa;
+  --bubble-in: #e6eff7;
+  --bubble-out: #c1272d;
+  --bubble-out-fg: #fff7f6;
+  --brand: #c1272d;
+  --brand-strong: #9b1c22;
+  --brand-soft: #fde3e3;
+  --on-brand: #fffafa;
+}
+html.dark[data-festival='winter'] {
+  --app: #0a1016;
+  --brand-deep: #0a1118;
+  --brand-mid: #0f1821;
+  --brand-light: #15222e;
+  --header: #111a23;
+  --hover: #1e2c38;
+  --bubble-out: #a3242a;
+  --bubble-out-fg: #fff1f0;
+  --brand: #ff7b7b;
+  --brand-strong: #ff9f9f;
+  --brand-soft: #3a1b1e;
+  --on-brand: #2b0808;
+}
+
+/* Emerald: Eid */
+html:not(.dark)[data-festival='emerald'] {
+  --app: #e6f4ec;
+  --brand-deep: #cfe9da;
+  --brand-mid: #e4f3ea;
+  --brand-light: #f5fbf7;
+  --panel-soft: #edf7f1;
+  --hover: #dff0e6;
+  --line: #d7ebdf;
+  --header: #eaf6ef;
+  --bubble-in: #e4f2ea;
+  --bubble-out: #0f7b55;
+  --bubble-out-fg: #f3fff9;
+  --brand: #0f7b55;
+  --brand-strong: #0a5e41;
+  --brand-soft: #d9f2e5;
+  --on-brand: #f6fffa;
+}
+html.dark[data-festival='emerald'] {
+  --app: #08110d;
+  --brand-deep: #08120e;
+  --brand-mid: #0d1a14;
+  --brand-light: #13261d;
+  --header: #0f1b15;
+  --hover: #1b3027;
+  --bubble-out: #136b4c;
+  --bubble-out-fg: #eafff5;
+  --brand: #f1c95b;
+  --brand-strong: #f8dc8c;
+  --brand-soft: #17332a;
+  --on-brand: #2a1f00;
+}
+
+/* 🎅 The red cap (components/Logo.jsx): sits on the top-left corner of the
+   logo and of Boo, tilted, and only shows while <html> has data-hat="santa" */
+.festive-cap {
+  display: none;
+  position: absolute;
+  top: -30%;
+  left: -16%;
+  width: 78%;
+  aspect-ratio: 64 / 50;
+  transform: rotate(-20deg);
+  pointer-events: none;
+  background: center / contain no-repeat
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 50'%3E%3Cpath d='M9 37C10 17 27 3 42 6c11 2 18 12 17 25-3-8-8-12-13-11 5 6 7 11 7 17z' fill='%23d62828'/%3E%3Cpath d='M9 37C10 17 27 3 42 6c-14 1-24 12-26 31z' fill='%23b71f1f'/%3E%3Crect x='4' y='33' width='51' height='12' rx='6' fill='%23fff'/%3E%3Ccircle cx='58' cy='32' r='6' fill='%23fff'/%3E%3C/svg%3E");
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.25));
+}
+html[data-hat='santa'] .festive-cap {
+  display: block;
+}
+
+/* A bulb on the string of lights (components/Festive.jsx): it glows in its own
+   colour, and each one dims and brightens a little out of step with the next */
+.festive-bulb {
+  box-shadow: 0 0 12px 3px currentColor;
+  animation: festive-twinkle 2.8s ease-in-out infinite;
+}
+@keyframes festive-twinkle {
+  0%, 100% { opacity: 1; filter: brightness(1.2); }
+  50% { opacity: 0.6; filter: brightness(0.9); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .festive-bulb { animation: none; }
+}
+
 @theme inline {
   --color-app: var(--app);
   --color-panel: var(--panel);

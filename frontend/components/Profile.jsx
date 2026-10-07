@@ -13,6 +13,7 @@ import { moveKeysToNewPassword } from '@/lib/accountKeys';
 import { passwordIsValid, passwordRules } from '@/lib/password';
 import { privacyOn, setPrivacy } from '@/lib/privacy';
 import { setBoo, useBooOn } from '@/lib/boo';
+import { setFestive, useFestiveOn } from '@/lib/festivals';
 import { disablePush, enablePush, pushState } from '@/lib/push';
 import { MOODS } from '@/lib/social';
 import { FONT_SIZES, TEXT_COLORS, loadAccessibility, saveAccessibility, speak } from '@/lib/accessibility';
@@ -162,6 +163,7 @@ export default function Profile({ onClose }) {
         <PushNotifications />
         <PrivacyScreen />
         <BooPopUps />
+        <FestiveLook />
         <MoodPicker />
         <SocialStats />
         <AccessibilitySettings />
@@ -557,6 +559,22 @@ function BooPopUps() {
       icon={<BooAvatar size={36} />}
       label={on ? 'Roaming your screen' : 'Stays in the chat list'}
       hint="Boo drifts around, plays harmless pranks (nothing is ever really sent) and floats in with a joke when someone ghosts you. Boo never leaves your chat list."
+    />
+  );
+}
+
+// 🪔 Festivals: the lights, colours and little animations on festival days
+function FestiveLook() {
+  const on = useFestiveOn();
+
+  return (
+    <DeviceSwitch
+      title="Festive look"
+      on={on}
+      onToggle={() => setFestive(!on)}
+      icon={<span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-lg">🪔</span>}
+      label={on ? 'On for festivals' : 'Off'}
+      hint="On Navratri, Diwali, Holi and other festivals the app puts up lights and changes its colours."
     />
   );
 }

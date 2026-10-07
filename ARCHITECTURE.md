@@ -626,6 +626,33 @@ file. The current one is warm: cream and terracotta, near-black brown in the dar
 Text size and colour, high contrast, and "read new messages aloud" (`lib/accessibility.js`), all
 applied before the first paint. Every animation respects *reduce motion*.
 
+### 🪔 Festivals
+
+Around an Indian festival the app dresses up by itself (`lib/festivals.js`, `lib/panchang.js`,
+`components/Festive.jsx`, mounted in the root layout so the login pages get it too). **No dates are
+written down.** Each entry in `FESTIVALS` says how its day is found — a fixed date, or a rule of the
+Hindu lunar calendar — and when to start and stop around it: `from` (hours from that day's
+midnight: `0` as the day begins, `-12` noon the day before, `-48` two days ahead) and `days`.
+`panchang.js` works the lunar ones out from the Sun's and Moon's positions (Meeus' series): a
+tithi is every 12° the Moon is ahead of the Sun, a month starts at the new moon and is named for
+the Sun's sidereal sign, and a festival is "the day on which tithi N is running at such an hour".
+Checked against published dates for 2020–2030 it is right about nine times in ten and a day out
+otherwise (the almanacs add local rules it doesn't know); `CORRECTIONS` is where a known miss is
+fixed. Eid uses the tabular Islamic calendar and can also be a day off the moon sighting.
+
+Covered: Lohri, Republic Day, Holi, Eid, Baisakhi, Raksha Bandhan, Independence Day, Janmashtami,
+Ganesh Chaturthi, Navratri (from midnight, with each night's goddess and colour), Dussehra (from
+noon the day before — the later start wins an overlap, which is how it takes over from Navratri's
+ninth night), Diwali (two days before to two after), Gurpurab, December (snow, and
+`data-hat="santa"` puts a red cap on the logo and on Boo — `FestiveCap` in `components/Logo.jsx`)
+and New Year. `useFestival()` sets a timer for the exact next change, so it switches on the minute
+with the app open, and puts the palette on `<html>` as `data-festival`; `globals.css` swaps the
+wash, the top bars and the accent for it. The light palettes are written `:not(.dark)` — otherwise
+they outrank `.dark` and leak into dark mode. `Festive` (fetched only then) draws the lights (plain
+CSS), a greeting once a day, things drifting down, and every 45 s a small "moment": dandiya
+sticks, a firework, a splash of colour. All `pointer-events: none`, still with reduce motion.
+Per-device switch: Profile → Festive look. `?festival=navratri` on any page tries one on.
+
 ### 🫣 Privacy screen
 
 Profile → Privacy screen. Adds `privacy` to `<html>`, which blurs everything marked `private` —
