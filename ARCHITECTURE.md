@@ -425,6 +425,27 @@ and `backend/routes/chatActions.js`; labels and rules the browser needs are mirr
   local: nothing is sent, so they never learn you looked. Two things to know: *soft*'s "no
   notifications" promise is kept **by the browser**, not the server, and reactions are blocked only
   at *permanent*.
+- **👻 Boo** (`backend/utils/boo.js`, `routes/boo.js`, `frontend/lib/boo.js`, `BooChat`, `BooBuddy`).
+  The app's own ghost, powered by Grok. Boo is **not a user and has no conversation**: `ChatList`
+  pins a row to the top of Friends that can't be muted, swiped or deleted, and it opens `/chat/boo`
+  (a fixed route that wins over `/chat/[id]`). `POST /api/boo/chat` sends the last 12 turns to Grok
+  behind a system prompt that holds Boo's character, a summary of the features (keep it in step with
+  this section) and the rule that Boo talks about the app and nothing else. That chat's history
+  lives in the browser's `localStorage`, and it is the one chat that **isn't end-to-end encrypted** —
+  the screen says so. In a chat where you've been ghosted, `BooBuddy` floats above the ghost banner:
+  `POST /api/boo/ghosted { level, canSend }` returns a joke and, while something can still be sent
+  (an ordinary message when soft-ghosted, the forgiveness request when ghosted), three messages to
+  pick from. Only the level goes to Grok — no names, no messages. A suggestion that's sent carries
+  `boo: true` **inside the encrypted payload**, both sides see "👻 Suggested by Boo" under it, Boo
+  warns about that before sending, and such a message can't be edited (an edit would drop the
+  label, like a gift's wrapping). While Boo is on, `BooRoamer` (mounted in `app/chat/layout.js`)
+  drifts a small ghost around the app and plays a prank every half minute or so — a buzz that
+  shakes only this screen, a message it "types" above the composer and deletes, peekaboo, a
+  flicker. All of it is drawn locally: **nothing touches the real message box, nothing is sent,
+  and the other person sees none of it.** It's hidden during calls and with reduce motion.
+  Flipping the switch plays `BooShow` (a roaming entrance, or a crying exit). Boo being out is a
+  per-device switch (Profile → Boo, or the header of Boo's chat); Boo's row stays regardless. With no `GROK_API_KEY`, or when Grok doesn't answer,
+  Boo uses the lines written in `utils/boo.js`.
 - **🕊️ Forgiveness request**: one at a time, 24 hours between requests (claimed atomically, so two
   taps can't slip through), text only, encrypted like any message — only its *status* is plain.
   "Ask me later" isn't an API call at all; it's local to the bubble. Forgiving — or simply
@@ -606,6 +627,7 @@ behaviour rather than plumbing:
 | `AUTO_VERIFY_EMAIL=1` | (Development) new accounts skip verification entirely |
 | `TURN_URL` + credentials | Calls fail on strict networks and some mobile carriers |
 | `GIPHY_API_KEY` | The GIF tab is hidden |
+| `GROK_API_KEY` (+ optional `GROK_MODEL`) | 👻 Boo still shows up, with a few built-in lines instead of real answers |
 | `TRUST_PROXY` | Rate limiting sees the proxy's IP, not the visitor's |
 
 ### Deploying
@@ -708,6 +730,7 @@ confirmed email address.
 | **calls** | `GET /calls/config` (ICE servers), `GET /calls/history?before=` |
 | **stickers** | `GET /stickers/packs`, `/stickers/installed`, `POST /stickers/packs`, `POST|DELETE /packs/:id/install`, `DELETE /packs/:id` |
 | **gifs** | `GET /gifs/config`, `GET /gifs?q=`, `GET /gifs/file` |
+| **boo** | `POST /boo/chat`, `POST /boo/ghosted` (20 a minute per person) |
 | **scheduled** | `GET /scheduled`, `POST /scheduled`, `DELETE /scheduled/:id` |
 | **health** | `GET /health` (no auth, no database required) |
 

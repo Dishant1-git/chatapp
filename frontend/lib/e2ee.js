@@ -281,6 +281,7 @@ async function wrappingKeyFor(publicKey) {
 //            media?: { kind: 'audio' | 'video', type, duration, waveform?, mirrored? },
 //            file?: { name, type, size },  — a shared document; even its name is encrypted
 //            gift?: { mood, style, together },  — 🎁 a gift message (see lib/gifts.js)
+//            boo?: true,  — 👻 written by Boo, and shown as "Suggested by Boo" (see lib/boo.js)
 //            forwarded?: true }  — ↪️ a copy of a message from another chat (see lib/forward.js)
 export async function encryptMessage({ conversationId, members, payload }) {
   if (!session) throw new Error('Encryption is locked. Please reload the page.');
@@ -371,6 +372,8 @@ export async function openMessage(message, conversationId = message?.conversatio
           stickerImage: result.payload.stickerImage === true,
           // 🎁 Arrives wrapped and opens with an animation
           gift: readGift(result.payload.gift),
+          // 👻 One of Boo's suggestions
+          boo: result.payload.boo === true,
           // ↪️ A copy of a message from another chat
           forwarded: result.payload.forwarded === true,
           imageType: result.payload.image?.type || '',

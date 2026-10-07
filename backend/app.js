@@ -15,6 +15,7 @@ import gifRoutes from './routes/gifs.js';
 import chatActionRoutes from './routes/chatActions.js';
 import scheduledRoutes from './routes/scheduled.js';
 import pushRoutes from './routes/push.js';
+import booRoutes from './routes/boo.js';
 import healthRoutes from './routes/health.js';
 import { requireDatabase, notFound, errorHandler } from './middleware/errors.js';
 import { requireVerified } from './middleware/auth.js';
@@ -58,7 +59,7 @@ export function createApp(allowedOrigins) {
   // /api/keys is deliberately not in this list: that's the account's own
   // encryption key being set up at sign-up, before the code has been entered.
   app.use(['/api/users', '/api/conversations', '/api/messages', '/api/scheduled', '/api/upload',
-    '/api/stickers', '/api/gifs', '/api/calls', '/api/push'], requireVerified);
+    '/api/stickers', '/api/gifs', '/api/calls', '/api/push', '/api/boo'], requireVerified);
   app.use('/api/users', userRoutes);
   app.use('/api/conversations', conversationRoutes);
   // Ghost levels, forgiveness, pause, revive, inside jokes, undo seen, vibe stats
@@ -73,6 +74,7 @@ export function createApp(allowedOrigins) {
   app.use('/api/keys', keyRoutes);
   app.use('/api/calls', callRoutes);
   app.use('/api/push', pushRoutes);
+  app.use('/api/boo', booRoutes);
 
   app.use(notFound);
   app.use(errorHandler);

@@ -36,3 +36,5 @@ export const keyLimiter = limiter(60, 10, 'Too many encryption key changes. Plea
 export const groupLimiter = limiter(10, 60, 'Too many group changes. Please wait a bit.', (req) => req.userId);
 // 🎞️ GIF search: typing in the search box fires a request per pause
 export const searchLimiter = limiter(1, 60, 'Too many searches. Please slow down a little.', (req) => req.userId);
+// 👻 Talking to Boo: every message is a paid call to Grok
+export const booLimiter = limiter(1, 20, 'Boo needs a breather. Try again in a minute 👻', (req) => req.userId);

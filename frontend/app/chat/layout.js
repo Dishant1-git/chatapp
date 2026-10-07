@@ -13,6 +13,8 @@ import Notifications from '@/components/Notifications';
 // Shown once, on a first visit — no reason to ship it to everyone else
 const Tour = dynamicImport(() => import('@/components/Tour'), { ssr: false });
 import ProfileViewer from '@/components/ProfileViewer';
+import BooShow from '@/components/BooShow';
+import BooRoamer from '@/components/BooRoamer';
 import CallProvider from '@/components/CallProvider';
 import { useViewportHeight } from '@/hooks/useViewportHeight';
 
@@ -98,6 +100,10 @@ function ChatShell({ children }) {
         <ProfileViewer />
         {/* First-time guided tour of the features */}
         <Tour />
+        {/* 👻 Boo's entrance when switched on, and sad exit when switched off */}
+        <BooShow />
+        {/* …and, while it's on, the little ghost drifting about getting up to no good */}
+        <BooRoamer />
       </div>
     </CallProvider>
   );

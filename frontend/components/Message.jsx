@@ -169,6 +169,7 @@ function Message({
     !message.sticker &&
     !message.forgiveness &&
     !gift && // an edit would re-encrypt the text alone and unwrap it for good
+    !message.boo && // …and it would drop "Suggested by Boo" the same way
     !message.pending &&
     !message.failed &&
     Date.now() - new Date(message.createdAt).getTime() < EDIT_WINDOW_MS;
@@ -591,6 +592,11 @@ function Message({
           <p className={`mt-1 text-[11px] font-medium text-sky-600 dark:text-sky-400 ${isMine ? 'text-right' : ''}`}>
             🕊️ Character development
           </p>
+        )}
+
+        {/* 👻 Boo wrote this one, and both sides get to know */}
+        {message.boo && !isDeleted && !undecryptable && (
+          <p className={`mt-1 text-[11px] font-medium text-muted ${isMine ? 'text-right' : ''}`}>👻 Suggested by Boo</p>
         )}
 
         {/* ✨ A new reaction's emoji floats up from the bubble */}

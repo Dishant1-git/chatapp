@@ -7,7 +7,7 @@ import { Bell, BellOff, Check, Clock, Ghost, MessageCirclePlus, Phone, Search, S
 import { useChat } from './ChatProvider';
 import { ConfirmDialog } from './ChatDialogs';
 import { api } from '@/lib/client';
-import Avatar, { ChatAvatar } from './Avatar';
+import Avatar, { BooAvatar, ChatAvatar } from './Avatar';
 import ThemeToggle from './ThemeToggle';
 import dynamic from 'next/dynamic';
 import UserSearch from './UserSearch';
@@ -22,6 +22,7 @@ import { formatListDate, messagePreview } from '@/lib/format';
 import { conversationTitle, isGroup, makeNameOf, typingText } from '@/lib/conversations';
 import { isDeadChat } from '@/lib/social';
 import { useDraft } from '@/lib/drafts';
+import { BOO_ID, BOO_NAME } from '@/lib/boo';
 
 export default function ChatList() {
   const {
@@ -177,6 +178,10 @@ export default function ChatList() {
     conversations.some((c) => tabOf(c) === which && !c.isMuted && c.unreadCount > 0);
   const requestCount = conversations.filter((c) => c.isRequest).length;
 
+  // 👻 Boo is always first among friends (and turns up in a search for "boo")
+  const showBoo = isSearching ? BOO_NAME.toLowerCase().includes(query.trim().toLowerCase()) : tab === 'friends';
+  const ghostedMe = conversations.some((c) => c.ghost && c.ghost.by !== user?._id);
+
   // ⭐ Trusted Ghosts are pinned in their own section at the top
   const trustedIds = user?.trusted || [];
   const isTrustedChat = (c) => !isGroup(c) && trustedIds.includes(c.otherUser?._id);
@@ -291,6 +296,7 @@ export default function ChatList() {
           <h2 className="text-lg font-semibold">{tab === 'requests' ? 'Waiting for you' : 'Recent'}</h2>
           <span className="text-xs text-muted">{visible.length}</span>
         </li>
+        {showBoo && <BooItem isActive={activeConversationId === BOO_ID} ghostedMe={ghostedMe} />}
         {trustedChats.length > 0 && (
           <li className="px-5 pt-1 pb-1 text-xs font-semibold tracking-wide text-muted uppercase">⭐ Trusted Ghosts</li>
         )}
@@ -363,7 +369,7 @@ export default function ChatList() {
           </li>
         )}
 
-        {conversations.length > 0 && isSearching && visible.length === 0 && (
+        {conversations.length > 0 && isSearching && visible.length === 0 && !showBoo && (
           <li className="px-8 py-12 text-center text-sm text-muted">
             No chats match “{query}”.
             <button
@@ -552,6 +558,34 @@ function ContextMenuItem({ icon: Icon, label, danger = false, onClick }) {
       <Icon size={17} className="shrink-0" />
       <span className="truncate">{label}</span>
     </button>
+  );
+}
+
+// 👻 Boo's row. It isn't a conversation, so there's nothing to mute, swipe away
+// or delete: Boo stays at the top for good.
+function BooItem({ isActive, ghostedMe }) {
+  return (
+    <li className="mx-2 overflow-hidden rounded-xl">
+      <Link
+        href={`/chat/${BOO_ID}`}
+        className={`mx-2 flex items-center gap-3 rounded-2xl px-3 py-3 select-none ${
+          isActive ? 'bg-brand-soft' : 'hover:bg-hover active:bg-hover'
+        }`}
+      >
+        <BooAvatar size={52} />
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1.5 font-medium">
+            {BOO_NAME}
+            <span className="shrink-0 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand">
+              Resident ghost
+            </span>
+          </p>
+          <p className="mt-0.5 truncate text-sm text-muted">
+            {ghostedMe ? 'Psst… I heard someone ghosted you 👀' : 'Ask me anything about Ghost-ed 👻'}
+          </p>
+        </div>
+      </Link>
+    </li>
   );
 }
 

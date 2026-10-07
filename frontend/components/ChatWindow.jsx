@@ -13,6 +13,7 @@ import MessageInput from './MessageInput';
 import DeleteDialog from './DeleteDialog';
 import ChatMenu from './ChatMenu';
 import GhostBanner from './GhostBanner';
+import BooBuddy from './BooBuddy';
 import dynamic from 'next/dynamic';
 // The group screen, the camera (which brings video compression with it) and the
 // sticker store are all behind a button — loaded when they're opened
@@ -43,6 +44,7 @@ import { ImageLightbox } from './ImagePreview';
 import { checkDocumentFile } from './FileCard';
 import { backgroundStyle } from '@/lib/chatBackground';
 import { api } from '@/lib/client';
+import { useBooOn } from '@/lib/boo';
 import { MOODS, PAUSE_REASONS, REVIVE_ANSWERS, isDeadChat, shakeElement, timezoneOffset } from '@/lib/social';
 import { isUnwrappedByAll, isWrappedFor } from '@/lib/gifts';
 import { describeEvent, formatDayDivider, formatLastSeen, formatTime, isDifferentDay } from '@/lib/format';
@@ -214,6 +216,7 @@ export default function ChatWindow({ conversationId }) {
   const ghost = isGroupChat ? null : conversation?.ghost || null;
   const ghostedByMe = ghost?.by === myId;
   const iAmGhosted = Boolean(ghost) && !ghostedByMe;
+  const booPopsUp = useBooOn();
   // Ghosted or deep-ghosted: emojis only (until they're unghosted)
   const emojiOnly = iAmGhosted && ['ghosted', 'deep'].includes(ghost.level);
   // "Exit without drama": one of us stepped away from the chat
@@ -670,6 +673,8 @@ export default function ChatWindow({ conversationId }) {
           ...(temp.stickerImage && { stickerImage: true }),
           // 🎁 The mood and reveal style are encrypted with the words
           ...(temp.gift && { gift: temp.gift }),
+          // 👻 Written by Boo: the other person is told so (see BooBuddy)
+          ...(temp.boo && { boo: true }),
         };
         let prepared = null;
         if (temp.file) {
@@ -768,7 +773,8 @@ export default function ChatWindow({ conversationId }) {
   const sendMessage = useCallback(
     // ghostClick: 'once' | 'keep' for a 👻 Ghost Click photo; sticker: a sticker id
     // gift: { mood, style, together } for a 🎁 message that arrives wrapped
-    (text, file = null, { forgive = false, ghostClick = null, sticker = '', stickerImage = false, gift = null } = {}) => {
+    // boo: one of 👻 Boo's suggestions, labelled as such for everyone
+    (text, file = null, { forgive = false, ghostClick = null, sticker = '', stickerImage = false, gift = null, boo = false } = {}) => {
       const localImage = file ? URL.createObjectURL(file) : '';
       const temp = {
         _id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -782,6 +788,7 @@ export default function ChatWindow({ conversationId }) {
         ...(sticker && { sticker }),
         ...(stickerImage && { stickerImage: true }),
         ...(gift && !file && { gift }),
+        ...(boo && { boo: true }),
         replyTo: forgive ? null : replyingTo,
         reactions: [],
         createdAt: new Date().toISOString(),
@@ -1730,6 +1737,16 @@ export default function ChatWindow({ conversationId }) {
             🧟 Revive it
           </button>
         </div>
+      )}
+
+      {/* 👻 Boo floats in to make fun of it, and to suggest something to send */}
+      {iAmGhosted && booPopsUp && !pausedBy && !blockedByMe && (
+        <BooBuddy
+          conversationId={conversationId}
+          ghost={ghost}
+          otherName={otherUser?.name}
+          onSend={(text, { forgive }) => sendMessage(text, null, { forgive, boo: true })}
+        />
       )}
 
       {ghost && !pausedBy && !blockedByMe && (
