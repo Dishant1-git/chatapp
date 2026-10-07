@@ -2,6 +2,7 @@ import { Dancing_Script } from 'next/font/google';
 import './globals.css';
 import { ACCESSIBILITY_SCRIPT } from '@/lib/accessibility';
 import { PRIVACY_SCRIPT } from '@/lib/privacy';
+import Shield from '@/components/Shield';
 
 // The handwriting on the loading screen and the login page. Downloaded at build
 // time and served from our own domain, so no request goes to Google at runtime.
@@ -47,7 +48,11 @@ export default function RootLayout({ children }) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript + PRIVACY_SCRIPT + ACCESSIBILITY_SCRIPT }} />
       </head>
-      <body className="font-sans antialiased">{children}</body>
+      <body className="font-sans antialiased">
+        {children}
+        {/* 🛡️ Turns off the developer-tools shortcuts and right-click "Inspect" */}
+        <Shield />
+      </body>
     </html>
   );
 }

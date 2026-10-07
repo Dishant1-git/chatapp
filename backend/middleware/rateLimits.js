@@ -38,3 +38,5 @@ export const groupLimiter = limiter(10, 60, 'Too many group changes. Please wait
 export const searchLimiter = limiter(1, 60, 'Too many searches. Please slow down a little.', (req) => req.userId);
 // 👻 Talking to Boo: every message is a paid call to Grok
 export const booLimiter = limiter(1, 20, 'Boo needs a breather. Try again in a minute 👻', (req) => req.userId);
+// 🎙️ Voice commands: each one is a paid call to Kimi
+export const assistantLimiter = limiter(1, 30, 'That’s a lot of commands. Give me a minute 🎙️', (req) => req.userId);

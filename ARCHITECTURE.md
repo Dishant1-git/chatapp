@@ -462,6 +462,21 @@ and `backend/routes/chatActions.js`; labels and rules the browser needs are mirr
   Flipping the switch plays `BooShow` (a roaming entrance, or a crying exit). Boo being out is a
   per-device switch (Profile → Boo, or the header of Boo's chat); Boo's row stays regardless. With no `GROK_API_KEY`, or when Grok doesn't answer,
   Boo uses the lines written in `utils/boo.js`.
+- **🎙️ Voice commands** (`components/VoiceAssistant.jsx`, `lib/voice.js`, `backend/utils/assistant.js`).
+  The microphone button above the chat list switches on hands-free listening (per device). The
+  browser's own speech recognition (Web Speech API — in Chrome the audio goes to Google) hears
+  "Hey Boo" and the sentence after it; **only then** is anything sent on: the sentence goes to
+  `POST /api/assistant/command`, where Kimi (Moonshot AI, `KIMI_API_KEY`) turns it into one of five
+  actions — `call`, `video_call`, `message`, `open`, `none`. The server forces the answer into
+  `{ action, name, text, say }` and drops everything else, so the key can't be used as a general
+  chatbot through the app; with no key (or no answer) a few regular expressions handle the plain
+  commands. The contact list never leaves the browser: `findChat` matches the spoken name against
+  chat titles, real names and first names, tolerating spelling slips, and asks rather than guesses
+  when two fit. A call is announced and placed after 3.5 s unless "cancel" is said; a message is
+  read back and **only sent after "yes"**, then encrypted like any other (`sendTextTo`). A dictated
+  message is therefore seen by the speech service and by Kimi before it's encrypted — the one place
+  besides Boo's chat where words leave the device in the clear. Listening stops during calls and
+  while the tab is hidden; a web page can't listen with the phone locked or the app closed.
 - **🕊️ Forgiveness request**: one at a time, 24 hours between requests (claimed atomically, so two
   taps can't slip through), text only, encrypted like any message — only its *status* is plain.
   "Ask me later" isn't an API call at all; it's local to the bubble. Forgiving — or simply
@@ -671,6 +686,12 @@ shared rate-limit store, shared call state (it's in memory), and a shared "verif
 - What is deliberately **not** encrypted: profile/group photos, chat backgrounds, sticker-pack
   pictures, ghost/pause state, moods, nicknames, inside-joke names, and emoji-only messages from
   someone being ghosted (the server has to check those).
+- **Deterrents, not protection.** `components/Shield.jsx` (production builds only) swallows the
+  developer-tools shortcuts and the right-click "Inspect"; the tools still open from the browser's
+  menu, and nothing relies on them staying shut. A view-once Ghost Click is covered whenever the
+  window loses focus or a screenshot key is pressed, and has the viewer's handle printed across it
+  (`useScreenshotGuard` in `GhostClick.jsx`) — but a phone's screenshot buttons never reach a web
+  page, so on mobile only the watermark stands. Real screenshot blocking needs a native app.
 - Two things are *hidden* rather than *protected*, and the difference is worth being honest about:
   an **anonymous reaction**'s emoji is stripped from the API response, and **soft ghosting**'s
   "no notifications" is a decision the browser makes. Neither would survive someone reading the raw
@@ -747,6 +768,7 @@ confirmed email address.
 | **stickers** | `GET /stickers/packs`, `/stickers/installed`, `POST /stickers/packs`, `POST|DELETE /packs/:id/install`, `DELETE /packs/:id` |
 | **gifs** | `GET /gifs/config`, `GET /gifs?q=`, `GET /gifs/file` |
 | **mail** | `GET /mail/off?t=` (no auth: the unsubscribe link in a come-back email) |
+| **assistant** | `POST /assistant/command { text }` → `{ action, name, text, say }` (30 a minute per person) |
 | **boo** | `POST /boo/chat`, `POST /boo/ghosted` (20 a minute per person) |
 | **scheduled** | `GET /scheduled`, `POST /scheduled`, `DELETE /scheduled/:id` |
 | **health** | `GET /health` (no auth, no database required) |

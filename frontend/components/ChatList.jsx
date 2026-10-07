@@ -3,7 +3,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, BellOff, Check, Clock, Ghost, MessageCirclePlus, Phone, Search, Star, Trash2, UserRoundPlus, Users, WifiOff, X } from 'lucide-react';
+import { Bell, BellOff, Check, Clock, Ghost, MessageCirclePlus, Mic, Phone, Search, Star, Trash2, UserRoundPlus, Users, WifiOff, X } from 'lucide-react';
 import { useChat } from './ChatProvider';
 import { ConfirmDialog } from './ChatDialogs';
 import { api } from '@/lib/client';
@@ -23,6 +23,7 @@ import { conversationTitle, isGroup, makeNameOf, typingText } from '@/lib/conver
 import { isDeadChat } from '@/lib/social';
 import { useDraft } from '@/lib/drafts';
 import { BOO_ID, BOO_NAME } from '@/lib/boo';
+import { setVoice, useVoiceOn, voiceSupported } from '@/lib/voice';
 
 export default function ChatList() {
   const {
@@ -127,6 +128,21 @@ export default function ChatList() {
     noticeTimer.current = setTimeout(() => setNotice(''), 3000);
   }
 
+  // 🎙️ Hands-free voice commands (components/VoiceAssistant.jsx). The microphone
+  // is asked for here, on the tap, because a browser only asks in answer to one.
+  const isListening = useVoiceOn();
+  async function toggleVoice() {
+    if (isListening) return setVoice(false);
+    if (!voiceSupported()) return showNotice('Voice commands need Chrome, Edge or Safari.');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+    } catch {
+      return showNotice('Allow the microphone to use voice commands.');
+    }
+    setVoice(true);
+  }
+
   async function setMuted(conversation, muted) {
     try {
       const data = await api(`/api/conversations/${conversation._id}/mute`, { method: 'POST', body: { muted } });
@@ -193,6 +209,17 @@ export default function ChatList() {
       <header className="flex h-16 shrink-0 items-center justify-between gap-2 px-4 pt-1">
         <h1 className="text-[22px] font-semibold tracking-tight text-brand">Ghost-ed</h1>
         <div className="flex items-center">
+          <button
+            onClick={toggleVoice}
+            aria-pressed={isListening}
+            className={`flex h-10 w-10 items-center justify-center rounded-full transition ${
+              isListening ? 'bg-brand text-on-brand' : 'text-muted hover:bg-hover hover:text-fg'
+            }`}
+            aria-label={isListening ? 'Stop voice commands' : 'Voice commands'}
+            title={isListening ? 'Listening for “Hey Boo”. Tap to stop.' : 'Voice commands: say “Hey Boo, call …”'}
+          >
+            <Mic size={19} />
+          </button>
           <button
             onClick={() => setSidebarPanel('calls')}
             className="flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-fg"

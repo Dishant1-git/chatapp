@@ -15,6 +15,7 @@ const Tour = dynamicImport(() => import('@/components/Tour'), { ssr: false });
 import ProfileViewer from '@/components/ProfileViewer';
 import BooShow from '@/components/BooShow';
 import BooRoamer from '@/components/BooRoamer';
+import VoiceAssistant from '@/components/VoiceAssistant';
 import CallProvider from '@/components/CallProvider';
 import { useViewportHeight } from '@/hooks/useViewportHeight';
 
@@ -104,6 +105,8 @@ function ChatShell({ children }) {
         <BooShow />
         {/* …and, while it's on, the little ghost drifting about getting up to no good */}
         <BooRoamer />
+        {/* 🎙️ "Hey Boo, call Harinder": hands-free voice commands, when switched on */}
+        <VoiceAssistant />
       </div>
     </CallProvider>
   );

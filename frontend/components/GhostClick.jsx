@@ -398,12 +398,68 @@ export function GhostClickCamera({ onSend, onCancel, onError }) {
   );
 }
 
+// 🙈 Makes a view-once photo hard to screenshot — as far as a web page can.
+// Returns true while the picture should be covered:
+//  - whenever the app isn't in front. Screenshot tools that open their own
+//    window (Windows' Snipping Tool, a screen recorder's picker) take the focus
+//    first, so the picture is already gone when they capture.
+//  - for a few seconds after a screenshot key (Print Screen, ⌘⇧3/4/5,
+//    Win+Shift+S). Print Screen has usually captured by then, so the clipboard
+//    is overwritten too, where the browser allows it.
+// What it can't do: a phone's own screenshot buttons never reach a web page, and
+// nothing stops a second camera. The name printed across the picture (see the
+// viewer) is for those — a copy still says whose screen it came from.
+function useScreenshotGuard(active) {
+  const [covered, setCovered] = useState(false);
+
+  useEffect(() => {
+    if (!active) return;
+    let timer;
+    const sync = () => setCovered(!document.hasFocus() || document.hidden);
+    const coverBriefly = () => {
+      setCovered(true);
+      clearTimeout(timer);
+      timer = setTimeout(sync, 4000);
+    };
+
+    function onKey(event) {
+      const key = event.key?.toLowerCase();
+      const isScreenshot =
+        key === 'printscreen' ||
+        (event.metaKey && event.shiftKey && ['3', '4', '5', 's'].includes(key)) ||
+        (event.ctrlKey && event.shiftKey && key === 's');
+      if (!isScreenshot) return;
+      coverBriefly();
+      navigator.clipboard?.writeText('').catch(() => {});
+    }
+
+    sync();
+    window.addEventListener('blur', sync);
+    window.addEventListener('focus', sync);
+    document.addEventListener('visibilitychange', sync);
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('keyup', onKey, true);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('blur', sync);
+      window.removeEventListener('focus', sync);
+      document.removeEventListener('visibilitychange', sync);
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('keyup', onKey, true);
+    };
+  }, [active]);
+
+  return active && covered;
+}
+
 // Full-screen view of a Ghost Click photo or video. View-once ones can't be saved
-// from here and disappear when closed. (No website can stop someone photographing
-// their own screen, though.)
-export function GhostClickViewer({ src, kind = 'image', mirrored = false, mode, caption, senderName, onClose }) {
+// from here, are covered while a screenshot might be taken (useScreenshotGuard),
+// carry the viewer's name across them, and disappear when closed. (No website
+// can stop someone photographing their own screen, though.)
+export function GhostClickViewer({ src, kind = 'image', mirrored = false, mode, caption, senderName, viewerName = '', onClose }) {
   useEscapeKey(onClose);
   const isOnce = mode === 'once';
+  const covered = useScreenshotGuard(isOnce);
 
   return (
     <motion.div
@@ -436,7 +492,26 @@ export function GhostClickViewer({ src, kind = 'image', mirrored = false, mode, 
           </button>
         </div>
       </div>
-      <div className="flex min-h-0 flex-1 items-center justify-center p-3">
+      <div className="relative flex min-h-0 flex-1 items-center justify-center p-3">
+        {isOnce && src && viewerName && (
+          // Over the picture, so it's part of any copy made of it
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 z-10 flex flex-wrap content-around justify-around gap-x-10 gap-y-16 overflow-hidden p-6 text-sm font-semibold text-white/20 mix-blend-difference"
+          >
+            {Array.from({ length: 12 }, (_, i) => (
+              <span key={i} className="-rotate-[24deg] whitespace-nowrap">
+                {viewerName}
+              </span>
+            ))}
+          </div>
+        )}
+        {covered && (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-black px-8 text-center">
+            <p className="text-3xl">🙈</p>
+            <p className="text-sm text-white/70">Hidden while the app isn’t in front.</p>
+          </div>
+        )}
         {!src ? (
           <Loader2 className="animate-spin text-white/60" size={28} />
         ) : kind === 'video' ? (
@@ -446,6 +521,8 @@ export function GhostClickViewer({ src, kind = 'image', mirrored = false, mode, 
             controls={!isOnce}
             playsInline
             onContextMenu={(e) => isOnce && e.preventDefault()}
+            disablePictureInPicture={isOnce}
+            controlsList="nodownload noremoteplayback"
             className={`max-h-full max-w-full rounded-2xl object-contain ${mirrored ? '-scale-x-100' : ''}`}
           />
         ) : (

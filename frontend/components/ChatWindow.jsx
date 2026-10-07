@@ -1879,7 +1879,15 @@ export default function ChatWindow({ conversationId }) {
           />
         )}
         {dialog === 'stickers' && <StickerStore key="sticker-store" onClose={closeDialog} onError={showNotice} />}
-        {ghostView && <GhostClickViewer key="ghost-view" {...ghostView} onClose={() => setGhostView(null)} />}
+        {ghostView && (
+          <GhostClickViewer
+            key="ghost-view"
+            {...ghostView}
+            // Printed faintly across a view-once photo, so a copy of it says who made it
+            viewerName={user.username ? `@${user.username}` : user.name}
+            onClose={() => setGhostView(null)}
+          />
+        )}
         {giftMessage && (
           <GiftReveal
             key="gift"
