@@ -63,8 +63,8 @@ const FESTIVALS = [
   { id: 'navratri', name: 'Navratri', greeting: 'Happy Navratri! 🙏', day: (y) => lunarDay(y, MONTH.ashwin, 1, 10), from: 0, days: 9, palette: 'saffron', moment: 'dandiya', lights: ['#facc15', '#dc2626', '#16a34a', '#ec4899', '#f97316'], drift: ['🌼', '🌺', '✨'] },
   // From noon the day before
   { id: 'dussehra', name: 'Dussehra', greeting: 'Happy Dussehra! 🏹', day: (y) => lunarDay(y, MONTH.ashwin, 10, 13.5), from: -12, days: 1, palette: 'saffron', moment: 'firework', lights: ['#f97316', '#facc15', '#dc2626'], drift: ['🏹', '🌼', '✨'] },
-  // From two days before (Dhanteras) to two days after (Bhai Dooj)
-  { id: 'diwali', name: 'Diwali', greeting: 'Happy Diwali! 🪔', day: (y) => lunarDay(y, MONTH.ashwin, 30, 18.5), from: -48, days: 3, palette: 'gold', moment: 'firework', lights: ['#facc15', '#f97316', '#ec4899', '#a855f7', '#fde68a'], drift: ['🪔', '✨', '🎇'] },
+  // A week before to four days after: in 2026, with Diwali on the 8th, that's 1–12 November
+  { id: 'diwali', name: 'Diwali', greeting: 'Happy Diwali! 🪔', day: (y) => lunarDay(y, MONTH.ashwin, 30, 18.5), from: -7 * 24, days: 5, palette: 'gold', moment: 'firework', lights: ['#facc15', '#f97316', '#ec4899', '#a855f7', '#fde68a'], drift: ['🪔', '✨', '🎇'] },
   { id: 'gurpurab', name: 'Gurpurab', greeting: 'Happy Gurpurab! 🙏', day: (y) => lunarDay(y, MONTH.kartik, 15, 12), from: 0, days: 1, palette: 'gold', moment: null, lights: ['#facc15', '#f97316', '#1d4ed8', '#fde68a'], drift: ['🪔', '✨'] },
   // All of December: snow, and red caps
   { id: 'christmas', name: 'Christmas', greeting: 'Merry Christmas! 🎄', day: (y) => [y, 12, 1], from: 0, days: 31, palette: 'winter', moment: null, snow: true, hat: 'santa', lights: ['#ef4444', '#22c55e', '#f8fafc', '#facc15'], drift: ['❄️', '❄', '✦'] },
