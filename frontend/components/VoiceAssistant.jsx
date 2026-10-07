@@ -14,7 +14,16 @@ import { afterWakeWords, findChat, isNo, isYes, sendTextTo, setVoice, useVoiceOn
 const COMMAND_WINDOW_MS = 8000; // how long "Hey Boo" waits for the command
 const CONFIRM_WINDOW_MS = 15000; // how long a "send it?" waits for yes or no
 const CALL_COUNTDOWN_MS = 4500; // time to say "cancel" before a call goes out
+const SILENCE_MS = 1800; // this long without a word means the command is finished
 const UNDERSTAND_TIMEOUT_MS = 12000; // how long the server gets to work out a command
+// What's been said of the command so far, without the wake words and without
+// a lone "yes" or "okay" (people answer the blip)
+function commandIn({ parts, interim }) {
+  const said = [...parts, interim].join(' ').replace(/\s+/g, ' ').trim();
+  const command = (afterWakeWords(said) ?? said).trim();
+  return /^(?:yes|yeah|yep|ok|okay|hello|hi|hey)[.!?]*$/i.test(command) ? '' : command;
+}
+
 const HINT = 'Say “Hey Boo”, then “call Harinder” or “tell Simran I’m on my way”.';
 
 // 🎙️ Hands-free voice commands. While it's switched on (the microphone button
@@ -53,8 +62,15 @@ export default function VoiceAssistant() {
   const latest = useRef({});
   latest.current = { conversations, myId: user?._id, startCall, router };
 
+  // The command while it's still being spoken: a recogniser hands a sentence over
+  // in pieces, one at every breath. `parts` are the finished pieces, `interim`
+  // the one still being said.
+  const spoken = useRef({ parts: [], interim: '', silence: null });
+
   const go = useCallback((next, waiting = null) => {
     clearTimeout(timer.current);
+    clearTimeout(spoken.current.silence);
+    spoken.current = { parts: [], interim: '', silence: null };
     phaseRef.current = next;
     pendingRef.current = waiting;
     setPhase(next);
@@ -195,7 +211,37 @@ export default function VoiceAssistant() {
     [go, say, reply, cancelPending, placeCall]
   );
 
-  // One finished sentence from the recogniser
+  // A piece of the command, finished or still being said. Nothing is done with
+  // it until they've stopped talking for a moment — acting on the first piece
+  // is how "message Harinder… saying I'm late" used to lose its second half.
+  const gather = useCallback(
+    (piece, isFinal) => {
+      const buffer = spoken.current;
+      if (!isFinal) buffer.interim = piece;
+      else {
+        buffer.interim = '';
+        // Some phones repeat everything said so far with each piece
+        const last = buffer.parts.at(-1);
+        if (last && piece.toLowerCase().startsWith(last.toLowerCase())) buffer.parts[buffer.parts.length - 1] = piece;
+        else if (piece) buffer.parts.push(piece);
+      }
+
+      const soFar = commandIn(buffer);
+      setHeard(soFar);
+      clearTimeout(buffer.silence);
+      if (!soFar) return; // only "hey boo" so far: still waiting for the rest
+      clearTimeout(timer.current);
+      buffer.silence = setTimeout(() => {
+        const command = commandIn(buffer);
+        if (phaseRef.current === 'command' && command) run(command);
+      }, SILENCE_MS);
+    },
+    [run]
+  );
+  const gatherRef = useRef(gather);
+  gatherRef.current = gather;
+
+  // One finished sentence from the recogniser, outside of a command being dictated
   const handleHeard = useCallback(
     (sentence) => {
       if (speakingRef.current || !sentence) return;
@@ -208,26 +254,20 @@ export default function VoiceAssistant() {
         if (waiting.kind === 'message' && isYes(sentence)) return sendPending(waiting);
         return;
       }
-      if (phaseNow === 'command') {
-        // Some phones repeat the whole sentence so far, wake words included;
-        // and a bare "hey boo" or "yes" isn't a command, just keep listening
-        const command = (afterWakeWords(sentence) ?? sentence).trim();
-        if (!command || /^(?:yes|yeah|yep|ok|okay|hello|hi|hey)[.!?]*$/i.test(command)) return;
-        return run(command);
-      }
       if (phaseNow !== 'idle') return;
 
-      const command = afterWakeWords(sentence);
-      if (command === null) return; // not for us — and it goes nowhere
-      if (command) return run(command);
-      // Only the wake words so far: the command is on its way. A blip instead of
-      // a spoken "yes?" — while it talks it can't listen, and people don't wait.
+      const start = afterWakeWords(sentence);
+      if (start === null) return; // not for us — and it goes nowhere
+      // The wake words: from here on everything is gathered into the command
+      // (see gather) until they stop talking. A blip instead of a spoken
+      // "yes?" — while it talks it can't listen, and people don't wait for it.
       go('command');
       setLine('');
-      playListeningSound();
       timer.current = setTimeout(() => phaseRef.current === 'command' && backToIdle(), COMMAND_WINDOW_MS);
+      if (start) gather(start, true);
+      else playListeningSound();
     },
-    [run, go, backToIdle, cancelPending, sendPending]
+    [go, gather, backToIdle, cancelPending, sendPending]
   );
   const handleHeardRef = useRef(handleHeard);
   handleHeardRef.current = handleHeard;
@@ -256,14 +296,13 @@ export default function VoiceAssistant() {
     recognition.onresult = (event) => {
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const said = event.results[i][0].transcript.trim();
-        if (event.results[i].isFinal) {
-          setHeard('');
-          handleHeardRef.current(said);
-        } else if (!speakingRef.current && phaseRef.current !== 'idle') {
-          // Shown only once it's listening for a command — what's said around
-          // the phone the rest of the time isn't put on screen
-          setHeard(said);
-        }
+        const isFinal = event.results[i].isFinal;
+        if (speakingRef.current) continue;
+        // A command being dictated is followed word by word; anything else
+        // only counts once the sentence is finished — and what's said around
+        // the phone the rest of the time is never put on screen
+        if (phaseRef.current === 'command') gatherRef.current(said, isFinal);
+        else if (isFinal) handleHeardRef.current(said);
       }
     };
     recognition.onerror = (event) => {
@@ -275,7 +314,7 @@ export default function VoiceAssistant() {
     };
     // Browsers end a session after a pause (phones after every sentence)
     recognition.onend = () => {
-      if (wanted) restart = setTimeout(start, 400);
+      if (wanted) restart = setTimeout(start, 200);
     };
     const onVisibility = () => (document.hidden ? recognition.abort() : start());
     document.addEventListener('visibilitychange', onVisibility);
