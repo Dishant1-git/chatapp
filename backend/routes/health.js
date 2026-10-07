@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
+import { cacheStatus } from '../utils/cache.js';
 
 const router = Router();
 
@@ -30,6 +31,8 @@ router.get('/', async (req, res) => {
     uptimeSeconds: Math.round(process.uptime()),
     timestamp: new Date().toISOString(),
     database,
+    // 🧠 'redis' when REDIS_URL is set and answering; otherwise the cache is in memory
+    cache: cacheStatus(),
   });
 });
 

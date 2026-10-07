@@ -19,7 +19,7 @@ let redis = null;
 
 // Not waited for: the server starts whether or not Redis answers, and the
 // client keeps trying in the background. Until it's connected (and whenever
-// it drops) every lookup is simply a miss.
+// it drops) the cache is kept in memory instead, as if there were no Redis.
 export function connectCache() {
   const url = String(process.env.REDIS_URL || '').trim();
   if (!url) return;
@@ -45,6 +45,15 @@ export function connectCache() {
   client.connect().catch(() => {}); // reported by the 'error' handler above
 }
 
+// Redis, but only while it's actually connected
+const live = () => (redis?.isReady ? redis : null);
+
+// Where the cache is right now, for /api/health: 'redis', or 'memory' with why
+export function cacheStatus() {
+  if (live()) return 'redis';
+  return redis ? 'memory (Redis is set but not reachable)' : 'memory (no REDIS_URL)';
+}
+
 function remember(key, value, ttlSeconds) {
   // A Map keeps insertion order, so the first key is the oldest
   if (memory.size >= MEMORY_LIMIT) memory.delete(memory.keys().next().value);
@@ -62,9 +71,10 @@ function recall(key) {
 // The cached values for `keys`, in the same order; undefined where there's none
 export async function getMany(keys) {
   if (!keys.length) return [];
-  if (!redis) return keys.map(recall);
+  const store = live();
+  if (!store) return keys.map(recall);
   try {
-    const found = await redis.mGet(keys);
+    const found = await store.mGet(keys);
     return found.map((text) => (text == null ? undefined : JSON.parse(text)));
   } catch {
     return keys.map(() => undefined);
@@ -74,9 +84,10 @@ export async function getMany(keys) {
 // entries: [[key, value], …]
 export async function setMany(entries, ttlSeconds) {
   if (!entries.length) return;
-  if (!redis) return entries.forEach(([key, value]) => remember(key, value, ttlSeconds));
+  const store = live();
+  if (!store) return entries.forEach(([key, value]) => remember(key, value, ttlSeconds));
   try {
-    const batch = redis.multi();
+    const batch = store.multi();
     entries.forEach(([key, value]) => batch.set(key, JSON.stringify(value), { EX: ttlSeconds }));
     await batch.exec();
   } catch {
