@@ -14,7 +14,7 @@ import { afterWakeWords, findChat, isNo, isYes, sendTextTo, setVoice, useVoiceOn
 const COMMAND_WINDOW_MS = 8000; // how long "Hey Boo" waits for the command
 const CONFIRM_WINDOW_MS = 15000; // how long a "send it?" waits for yes or no
 const CALL_COUNTDOWN_MS = 4500; // time to say "cancel" before a call goes out
-const SILENCE_MS = 1800; // this long without a word means the command is finished
+const SILENCE_MS = 3000; // this long without a word means the command is finished
 const UNDERSTAND_TIMEOUT_MS = 12000; // how long the server gets to work out a command
 // What's been said of the command so far, without the wake words and without
 // a lone "yes" or "okay" (people answer the blip)
