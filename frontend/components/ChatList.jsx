@@ -209,10 +209,11 @@ export default function ChatList() {
       <header className="flex h-16 shrink-0 items-center justify-between gap-2 px-4 pt-1">
         <h1 className="text-[22px] font-semibold tracking-tight text-brand">Ghost-ed</h1>
         <div className="flex items-center">
+          {/* On a phone Boo's own button, above the new-chat one, does this instead */}
           <button
             onClick={toggleVoice}
             aria-pressed={isListening}
-            className={`flex h-10 w-10 items-center justify-center rounded-full transition ${
+            className={`hidden h-10 w-10 items-center justify-center rounded-full transition md:flex ${
               isListening ? 'bg-brand text-on-brand' : 'text-muted hover:bg-hover hover:text-fg'
             }`}
             aria-label={isListening ? 'Stop voice commands' : 'Voice commands'}
@@ -408,6 +409,28 @@ export default function ChatList() {
           </li>
         )}
       </ul>
+
+      {/* 📱 Phones: 👻 Boo, right above the new-chat button — tap to switch voice
+          commands on ("Hey Boo, call …") or off */}
+      <button
+        onClick={toggleVoice}
+        aria-pressed={isListening}
+        className={`absolute right-5 bottom-[calc(max(1.25rem,env(safe-area-inset-bottom))+4.25rem)] rounded-full shadow-lg transition active:scale-95 md:hidden ${
+          isListening ? 'ring-2 ring-brand ring-offset-2 ring-offset-panel' : ''
+        }`}
+        aria-label={isListening ? 'Boo is listening. Tap to stop voice commands.' : 'Ask Boo: switch on voice commands'}
+        title={isListening ? 'Listening for “Hey Boo”. Tap to stop.' : 'Voice commands: say “Hey Boo, call …”'}
+      >
+        <BooAvatar size={48} />
+        <span
+          className={`absolute -right-0.5 -bottom-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-panel ${
+            isListening ? 'animate-pulse bg-red-500 text-white' : 'bg-brand text-on-brand'
+          }`}
+          aria-hidden
+        >
+          <Mic size={11} />
+        </span>
+      </button>
 
       {/* 📱 Phones: the round button for the thing you'd do on this tab */}
       <button

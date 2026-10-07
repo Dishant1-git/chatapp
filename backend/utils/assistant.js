@@ -13,7 +13,7 @@
 
 const KIMI_URL = 'https://api.moonshot.ai/v1'; // KIMI_API_URL overrides (api.moonshot.cn for keys from the Chinese platform)
 const PREFERRED_MODELS = ['kimi-k2.6', 'kimi-latest', 'moonshot-v1-8k'];
-const TIMEOUT_MS = 15 * 1000;
+const TIMEOUT_MS = 8 * 1000;
 
 export const ACTIONS = ['call', 'video_call', 'message', 'open', 'none'];
 const MAX_NAME = 60;
@@ -83,15 +83,29 @@ function clean(raw) {
 const HELP = 'I can call, video call, message or open a chat. Try “call Harinder”.';
 
 // The commands people actually say, for when Kimi isn't there
+// Order matters: the first that fits wins. The calling ones aren't anchored to
+// the start, so "I want to call Harinder" works as well as "call Harinder".
 const PATTERNS = [
-  [/^(?:make |start |place )?(?:a )?video ?call (?:to |with )?(.+)$/i, (m) => ({ action: 'video_call', name: m[1] })],
-  [/^(?:call|ring|phone|dial) (.+?) on video$/i, (m) => ({ action: 'video_call', name: m[1] })],
-  [/^(?:make |start |place )?(?:a )?(?:voice )?(?:call|ring|phone|dial) (?:to |with )?(.+)$/i, (m) => ({ action: 'call', name: m[1] })],
+  // Hindi / Punjabi word order, as a recogniser writes it in Latin letters
+  [/^(.+?) ko video ?call (?:karo|kar do|kardo|lagao|laga do|milao)$/i, (m) => ({ action: 'video_call', name: m[1] })],
+  [/^(.+?) ko (?:call|phone|fon) (?:karo|kar do|kardo|lagao|laga do|milao)$/i, (m) => ({ action: 'call', name: m[1] })],
+  [/^(.+?) ko (?:message|msg|text) (?:karo|kar do|kardo|bhejo|bhej do)(?: ki)? (.+)$/i, (m) => ({ action: 'message', name: m[1], text: m[2] })],
+  [/^(.+?) ko (?:bolo|bol do|boldo|keh do|kehdo|kaho|batao|bata do)(?: ki)? (.+)$/i, (m) => ({ action: 'message', name: m[1], text: m[2] })],
+
+  [/\bvideo ?call (?:to |with )?(.+)$/i, (m) => ({ action: 'video_call', name: m[1] })],
+  [/\b(?:call|ring|phone|dial) (?:up )?(.+?) on video$/i, (m) => ({ action: 'video_call', name: m[1] })],
   [/^(?:send )?(?:a )?(?:message|text|msg) (?:to )?(.+?) (?:saying|that says|that|say) (.+)$/i, (m) => ({ action: 'message', name: m[1], text: m[2] })],
+  // No message given: clean() asks what to say
+  [/^(?:send )?(?:a )?(?:message|text|msg) (?:to )?(.+)$/i, (m) => ({ action: 'message', name: m[1] })],
   [/^(?:tell|ask) (\S+) (?:that |to )?(.+)$/i, (m) => ({ action: 'message', name: m[1], text: m[2] })],
   [/^(?:say|send) (.+) to (.+)$/i, (m) => ({ action: 'message', name: m[2], text: m[1] })],
   [/^(?:open|show|go to) (?:the |my )?(?:chat |conversation )?(?:with |of )?(.+)$/i, (m) => ({ action: 'open', name: m[1] })],
+  // Last, so "tell Aman to call me" is a message and not a call to "me"
+  [/\b(?:call|ring|phone|dial) (?:up |to |with )?(.+)$/i, (m) => ({ action: 'call', name: m[1] })],
 ];
+
+// "my friend Harinder", "to Harinder" → "Harinder"
+const tidyName = (name) => String(name || '').replace(/^(?:(?:to|with|my|our|the|friend|brother|sister|bro|mr|mrs|miss) )+/i, '').trim();
 
 function understandPlainly(command) {
   const said = command
@@ -101,14 +115,21 @@ function understandPlainly(command) {
     .trim();
   for (const [pattern, toAction] of PATTERNS) {
     const match = said.match(pattern);
-    if (match) return toAction(match);
+    if (!match) continue;
+    const found = toAction(match);
+    return { ...found, name: tidyName(found.name) };
   }
   return { action: 'none' };
 }
 
 // command: what the person said, as text → { action, name, text, say }
+// When Kimi refuses the key or the account (no balance, wrong key), asking
+// again for every command only adds a wait: skip it for a while
+const RETRY_AFTER_REFUSAL_MS = 10 * 60 * 1000;
+let refusedUntil = 0;
+
 export async function understand(command) {
-  if (apiKey()) {
+  if (apiKey() && Date.now() > refusedUntil) {
     try {
       const data = await kimi('/chat/completions', {
         model: await pickModel(),
@@ -122,6 +143,7 @@ export async function understand(command) {
       return clean(JSON.parse(String(data.choices?.[0]?.message?.content || '')));
     } catch (err) {
       console.error('[assistant] Kimi did not answer:', err.message);
+      if (/^(401|402|403|429) /.test(err.message)) refusedUntil = Date.now() + RETRY_AFTER_REFUSAL_MS;
     }
   }
   return clean(understandPlainly(command));

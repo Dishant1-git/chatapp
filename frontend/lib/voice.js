@@ -100,7 +100,20 @@ const TOO_CLOSE = 0.06; // two chats this close together: ask rather than guess
 // A chat answers to its title (nickname or group name), the person's real
 // name, and their first name.
 export function findChat(conversations, spoken) {
-  const wanted = simplify(spoken);
+  const whole = findByName(conversations, simplify(spoken));
+  if (whole.conversation || whole.several) return whole;
+  // Nothing answers to all of it ("my friend harinder", "harinder on video"):
+  // see whether one of its words is somebody
+  const words = simplify(spoken).split(' ').filter((word) => word.length >= 3);
+  if (words.length < 2) return {};
+  const hits = words.map((word) => findByName(conversations, word)).filter((hit) => hit.conversation);
+  const chats = [...new Set(hits.map((hit) => hit.conversation))];
+  if (chats.length === 1) return { conversation: chats[0] };
+  if (chats.length > 1) return { several: chats.slice(0, 3).map(conversationTitle) };
+  return {};
+}
+
+function findByName(conversations, wanted) {
   if (!wanted) return {};
 
   const scored = conversations
