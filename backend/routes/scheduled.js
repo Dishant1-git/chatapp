@@ -1,6 +1,7 @@
 // ⏰ Scheduled messages: write one message, pick several people and a time,
 // and it's sent to each of them (in your one-to-one chat) at that time.
 import { Router } from 'express';
+import { wakeSchedulerAt } from '../utils/scheduler.js';
 import { isValidObjectId } from 'mongoose';
 import Conversation, { blockError } from '../models/Conversation.js';
 import ScheduledMessage, {
@@ -80,6 +81,7 @@ router.post('/', messageLimiter, async (req, res) => {
   }
 
   const scheduled = await ScheduledMessage.create({ senderId: req.userId, sendAt, items: saved });
+  wakeSchedulerAt(sendAt);
   await scheduled.populate('items.recipientId', 'name profileImage');
   res.status(201).json({ scheduled });
 });

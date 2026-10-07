@@ -11,6 +11,7 @@ import Message from '../models/Message.js';
 import { isDatabaseConnected } from '../config/db.js';
 import { emitToConversation } from '../socket/io.js';
 import { deleteImage } from './storage.js';
+import { sleeper } from './sleeper.js';
 
 const HOUR = 60 * 60;
 
@@ -22,8 +23,12 @@ const INSTANT = 10;
 // frontend/lib/disappearing.js
 export const DISAPPEAR_OPTIONS = [0, INSTANT, HOUR, 2 * HOUR, 4 * HOUR, 8 * HOUR, 24 * HOUR];
 
-// The shortest timer has to be wiped on time, so the sweep runs more often than it
-const SWEEP_EVERY_MS = 5 * 1000;
+// The sweep sleeps until the next message is due (utils/sleeper.js) and is woken
+// when a countdown starts. This is how often it looks anyway, in case one
+// started that it wasn't told about. Being late costs nothing anyone can see:
+// stillVisible() already hides a message whose time is up, and the browser
+// takes it off the screen itself.
+const LOOK_ANYWAY_EVERY_MS = 5 * 60 * 1000;
 
 // How many expired messages one pass handles; the next pass picks up the rest
 const SWEEP_BATCH = 500;
@@ -44,6 +49,7 @@ export async function announceCountdowns(conversationId, messageIds) {
     .select('_id expiresAt')
     .lean();
   if (!counting.length) return;
+  wakeSweepAt(new Date(Math.min(...counting.map((m) => m.expiresAt.getTime()))));
   emitToConversation(conversationId, 'messages:expiring', {
     conversationId: String(conversationId),
     messages: counting.map((m) => ({ _id: String(m._id), expiresAt: m.expiresAt })),
@@ -58,13 +64,28 @@ export function stillVisible(now = new Date()) {
 
 let running = false;
 
+const sweep = sleeper({
+  name: 'disappearing',
+  run: sweepExpired,
+  // The earliest countdown still running. Matches the partial index on expiresAt.
+  nextDue: async () =>
+    (await Message.findOne({ expiresAt: { $gt: new Date(0) } }).sort({ expiresAt: 1 }).select('expiresAt').lean())?.expiresAt,
+  maxSleepMs: LOOK_ANYWAY_EVERY_MS,
+});
+
 export function startDisappearingSweep() {
-  sweepExpired();
-  setInterval(sweepExpired, SWEEP_EVERY_MS).unref();
+  sweep.start();
+}
+
+// A countdown has just started: make sure the sweep is up when it ends.
+// Called wherever expiresAt is set — when the last reader sees a message
+// (announceCountdowns) and when one is sent to nobody (publishMessage).
+export function wakeSweepAt(expiresAt) {
+  sweep.wake(expiresAt);
 }
 
 // Wipes every message whose time is up and tells the people in those chats
-export async function sweepExpired() {
+async function sweepExpired() {
   if (running || !isDatabaseConnected()) return;
   running = true;
   try {

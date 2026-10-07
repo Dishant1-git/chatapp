@@ -1,5 +1,6 @@
 // ⏰ Sends scheduled messages when their time comes. Runs inside the API server:
-// every CHECK_EVERY_MS it publishes whatever is due. Each copy is checked again
+// it sleeps until the next one is due (utils/sleeper.js), is woken when a new one
+// is scheduled, and publishes whatever is due. Each copy is checked again
 // right before it goes out (ghosting, pauses, blocks, encryption keys), since
 // things may have changed since it was scheduled.
 import Conversation, { blockError } from '../models/Conversation.js';
@@ -10,8 +11,11 @@ import { publishMessage } from './publish.js';
 import { isDatabaseConnected } from '../config/db.js';
 import { getIO, isUserOnline, userRoom } from '../socket/io.js';
 import { resumeConversation } from '../routes/conversations.js';
+import { sleeper } from './sleeper.js';
 
-const CHECK_EVERY_MS = 15 * 1000;
+// How often it looks anyway, in case something was scheduled that it wasn't told
+// about (by another server, say). That one would go out this late at worst.
+const LOOK_ANYWAY_EVERY_MS = 15 * 60 * 1000;
 
 let running = false;
 
@@ -20,12 +24,24 @@ export function startScheduler() {
   // Copies that already went out are marked "sent" and aren't sent twice.
   ScheduledMessage.updateMany({ status: 'sending' }, { status: 'pending' })
     .catch(() => {})
-    .finally(() => runDueScheduled());
-  setInterval(runDueScheduled, CHECK_EVERY_MS).unref();
+    .finally(() => scheduler.start());
+}
+
+const scheduler = sleeper({
+  name: 'scheduler',
+  run: runDueScheduled,
+  nextDue: async () =>
+    (await ScheduledMessage.findOne({ status: 'pending' }).sort({ sendAt: 1 }).select('sendAt').lean())?.sendAt,
+  maxSleepMs: LOOK_ANYWAY_EVERY_MS,
+});
+
+// A message was just scheduled for `sendAt`: be awake for it
+export function wakeSchedulerAt(sendAt) {
+  scheduler.wake(sendAt);
 }
 
 // Publishes every scheduled message whose time has come
-export async function runDueScheduled() {
+async function runDueScheduled() {
   if (running || !isDatabaseConnected()) return;
   running = true;
   try {

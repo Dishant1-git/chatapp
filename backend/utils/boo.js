@@ -23,10 +23,6 @@ function apiKey() {
   return String(process.env.GROK_API_KEY || '').trim();
 }
 
-export function booHasBrain() {
-  return Boolean(apiKey());
-}
-
 // Returns Grok's answer, or null if there's no key or the call failed
 export async function askGrok(messages, { json = false, maxTokens = 300 } = {}) {
   const key = apiKey();

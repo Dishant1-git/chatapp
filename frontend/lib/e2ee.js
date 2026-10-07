@@ -124,10 +124,6 @@ export async function clearDeviceKeys() {
 
 // ---- Setting up and unlocking ----
 
-export function isUnlocked() {
-  return Boolean(session);
-}
-
 export function getSessionKeyId() {
   return session?.keyId || null;
 }

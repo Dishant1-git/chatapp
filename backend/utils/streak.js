@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import Message from '../models/Message.js';
+import { getMany, setMany } from './cache.js';
 
 // 🔥 Connection streaks: consecutive days where a chat really was a chat.
 // Used by the conversation list and by "read the vibe".
@@ -36,10 +37,42 @@ export function connectionStreak(days, offsetMin) {
 // How far back streaks are counted. Older days don't change today's number.
 const STREAK_WINDOW_DAYS = 400;
 
-// The streaks of many chats in one query, for the conversation list.
-// Returns a Map of conversation id → streak in days.
-export async function streaksFor(conversationIds, offsetMin) {
-  if (!conversationIds.length) return new Map();
+const STREAK_CACHE_SECONDS = 30 * 60;
+
+// A chat's streak can only change when a message arrives or the day turns over,
+// so both are part of its cache key: a new message (lastMessageAt moves) or
+// midnight simply asks under a new key, and nothing ever has to be cleared.
+// What the key can't see is a message being deleted, which is why it also
+// expires after half an hour.
+function streakKey(conversation, offsetMin) {
+  const day = localDay(new Date(), offsetMin);
+  return `streak:${conversation._id}:${offsetMin}:${day}:${new Date(conversation.lastMessageAt || 0).getTime()}`;
+}
+
+// The streaks of many chats, for the conversation list (which asks every time
+// the app opens). conversations: [{ _id, lastMessageAt }].
+// Returns a Map of conversation id → streak in days. Only the chats whose
+// streak isn't cached are counted, all of them in one query.
+export async function streaksFor(conversations, offsetMin) {
+  const streaks = new Map();
+  if (!conversations.length) return streaks;
+
+  const keys = conversations.map((c) => streakKey(c, offsetMin));
+  const known = await getMany(keys);
+  const unknown = [];
+  conversations.forEach((c, i) => {
+    if (known[i] === undefined) unknown.push({ id: String(c._id), key: keys[i] });
+    else streaks.set(String(c._id), known[i]);
+  });
+  if (!unknown.length) return streaks;
+
+  const counted = await countStreaks(unknown.map((c) => c.id), offsetMin);
+  unknown.forEach((c) => streaks.set(c.id, counted.get(c.id) || 0));
+  await setMany(unknown.map((c) => [c.key, streaks.get(c.id)]), STREAK_CACHE_SECONDS);
+  return streaks;
+}
+
+async function countStreaks(conversationIds, offsetMin) {
 
   const rows = await Message.aggregate([
     {

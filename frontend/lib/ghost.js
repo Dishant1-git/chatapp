@@ -8,15 +8,7 @@
 // A can change the level or unghost B at any time. Forgiving B's request unghosts them.
 // B can send one request at a time, and must wait 24 hours before asking again.
 
-export const GHOST_LEVELS = ['soft', 'ghosted', 'deep', 'permanent'];
-export const FORGIVE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
-
-// Chats ghosted by older versions stored a "stage" instead of a level
-export function ghostLevel(ghost) {
-  if (!ghost?.by) return null;
-  if (GHOST_LEVELS.includes(ghost.level)) return ghost.level;
-  return ghost.stage === 'pending' ? 'ghosted' : 'deep';
-}
+const FORGIVE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 export const GHOST_LEVEL_INFO = {
   soft: { emoji: '🌫️', label: 'Soft ghost', hint: 'They can still message you. You just won’t be notified.' },

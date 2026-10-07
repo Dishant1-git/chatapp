@@ -20,6 +20,8 @@ export const BOO_PICTURES = {
 // (Profile, or the switch in Boo's own chat). Boo's place in the list isn't
 // affected by it.
 const BOO_KEY = 'ghosted:boo';
+// How long Boo's entrance (BooShow) plays; BooRoamer waits it out before taking over
+export const BOO_ENTRANCE_MS = 5200;
 const listeners = new Set();
 
 export function booOn() {

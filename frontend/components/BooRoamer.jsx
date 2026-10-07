@@ -3,9 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useCalls } from './CallProvider';
-import { ROAM_MS } from './BooShow';
 import { shakeElement } from '@/lib/social';
-import { BOO_NAME, BOO_PICTURES, onBooToggled, useBooOn } from '@/lib/boo';
+import { BOO_ENTRANCE_MS, BOO_NAME, BOO_PICTURES, onBooToggled, useBooOn } from '@/lib/boo';
 
 // 👻 While Boo is switched on, a small ghost drifts around the app and now and
 // then gets up to something: buzzes the chat, pretends to write a message for
@@ -28,7 +27,7 @@ export default function BooRoamer() {
     const stop = onBooToggled((nowOn) => {
       clearTimeout(timer);
       setIsEntering(nowOn);
-      if (nowOn) timer = setTimeout(() => setIsEntering(false), ROAM_MS);
+      if (nowOn) timer = setTimeout(() => setIsEntering(false), BOO_ENTRANCE_MS);
     });
     return () => {
       stop();

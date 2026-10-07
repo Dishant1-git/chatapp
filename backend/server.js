@@ -8,6 +8,8 @@ import User from './models/User.js';
 import { startScheduler } from './utils/scheduler.js';
 import { startDisappearingSweep } from './utils/disappearing.js';
 import { startComeBackMails } from './utils/comeBack.js';
+import { connectCache } from './utils/cache.js';
+import { loadDisposableDomains } from './utils/disposableEmail.js';
 import { mailerReady } from './utils/mailer.js';
 
 dotenv.config({ quiet: true });
@@ -48,6 +50,10 @@ server.listen(PORT, () => {
   }
 });
 
+// 🧠 Redis, if REDIS_URL is set. Never waited for: the cache is optional.
+connectCache();
+// 🚫 The current list of temporary-email services, for sign-up. Not waited for either.
+loadDisposableDomains();
 await connectDB();
 await migrate();
 // If the server crashed earlier, some users may still be marked online

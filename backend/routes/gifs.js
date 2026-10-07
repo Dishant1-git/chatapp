@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { searchLimiter } from '../middleware/rateLimits.js';
+import { cached } from '../utils/cache.js';
 
 // 🎞️ GIF search, proxied through here so the API key stays on the server and
 // the browser never talks to GIPHY directly.
@@ -12,6 +13,10 @@ router.use(requireAuth);
 
 const GIPHY = 'https://api.giphy.com/v1/gifs';
 const MAX_GIF_BYTES = 5 * 1024 * 1024;
+// The same search gives the same GIFs to everyone, so one trip to GIPHY serves
+// them all for a while. Trending moves faster than a search does.
+const SEARCH_CACHE_SECONDS = 30 * 60;
+const TRENDING_CACHE_SECONDS = 10 * 60;
 
 function apiKey() {
   return String(process.env.GIPHY_API_KEY || '').trim();
@@ -48,10 +53,13 @@ router.get('/', searchLimiter, async (req, res) => {
   if (q) params.set('q', q);
 
   try {
-    const response = await fetch(`${GIPHY}/${q ? 'search' : 'trending'}?${params}`);
-    if (!response.ok) throw new Error(`GIPHY answered ${response.status}`);
-    const data = await response.json();
-    res.json({ gifs: (data.data || []).map(formatGif).filter(Boolean) });
+    const gifs = await cached(`gifs:${q.toLowerCase()}`, q ? SEARCH_CACHE_SECONDS : TRENDING_CACHE_SECONDS, async () => {
+      const response = await fetch(`${GIPHY}/${q ? 'search' : 'trending'}?${params}`);
+      if (!response.ok) throw new Error(`GIPHY answered ${response.status}`);
+      const data = await response.json();
+      return (data.data || []).map(formatGif).filter(Boolean);
+    });
+    res.json({ gifs });
   } catch {
     res.status(502).json({ error: "Couldn't reach the GIF service. Please try again." });
   }

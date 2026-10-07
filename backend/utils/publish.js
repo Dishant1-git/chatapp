@@ -2,7 +2,7 @@ import Message, { REPLY_FIELDS } from '../models/Message.js';
 import User from '../models/User.js';
 import Conversation from '../models/Conversation.js';
 import { getIO, conversationRoom, userRoom, isUserOnline } from '../socket/io.js';
-import { disappearAfterFor } from './disappearing.js';
+import { disappearAfterFor, wakeSweepAt } from './disappearing.js';
 import { pushNewMessage } from './push.js';
 
 // Saves a message, makes it the conversation's last message and pushes it to
@@ -25,6 +25,7 @@ export async function publishMessage(conversation, fields, clientId = null, { wa
     isDelivered: recipients.every((id) => deliveredTo.includes(id)),
     isRead,
   });
+  if (message.expiresAt) wakeSweepAt(message.expiresAt);
   if (message.replyTo) await message.populate('replyTo', REPLY_FIELDS);
 
   // Send it out straight away. Two messages saved a moment apart used to be

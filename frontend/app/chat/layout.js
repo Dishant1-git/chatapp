@@ -13,9 +13,13 @@ import Notifications from '@/components/Notifications';
 // Shown once, on a first visit — no reason to ship it to everyone else
 const Tour = dynamicImport(() => import('@/components/Tour'), { ssr: false });
 import ProfileViewer from '@/components/ProfileViewer';
-import BooShow from '@/components/BooShow';
-import BooRoamer from '@/components/BooRoamer';
-import VoiceAssistant from '@/components/VoiceAssistant';
+// 👻 Boo's animations and 🎙️ the voice assistant sit on top of the app, not in
+// it: they're fetched after the chats are on screen (the assistant only once
+// it's switched on), rather than making everyone wait for them
+const BooShow = dynamicImport(() => import('@/components/BooShow'), { ssr: false });
+const BooRoamer = dynamicImport(() => import('@/components/BooRoamer'), { ssr: false });
+const VoiceAssistant = dynamicImport(() => import('@/components/VoiceAssistant'), { ssr: false });
+import { useVoiceOn } from '@/lib/voice';
 import CallProvider from '@/components/CallProvider';
 import { useViewportHeight } from '@/hooks/useViewportHeight';
 
@@ -38,6 +42,7 @@ const SPLASH_MS = handwritingDuration('Ghost-ed', { speed: 95 }) + 300;
 
 function ChatShell({ children }) {
   const { isLoading, loadError, retryLoad, activeConversationId, keyStatus } = useChat();
+  const isListening = useVoiceOn();
   // ✍️ …and if the loading outlasts the writing, the skeleton of the app takes
   // over, so a slow connection doesn't look stuck on the splash.
   const [splashDone, setSplashDone] = useState(false);
@@ -106,7 +111,7 @@ function ChatShell({ children }) {
         {/* …and, while it's on, the little ghost drifting about getting up to no good */}
         <BooRoamer />
         {/* 🎙️ "Hey Boo, call Harinder": hands-free voice commands, when switched on */}
-        <VoiceAssistant />
+        {isListening && <VoiceAssistant />}
       </div>
     </CallProvider>
   );

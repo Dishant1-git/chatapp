@@ -329,16 +329,24 @@ export default function VoiceAssistant() {
     };
   }, [on, inCall]);
 
-  // Switched off, or a call began: drop whatever was half done
+  // A call began: drop whatever was half done
   useEffect(() => {
-    if (on && !inCall) return;
+    if (!inCall) return;
     go('idle');
     setHeard('');
     window.speechSynthesis?.cancel();
     speakingRef.current = false;
-  }, [on, inCall, go]);
+  }, [inCall, go]);
 
-  useEffect(() => () => clearTimeout(timer.current), []);
+  // Switched off (the layout only mounts this while it's on)
+  useEffect(
+    () => () => {
+      clearTimeout(timer.current);
+      clearTimeout(spoken.current.silence);
+      window.speechSynthesis?.cancel();
+    },
+    []
+  );
 
   // Just switched on: say how it works. And once things go quiet again, what
   // was last said is cleared, leaving only the small "listening" chip.

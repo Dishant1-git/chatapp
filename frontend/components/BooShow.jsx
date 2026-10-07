@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { BOO_PICTURES, onBooToggled } from '@/lib/boo';
+import { BOO_ENTRANCE_MS as ROAM_MS, BOO_PICTURES, onBooToggled } from '@/lib/boo';
 
-export const ROAM_MS = 5200; // BooRoamer waits this long before taking over
 const SAD_MS = 4200;
 
 // Where Boo wanders when switched on: in from the left, a loop around the

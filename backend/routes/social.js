@@ -10,6 +10,7 @@ import { badRequest, findMyConversation, notAcceptedYet, resumeConversation } fr
 import { GHOST_LEVELS, formatGhost, isOnlyEmoji } from '../utils/ghost.js';
 import { bumpStat, emitMessageUpdate, publishEvent, useDailyAllowance } from '../utils/publish.js';
 import { connectionStreak, localDay, parseOffset } from '../utils/streak.js';
+import { cached } from '../utils/cache.js';
 import { emitToConversation } from '../socket/io.js';
 import { leaveCallsFor } from '../socket/calls.js';
 
@@ -326,6 +327,17 @@ router.get('/:id/insights', async (req, res) => {
   if (!conversation) return;
 
   const offsetMin = parseOffset(req.query.tz);
+  // The report is the same for everyone in the chat and only moves when a
+  // message arrives or the day turns over, so it's counted once per (chat, time
+  // zone, day, newest message) and reused — see utils/cache.js. A reaction or a
+  // deleted message doesn't move the key, hence the short life.
+  const key = `insights:${conversation._id}:${offsetMin}:${localDay(new Date(), offsetMin)}:${new Date(conversation.lastMessageAt || 0).getTime()}`;
+  res.json(await cached(key, INSIGHTS_CACHE_SECONDS, () => countInsights(conversation, offsetMin)));
+});
+
+const INSIGHTS_CACHE_SECONDS = 10 * 60;
+
+async function countInsights(conversation, offsetMin) {
   const messages = await Message.find({ conversationId: conversation._id, isDeleted: false })
     .sort({ _id: -1 })
     .limit(5000)
@@ -391,7 +403,7 @@ router.get('/:id/insights', async (req, res) => {
     streak: conversation.type === 'group' ? 0 : connectionStreak(days, offsetMin),
   };
   result.vibe = vibeLabel(result);
-  res.json(result);
-});
+  return result;
+}
 
 export default router;

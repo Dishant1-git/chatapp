@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { cached } from '../utils/cache.js';
 import { isValidObjectId } from 'mongoose';
 import User, { MOODS } from '../models/User.js';
 import Conversation from '../models/Conversation.js';
@@ -21,6 +22,9 @@ function escapeRegex(text) {
 // are public handles, so those do match part way.
 // Nothing here says whether someone is online or when they were last seen: that's
 // for people you actually chat with, not for anyone who can type your name.
+const SEARCH_RESULTS = 20;
+const SEARCH_CACHE_SECONDS = 60;
+
 router.get('/search', async (req, res) => {
   const q = String(req.query.q || '').trim().slice(0, 100);
   if (!q) return res.json({ users: [] });
@@ -28,15 +32,22 @@ router.get('/search', async (req, res) => {
   const pattern = new RegExp(escapeRegex(q.slice(0, 50)), 'i');
   // "@dishant" and "dishant" should both find the same person
   const handle = new RegExp(escapeRegex(q.replace(/^@/, '').slice(0, 50)), 'i');
-  const users = await User.find({
-    _id: { $ne: req.userId },
-    $or: [{ name: pattern }, { username: handle }, { email: q.toLowerCase() }],
-  })
-    .select('name username profileImage')
-    .sort({ name: 1 })
-    .limit(20);
+  const find = (limit) =>
+    User.find({ $or: [{ name: pattern }, { username: handle }, { email: q.toLowerCase() }] })
+      .select('name username profileImage')
+      .sort({ name: 1 })
+      .limit(limit)
+      .lean();
 
-  res.json({ users });
+  // The same letters find the same people whoever types them, so a search is
+  // kept for a minute (utils/cache.js) and the searcher is taken out afterwards.
+  // Not when it has an "@" in it: that may be someone's email address, and
+  // those aren't written anywhere they don't have to be.
+  const found = q.includes('@')
+    ? await find(SEARCH_RESULTS + 1)
+    : await cached(`people:${q.toLowerCase()}`, SEARCH_CACHE_SECONDS, () => find(SEARCH_RESULTS + 1));
+
+  res.json({ users: found.filter((user) => String(user._id) !== req.userId).slice(0, SEARCH_RESULTS) });
 });
 
 const MAX_TRUSTED = 50;

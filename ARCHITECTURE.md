@@ -296,7 +296,13 @@ admins only. Every change posts a `disappearing` note so nobody is caught out.
   place the clock lives. A message nobody reads never disappears. With no recipients at all it starts
   at once. `POST /:id/read` then emits `messages:expiring` with the new `expiresAt`s so open chats
   know when to drop them. Notes (`event`) and forgiveness requests never disappear.
-- **A sweep every 5 seconds** (`sweepExpired`, started in `server.js`) finds what's due, wipes it
+- **A sweep that sleeps until something is due** (`sweepExpired`, started in `server.js`). It used
+  to ask the database every 5 seconds; now `utils/sleeper.js` runs it, asks once when the next
+  countdown ends, and sleeps until then. Wherever a countdown starts — the last reader's
+  `POST /:id/read` (`announceCountdowns`) and a message sent to nobody (`publishMessage`) —
+  `wakeSweepAt` makes sure it's up in time. It also looks every 5 minutes regardless, for a
+  countdown it wasn't told about; being that late shows nowhere, because `stillVisible()` and the
+  browser's own timer already hide the message. When it runs it finds what's due, wipes it
   like *delete for everyone* — text, ciphertext, keys, files, reactions, the reply link — sets
   `disappeared` and clears `expiresAt`, then emits `messages:disappeared` once per chat.
 - **The row stays**, holding only sender, recipients and time, because 🔥 streaks and 🧠 read the vibe
@@ -543,7 +549,10 @@ and `backend/routes/chatActions.js`; labels and rules the browser needs are mirr
 Write once, pick people and a time, and it goes out then (`backend/utils/scheduler.js`). One-to-one
 chats only. Up to 20 recipients per message, 50 pending per person, a year ahead at most.
 
-- A timer claims due work every 15 seconds with a single atomic `findOneAndUpdate` (oldest first),
+- It sleeps until the next message is due (`utils/sleeper.js`, the same helper as the disappearing
+  sweep) instead of asking every 15 seconds: scheduling one calls `wakeSchedulerAt`, and it looks
+  every 15 minutes regardless — a message scheduled through another server would go out that late
+  at worst. Due work is claimed with a single atomic `findOneAndUpdate` (oldest first),
   so the same message can never be claimed twice — the one part of the system that would survive
   running several backends. The document is saved again **after each copy is sent**, so a crash
   mid-batch never sends one twice; anything stuck in `sending` is reset to `pending` at boot.
@@ -623,6 +632,25 @@ that undoes one of them.
   bookkeeping — two round trips before the sender gets a tick instead of four or five.
 - The "un-hide this chat" write only happens when the chat was actually hidden.
 - Read receipts from a busy chat are collected into one call rather than one per message.
+
+**The cache (`backend/utils/cache.js`):** answers that are slow to work out and safe to reuse.
+With `REDIS_URL` set they live in Redis; without it, in the server's own memory (same saving on
+one server, emptied by a restart). Redis is never waited for and never required: unreachable or
+slow means "not cached", and the answer is worked out as before. These use it:
+
+- **🔥 Streaks.** The chat list asks for every chat's streak each time the app opens — an
+  aggregate over 400 days of messages. A streak only changes when a message arrives or the day
+  turns over, so both are in the cache key (`streak:<chat>:<tz>:<day>:<lastMessageAt>`): nothing is
+  ever invalidated by hand, a new message just asks under a new key. Only the chats that miss are
+  counted, in one query. The key can't see a deleted message, hence a 30-minute expiry.
+- **🎞️ GIF searches**, shared by everyone: 30 minutes per search, 10 for trending.
+- **🧠 Read the vibe.** Reading and counting up to 5 000 messages per look; keyed like a streak
+  (chat, time zone, day, newest message) and kept 10 minutes, since a reaction doesn't move the key.
+- **🔎 People search**, one minute per search text, the searcher filtered out afterwards. A search
+  with an `@` in it is never cached: it may be an email address.
+
+Nothing private goes in: numbers and public GIF links. Unread counts, messages, presence and
+anything else that must be exact are **not** cached.
 
 **Opening the app (1589 ms → 396 ms locally):**
 

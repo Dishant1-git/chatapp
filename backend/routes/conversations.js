@@ -140,7 +140,7 @@ router.get('/', async (req, res) => {
 
   // 🔥 Streaks for the list, also in one query. Groups don't have them.
   const streaks = await streaksFor(
-    conversations.filter((c) => c.type !== 'group').map((c) => c._id),
+    conversations.filter((c) => c.type !== 'group'),
     parseOffset(req.query.tz)
   );
 

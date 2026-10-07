@@ -528,34 +528,18 @@ function PrivacyScreen() {
   }
 
   return (
-    <div className="mt-6 border-t border-line px-5 pt-4">
-      <p className="mb-1.5 text-sm font-medium text-brand">Privacy screen</p>
-      <button
-        type="button"
-        onClick={toggle}
-        aria-pressed={on}
-        className="flex w-full items-center gap-3 rounded-xl border border-line px-3.5 py-3 text-left transition hover:bg-hover"
-      >
+    <DeviceSwitch
+      title="Privacy screen"
+      on={on}
+      onToggle={toggle}
+      icon={
         <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${on ? 'bg-brand text-on-brand' : 'bg-panel-soft text-muted'}`}>
           {on ? <EyeOff size={18} /> : <Eye size={18} />}
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-medium">{on ? 'On' : 'Off'}</span>
-          <span className="block text-xs text-muted">
-            Blurs messages, photos and previews. Hover or tap one to read it.
-          </span>
-        </span>
-        <span
-          className={`relative h-6 w-11 shrink-0 rounded-full transition ${on ? 'bg-brand' : 'bg-line'}`}
-          aria-hidden
-        >
-          <span
-            className={`absolute top-1 h-4 w-4 rounded-full bg-panel transition-all ${on ? 'left-6' : 'left-1'}`}
-          />
-        </span>
-      </button>
-      <p className="mt-1.5 text-xs text-muted">Kept on this device only — it doesn’t follow you to another one.</p>
-    </div>
+      }
+      label={on ? 'On' : 'Off'}
+      hint="Blurs messages, photos and previews. Hover or tap one to read it."
+    />
   );
 }
 
@@ -566,29 +550,35 @@ function BooPopUps() {
   const on = useBooOn();
 
   return (
+    <DeviceSwitch
+      title="Boo"
+      on={on}
+      onToggle={() => setBoo(!on)}
+      icon={<BooAvatar size={36} />}
+      label={on ? 'Roaming your screen' : 'Stays in the chat list'}
+      hint="Boo drifts around, plays harmless pranks (nothing is ever really sent) and floats in with a joke when someone ghosts you. Boo never leaves your chat list."
+    />
+  );
+}
+
+// An on/off setting that lives in this browser only
+function DeviceSwitch({ title, on, onToggle, icon, label, hint }) {
+  return (
     <div className="mt-6 border-t border-line px-5 pt-4">
-      <p className="mb-1.5 text-sm font-medium text-brand">Boo</p>
+      <p className="mb-1.5 text-sm font-medium text-brand">{title}</p>
       <button
         type="button"
-        onClick={() => setBoo(!on)}
+        onClick={onToggle}
         aria-pressed={on}
         className="flex w-full items-center gap-3 rounded-xl border border-line px-3.5 py-3 text-left transition hover:bg-hover"
       >
-        <BooAvatar size={36} />
+        {icon}
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-medium">{on ? 'Roaming your screen' : 'Stays in the chat list'}</span>
-          <span className="block text-xs text-muted">
-            Boo drifts around, plays harmless pranks (nothing is ever really sent) and floats in with a joke when
-            someone ghosts you. Boo never leaves your chat list.
-          </span>
+          <span className="block text-sm font-medium">{label}</span>
+          <span className="block text-xs text-muted">{hint}</span>
         </span>
-        <span
-          className={`relative h-6 w-11 shrink-0 rounded-full transition ${on ? 'bg-brand' : 'bg-line'}`}
-          aria-hidden
-        >
-          <span
-            className={`absolute top-1 h-4 w-4 rounded-full bg-panel transition-all ${on ? 'left-6' : 'left-1'}`}
-          />
+        <span className={`relative h-6 w-11 shrink-0 rounded-full transition ${on ? 'bg-brand' : 'bg-line'}`} aria-hidden>
+          <span className={`absolute top-1 h-4 w-4 rounded-full bg-panel transition-all ${on ? 'left-6' : 'left-1'}`} />
         </span>
       </button>
       <p className="mt-1.5 text-xs text-muted">Kept on this device only — it doesn’t follow you to another one.</p>

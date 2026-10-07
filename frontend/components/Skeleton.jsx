@@ -68,11 +68,6 @@ export function StatsSkeleton() {
   );
 }
 
-// A picture, video or voice note while it downloads and is decrypted
-export function MediaSkeleton({ ratio, className = '' }) {
-  return <Skeleton className={`w-full ${className}`} style={{ aspectRatio: ratio || '4 / 3' }} />;
-}
-
 // One row of the conversation list: picture, name, last message, time
 function ChatRowSkeleton({ width }) {
   return (

@@ -13,7 +13,6 @@ import MessageInput from './MessageInput';
 import DeleteDialog from './DeleteDialog';
 import ChatMenu from './ChatMenu';
 import GhostBanner from './GhostBanner';
-import BooBuddy from './BooBuddy';
 import dynamic from 'next/dynamic';
 // The group screen, the camera (which brings video compression with it) and the
 // sticker store are all behind a button — loaded when they're opened
@@ -22,6 +21,8 @@ import MissYouHearts from './MissYouHearts';
 const GhostClickCamera = dynamic(() => import('./GhostClick').then((m) => m.GhostClickCamera), { ssr: false });
 const GhostClickViewer = dynamic(() => import('./GhostClick').then((m) => m.GhostClickViewer), { ssr: false });
 const StickerStore = dynamic(() => import('./StickerStore'), { ssr: false });
+// 👻 Only someone who's been ghosted ever sees Boo in a chat
+const BooBuddy = dynamic(() => import('./BooBuddy'), { ssr: false });
 // 🎁 The gift reveal (all ten styles) only loads when a gift is opened
 const GiftReveal = dynamic(() => import('./GiftReveal'), { ssr: false });
 // ↪️ …and the chat picker only when a message is forwarded
