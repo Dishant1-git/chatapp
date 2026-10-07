@@ -68,10 +68,13 @@ export default function Festive({ festival }) {
         {greeting && (
           <motion.p
             key="greeting"
-            initial={{ opacity: 0, y: -10, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="absolute top-9 left-1/2 flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-2 rounded-full bg-panel px-4 py-1.5 text-center text-sm font-medium text-fg shadow-lg"
+            initial={{ opacity: 0, x: -16, scale: 0.9 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: -16 }}
+            // The bottom-left corner. Anywhere along the middle it lands on
+            // something: the logo and its red cap at the top of the login page,
+            // the Log in button lower down, the chat's name in the app.
+            className="absolute bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] left-3 flex max-w-[calc(100%-1.5rem)] items-center gap-2 rounded-full bg-panel px-4 py-1.5 text-sm font-medium text-fg shadow-lg"
           >
             {/* Navratri: the colour to wear today */}
             {festival.day && (
