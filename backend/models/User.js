@@ -57,6 +57,10 @@ const userSchema = new mongoose.Schema(
       apologies: { type: Number, default: 0 },
       revived: { type: Number, default: 0 },
     },
+    // 💌 "People are waiting for you" mails (utils/comeBack.js): when the last one
+    // went out, and false once they've used the link that stops them
+    comeBackMailAt: { type: Date, default: null, select: false },
+    comeBackMails: { type: Boolean, default: true, select: false },
     // Daily allowances for "reveal reaction" and "undo seen"
     daily: {
       type: new mongoose.Schema(

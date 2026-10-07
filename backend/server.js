@@ -7,6 +7,7 @@ import { setupSocket } from './socket/index.js';
 import User from './models/User.js';
 import { startScheduler } from './utils/scheduler.js';
 import { startDisappearingSweep } from './utils/disappearing.js';
+import { startComeBackMails } from './utils/comeBack.js';
 import { mailerReady } from './utils/mailer.js';
 
 dotenv.config({ quiet: true });
@@ -55,3 +56,5 @@ await User.updateMany({ isOnline: true }, { isOnline: false });
 startScheduler();
 // ⏳ Wipe messages whose time is up in chats with disappearing messages
 startDisappearingSweep();
+// 💌 Tell people who've been away two days that someone is waiting for them
+startComeBackMails();

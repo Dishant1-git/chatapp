@@ -127,6 +127,22 @@ there; the Brevo API is ordinary HTTPS and does. `MAIL_FROM` must be an address 
 your own Gmail is fine, no domain needed. With no `BREVO_API_KEY`, the code is printed to the
 server log instead, which is what local development and the tests use.
 
+### 💌 "People are waiting for you"
+
+`backend/utils/comeBack.js`, started in `server.js`. Once an hour it looks for verified accounts
+whose `lastSeen` is two days old or more and sends each **one** email: who wrote to them and how
+many unread messages there are — never what they say, the server can't read them. Chats they
+muted, deleted, blocked, stepped away from or are ghosting don't count; with nothing unread the
+mail simply says it's been quiet. `comeBackMailAt` is set in the same atomic update that picks the
+person, so nobody is mailed twice, and another mail only goes out after they've come back
+(`lastSeen` moves past it) and been away two days again. Someone with the app open is skipped
+(`lastSeen` is only written on leaving). `COME_BACK_MAILS_PER_HOUR` (default 8, 0 = off) keeps it
+inside Brevo's daily allowance. Every mail carries a "stop these emails" link —
+`GET /api/mail/off?t=…` (`routes/mail.js`), no login needed, which sets `comeBackMails: false`. Its
+token is a JWT with a `mailOff` claim and **not** `userId`, so a link sitting in an inbox can never
+be used as a login cookie. Nothing runs without the mail service, or when the first `CLIENT_URL`
+is a local address (the links point there).
+
 ### Forgotten and changed passwords
 
 - `POST /api/auth/password/forgot` always answers the same way, whether or not the address has an
@@ -730,6 +746,7 @@ confirmed email address.
 | **calls** | `GET /calls/config` (ICE servers), `GET /calls/history?before=` |
 | **stickers** | `GET /stickers/packs`, `/stickers/installed`, `POST /stickers/packs`, `POST|DELETE /packs/:id/install`, `DELETE /packs/:id` |
 | **gifs** | `GET /gifs/config`, `GET /gifs?q=`, `GET /gifs/file` |
+| **mail** | `GET /mail/off?t=` (no auth: the unsubscribe link in a come-back email) |
 | **boo** | `POST /boo/chat`, `POST /boo/ghosted` (20 a minute per person) |
 | **scheduled** | `GET /scheduled`, `POST /scheduled`, `DELETE /scheduled/:id` |
 | **health** | `GET /health` (no auth, no database required) |
