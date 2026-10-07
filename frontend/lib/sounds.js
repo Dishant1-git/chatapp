@@ -36,6 +36,14 @@ export function playNotificationSound() {
   tone([[880, 0], [1320, 0.09]], now, 0.3, 0.12);
 }
 
+// 🎙️ "Go on, I'm listening" — after the wake words of a voice command. A blip
+// rather than a spoken "yes?", so it can't talk over the command or hear itself.
+export function playListeningSound() {
+  if (!canPlay()) return;
+  const now = audioContext.currentTime;
+  tone([[660, 0], [990, 0.07]], now, 0.16, 0.1);
+}
+
 // Repeats a pattern until the returned stop() is called
 function loop(play, everyMs) {
   if (!canPlay()) return () => {};

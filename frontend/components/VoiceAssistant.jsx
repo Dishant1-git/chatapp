@@ -8,6 +8,7 @@ import { useCalls } from './CallProvider';
 import { api } from '@/lib/client';
 import { conversationTitle } from '@/lib/conversations';
 import { canForwardTo } from '@/lib/forward';
+import { playListeningSound, unlockAudio } from '@/lib/sounds';
 import { afterWakeWords, findChat, isNo, isYes, sendTextTo, setVoice, useVoiceOn, voiceSupported } from '@/lib/voice';
 
 const COMMAND_WINDOW_MS = 8000; // how long "Hey Boo" waits for the command
@@ -149,7 +150,7 @@ export default function VoiceAssistant() {
         ]);
         if (phaseRef.current !== 'thinking') return; // switched off meanwhile
         if (!result?.action || result.action === 'none') {
-          return reply(result?.say || 'I can call, video call, message or open a chat.');
+          return reply(`I heard “${command}”. ${result?.say || 'I can call, video call, message or open a chat.'}`);
         }
 
         const { conversations: chats, myId, router: nav } = latest.current;
@@ -207,19 +208,26 @@ export default function VoiceAssistant() {
         if (waiting.kind === 'message' && isYes(sentence)) return sendPending(waiting);
         return;
       }
-      if (phaseNow === 'command') return run(sentence);
+      if (phaseNow === 'command') {
+        // Some phones repeat the whole sentence so far, wake words included;
+        // and a bare "hey boo" or "yes" isn't a command, just keep listening
+        const command = (afterWakeWords(sentence) ?? sentence).trim();
+        if (!command || /^(?:yes|yeah|yep|ok|okay|hello|hi|hey)[.!?]*$/i.test(command)) return;
+        return run(command);
+      }
       if (phaseNow !== 'idle') return;
 
       const command = afterWakeWords(sentence);
       if (command === null) return; // not for us — and it goes nowhere
       if (command) return run(command);
+      // Only the wake words so far: the command is on its way. A blip instead of
+      // a spoken "yes?" — while it talks it can't listen, and people don't wait.
       go('command');
-      say('Yes?').then(() => {
-        if (phaseRef.current !== 'command') return;
-        timer.current = setTimeout(() => phaseRef.current === 'command' && backToIdle(), COMMAND_WINDOW_MS);
-      });
+      setLine('');
+      playListeningSound();
+      timer.current = setTimeout(() => phaseRef.current === 'command' && backToIdle(), COMMAND_WINDOW_MS);
     },
-    [run, go, say, backToIdle, cancelPending, sendPending]
+    [run, go, backToIdle, cancelPending, sendPending]
   );
   const handleHeardRef = useRef(handleHeard);
   handleHeardRef.current = handleHeard;
@@ -296,7 +304,9 @@ export default function VoiceAssistant() {
   // Just switched on: say how it works. And once things go quiet again, what
   // was last said is cleared, leaving only the small "listening" chip.
   useEffect(() => {
-    if (on) setLine(HINT);
+    if (!on) return;
+    setLine(HINT);
+    unlockAudio(); // for the "I'm listening" blip
   }, [on]);
   useEffect(() => {
     if (phase !== 'idle' || !line) return;
