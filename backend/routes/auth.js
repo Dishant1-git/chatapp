@@ -9,7 +9,7 @@ import { saveImage } from '../utils/storage.js';
 import EmailCode, { CODE_TTL_MINUTES, MAX_ATTEMPTS, codeMatches, hashCode, makeCode } from '../models/EmailCode.js';
 import { sendMail, verificationMail, resetMail } from '../utils/mailer.js';
 import { passwordProblem } from '../utils/password.js';
-import { isDisposableEmail } from '../utils/disposableEmail.js';
+import { emailProblem, sameInboxPattern } from '../utils/disposableEmail.js';
 import {
   freeUsernameFrom,
   normalizeUsername,
@@ -75,13 +75,11 @@ router.post('/register', registerLimiter, imageUpload.single('profileImage'), as
 
   if (name.length < 2 || name.length > 50) return res.status(400).json({ error: 'Name must be 2–50 characters.' });
   if (!EMAIL_PATTERN.test(email)) return res.status(400).json({ error: 'Please enter a valid email address.' });
-  // 🚫 A throwaway inbox can confirm the code and then vanish
-  if (isDisposableEmail(email)) {
-    return res.status(400).json({
-      error: 'Temporary email addresses can’t be used here. Please sign up with your real email.',
-      code: 'EMAIL_DISPOSABLE',
-    });
-  }
+  // 🚫 A throwaway inbox can confirm the code and then vanish. Checked against
+  // the lists, then by where the domain's mail is delivered (new temp-mail
+  // domains aren't on any list yet) — all before an account or a code exists.
+  const badEmail = await emailProblem(email);
+  if (badEmail) return res.status(400).json(badEmail);
 
   // 🏷️ A username is optional in the request: one is made from their name
   // if the form didn't send it (older clients).
@@ -93,7 +91,10 @@ router.post('/register', registerLimiter, imageUpload.single('profileImage'), as
   if (passwordIssue) return res.status(400).json({ error: passwordIssue });
   if (password !== confirmPassword) return res.status(400).json({ error: 'Passwords do not match.' });
 
-  const existing = await User.findOne({ email });
+  // The same Gmail inbox under another spelling (dots, +tags) counts as the same
+  // address: one inbox, one account
+  const sameInbox = sameInboxPattern(email);
+  const existing = await User.findOne(sameInbox ? { email: sameInbox } : { email });
   if (existing) {
     return res.status(409).json({ error: 'An account with this email already exists.', code: 'EMAIL_TAKEN' });
   }
