@@ -21,6 +21,7 @@
 // delivered — that's what catches a temp-mail domain too new for any list.
 import { createRequire } from 'node:module';
 import { promises as dns } from 'node:dns';
+import { getMany, setMany } from './cache.js';
 
 const require = createRequire(import.meta.url);
 const packaged = new Set(require('disposable-email-domains'));
@@ -159,7 +160,59 @@ export async function emailProblem(email) {
   if (!hosts.length) return unreachable;
   if (hosts.some(tempMailHost)) return disposable;
   // The online list is only believed when the mail doesn't go somewhere real
-  return onlineSaysSo && !hosts.some(trustedHost) ? disposable : null;
+  if (onlineSaysSo && !hosts.some(trustedHost)) return disposable;
+  // Nothing here knows this domain to be temporary. Last, ask the service whose
+  // whole job that is — only now, because its free plan allows few questions a day.
+  return (await verifyMailSaysTemporary(domain)) ? disposable : null;
+}
+
+// ---- VerifyMail (verifymail.io) ----
+//
+// A paid-for second opinion on the domains nothing above could place. Set
+// TEMPMAIL_Verify_API (or VERIFYMAIL_API_KEY) in the environment to switch it on.
+//  - Only the domain is sent, never the address.
+//  - It's asked last and each answer is kept for a week (utils/cache.js), so
+//    gmail.com, the listed temp domains and anything seen recently cost nothing.
+//  - Over its daily limit, slow or down, it simply has no opinion: sign-up
+//    carries on with what the checks above decided.
+const VERIFYMAIL_URL = 'https://verifymail.io/api';
+const VERIFYMAIL_TIMEOUT_MS = 5000;
+const VERDICT_KEPT_SECONDS = 7 * 24 * 60 * 60;
+let overLimitUntil = 0;
+
+function verifyMailKey() {
+  return String(process.env.TEMPMAIL_Verify_API || process.env.VERIFYMAIL_API_KEY || '').trim();
+}
+
+// true: a temporary-mail domain. false: not, or nobody could say.
+async function verifyMailSaysTemporary(domain) {
+  const key = verifyMailKey();
+  if (!key) return false;
+
+  const cacheKey = `mailcheck:${domain}`;
+  const [known] = await getMany([cacheKey]);
+  if (known !== undefined) return known;
+  // The day's questions are used up: no point asking again for a while
+  if (Date.now() < overLimitUntil) return false;
+
+  try {
+    const response = await fetch(`${VERIFYMAIL_URL}/${encodeURIComponent(domain)}?key=${key}`, {
+      signal: AbortSignal.timeout(VERIFYMAIL_TIMEOUT_MS),
+    });
+    if (response.status === 429) {
+      overLimitUntil = Date.now() + 60 * 60 * 1000;
+      console.warn('[temp-mail] VerifyMail’s daily limit is used up; carrying on with the built-in checks.');
+      return false;
+    }
+    if (!response.ok) throw new Error(`answered ${response.status}`);
+    const verdict = await response.json();
+    const temporary = verdict.disposable === true || verdict.block === true;
+    await setMany([[cacheKey, temporary]], VERDICT_KEPT_SECONDS);
+    return temporary;
+  } catch (err) {
+    console.error('[temp-mail] VerifyMail did not answer:', err.message);
+    return false;
+  }
 }
 
 // One Gmail inbox answers to endless addresses: dots are ignored
