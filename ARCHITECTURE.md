@@ -467,7 +467,12 @@ and `backend/routes/chatActions.js`; labels and rules the browser needs are mirr
   and the other person sees none of it.** It's hidden during calls and with reduce motion.
   Flipping the switch plays `BooShow` (a roaming entrance, or a crying exit). Boo being out is a
   per-device switch (Profile → Boo, or the header of Boo's chat); Boo's row stays regardless. With no `GROK_API_KEY`, or when Grok doesn't answer,
-  Boo uses the lines written in `utils/boo.js`.
+  Boo uses the lines written in `utils/boo.js`. Plain rudeness is the one thing Boo
+  doesn't hand to the model at all: `utils/booSass.js` holds hand-written comebacks, sorted by the
+  kind of insult, in English and Hinglish, and `comeback()` answers with one (never the same line
+  twice in a chat, shorter from the third in a row). It deliberately stays out of the way of
+  anything that might not be an insult — a question, a long message, someone who sounds hurt — and
+  those go to the model, which is told to be kind.
 - **🎙️ Voice assistant** (`components/VoiceAssistant.jsx`, `lib/voice.js`, `lib/voiceActions.js`,
   `backend/utils/assistant.js`). Boo's button above the new-chat button (the microphone in the
   header on a computer) switches on hands-free listening, per device. The browser's own speech
