@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Bell, BellOff, Camera, Check, Eye, EyeOff, KeyRound, Loader2, LogOut, Trash2 } from 'lucide-react';
+import { Bell, BellOff, Check, Eye, EyeOff, KeyRound, LogOut } from 'lucide-react';
 import { useChat } from './ChatProvider';
-import Avatar, { BooAvatar } from './Avatar';
+import { BooAvatar } from './Avatar';
+import ProfilePhoto from './ProfilePhoto';
 import ThemeToggle from './ThemeToggle';
 import LegalFooter from './LegalFooter';
 import { SidePanel } from './UserSearch';
@@ -49,11 +50,7 @@ export default function Profile({ onClose }) {
     }
   }
 
-  async function handleImageChange(event) {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-
+  async function handleImageChange(file) {
     const problem = checkImageFile(file);
     if (problem) return setMessage({ type: 'error', text: problem });
 
@@ -72,6 +69,7 @@ export default function Profile({ onClose }) {
 
   async function handleRemoveImage() {
     setIsUploading(true);
+    setMessage({ type: '', text: '' });
     try {
       const formData = new FormData();
       formData.append('removeImage', 'true');
@@ -87,34 +85,12 @@ export default function Profile({ onClose }) {
     <SidePanel title="Profile" onClose={onClose}>
       <div className="scroll-thin min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
         <div className="flex flex-col items-center px-6 pt-8 pb-6">
-          <label className="group relative cursor-pointer rounded-full" title="Change profile picture">
-            <Avatar user={user} size={128} />
-            <span className="absolute inset-0 flex flex-col items-center justify-center rounded-full bg-black/45 text-xs font-medium text-white opacity-0 transition group-hover:opacity-100">
-              {isUploading ? <Loader2 className="animate-spin" /> : <Camera size={24} />}
-              <span className="mt-1">Change photo</span>
-            </span>
-            {/* Always visible on touch screens, where there is no hover */}
-            <span className="absolute right-1 bottom-1 flex h-9 w-9 items-center justify-center rounded-full bg-brand text-on-brand shadow md:hidden">
-              <Camera size={17} />
-            </span>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={handleImageChange}
-              disabled={isUploading}
-              className="sr-only"
-            />
-          </label>
-
-          {user.profileImage && (
-            <button
-              onClick={handleRemoveImage}
-              disabled={isUploading}
-              className="mt-3 flex items-center gap-1.5 text-sm text-muted hover:text-red-600"
-            >
-              <Trash2 size={14} /> Remove photo
-            </button>
-          )}
+          <ProfilePhoto
+            user={user}
+            isUploading={isUploading}
+            onUpload={handleImageChange}
+            onRemove={handleRemoveImage}
+          />
         </div>
 
         <form onSubmit={handleNameSubmit} className="px-5">
