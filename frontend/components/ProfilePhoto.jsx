@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Camera, Eye, Folder, Loader2, SmilePlus, SwitchCamera, Trash2, X } from 'lucide-react';
+import { Camera, Eye, Folder, Loader2, RotateCw, SmilePlus, SwitchCamera, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
 import Avatar from './Avatar';
 import { ImageLightbox } from './ImagePreview';
 import { STICKER_PACKS, stickerUrl } from '@/lib/stickers';
@@ -11,11 +11,13 @@ import { stopStream } from '@/lib/recording';
 
 // My own picture in the Profile panel. Tapping it opens a menu:
 // View photo · Take photo · Upload photo · Emoji & sticker · Remove photo.
-// Every new picture ends up as a File handed to onUpload (PATCH /api/users/me).
+// Every new picture ends up as a File handed to onUpload (PATCH /api/users/me);
+// uploaded and camera photos go through the crop editor first.
 export default function ProfilePhoto({ user, isUploading, onUpload, onRemove }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  // view | camera | maker
+  // view | camera | maker | crop
   const [dialog, setDialog] = useState(null);
+  const [cropFile, setCropFile] = useState(null);
   const menuRef = useRef(null);
   const fileInputRef = useRef(null);
   const captureInputRef = useRef(null);
@@ -45,7 +47,12 @@ export default function ProfilePhoto({ user, isUploading, onUpload, onRemove }) 
   function handleFile(event) {
     const file = event.target.files?.[0];
     event.target.value = '';
-    if (file) onUpload(file);
+    if (file) editPhoto(file);
+  }
+
+  function editPhoto(file) {
+    setCropFile(file);
+    setDialog('crop');
   }
 
   async function handleNewPicture(file) {
@@ -106,7 +113,7 @@ export default function ProfilePhoto({ user, isUploading, onUpload, onRemove }) 
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept="image/*"
         onChange={handleFile}
         className="sr-only"
         tabIndex={-1}
@@ -125,13 +132,16 @@ export default function ProfilePhoto({ user, isUploading, onUpload, onRemove }) 
         {dialog === 'view' && hasPhoto && <ViewPhoto src={user.profileImage} onClose={() => setDialog(null)} />}
         {dialog === 'camera' && (
           <CameraDialog
-            onCapture={handleNewPicture}
+            onCapture={editPhoto}
             onFallback={() => {
               setDialog(null);
               captureInputRef.current?.click();
             }}
             onClose={() => setDialog(null)}
           />
+        )}
+        {dialog === 'crop' && cropFile && (
+          <CropDialog file={cropFile} onSave={handleNewPicture} onClose={() => setDialog(null)} />
         )}
         {dialog === 'maker' && <EmojiStickerDialog onSave={handleNewPicture} onClose={() => setDialog(null)} />}
       </AnimatePresence>
@@ -548,5 +558,260 @@ function PickButton({ selected, onClick, label, children }) {
     >
       {children}
     </button>
+  );
+}
+
+const MAX_ZOOM = 4;
+const CROP_OUTPUT = 1024; // the server shrinks it to 400px; this leaves it room
+
+// ✂️ Crop: drag to move, pinch / scroll / slider to zoom, and rotate in quarter turns.
+// The circle shows what people will see; the square around it is what's saved.
+function CropDialog({ file, onSave, onClose }) {
+  const viewportRef = useRef(null);
+  const pointers = useRef(new Map());
+  const pinch = useRef(null);
+  const [image, setImage] = useState(null);
+  const [error, setError] = useState('');
+  const [view, setView] = useState(0); // the viewport's width in CSS pixels
+  const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0); // 0, 90, 180 or 270
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => setImage(img);
+    img.onerror = () => setError('This picture can’t be opened. Try a JPG, PNG or WEBP.');
+    img.src = url;
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  useLayoutEffect(() => {
+    function measure() {
+      setView(viewportRef.current?.getBoundingClientRect().width || 0);
+    }
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
+  // Sideways turns swap the picture's width and height
+  const turned = rotation % 180 !== 0;
+  const width = image ? (turned ? image.naturalHeight : image.naturalWidth) : 1;
+  const height = image ? (turned ? image.naturalWidth : image.naturalHeight) : 1;
+  // At zoom 1 the picture just covers the square
+  const scale = (view / Math.min(width, height)) * zoom;
+
+  // Never let an empty edge into the square
+  function clamp(next, nextScale = scale) {
+    const maxX = Math.max(0, (width * nextScale - view) / 2);
+    const maxY = Math.max(0, (height * nextScale - view) / 2);
+    return { x: Math.min(maxX, Math.max(-maxX, next.x)), y: Math.min(maxY, Math.max(-maxY, next.y)) };
+  }
+
+  function zoomTo(value) {
+    const next = Math.min(MAX_ZOOM, Math.max(1, value));
+    const nextScale = (view / Math.min(width, height)) * next;
+    // Keep the same spot in the middle while zooming
+    setOffset((current) => clamp({ x: (current.x * next) / zoom, y: (current.y * next) / zoom }, nextScale));
+    setZoom(next);
+  }
+
+  function rotate() {
+    setRotation((rotation + 90) % 360);
+    setOffset({ x: 0, y: 0 });
+  }
+
+  function reset() {
+    setZoom(1);
+    setRotation(0);
+    setOffset({ x: 0, y: 0 });
+  }
+
+  function handlePointerDown(event) {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      pinch.current = { distance: Math.hypot(a.x - b.x, a.y - b.y), zoom };
+    }
+  }
+
+  function handlePointerMove(event) {
+    const last = pointers.current.get(event.pointerId);
+    if (!last) return;
+    const point = { x: event.clientX, y: event.clientY };
+    pointers.current.set(event.pointerId, point);
+
+    if (pointers.current.size === 2 && pinch.current) {
+      const [a, b] = [...pointers.current.values()];
+      zoomTo((pinch.current.zoom * Math.hypot(a.x - b.x, a.y - b.y)) / pinch.current.distance);
+    } else if (pointers.current.size === 1) {
+      setOffset((current) => clamp({ x: current.x + point.x - last.x, y: current.y + point.y - last.y }));
+    }
+  }
+
+  function handlePointerUp(event) {
+    pointers.current.delete(event.pointerId);
+    if (pointers.current.size < 2) pinch.current = null;
+  }
+
+  // React's onWheel is passive, so it can't stop the page from scrolling
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    function handleWheel(event) {
+      event.preventDefault();
+      zoomTo(zoom * (event.deltaY < 0 ? 1.1 : 1 / 1.1));
+    }
+    viewport?.addEventListener('wheel', handleWheel, { passive: false });
+    return () => viewport?.removeEventListener('wheel', handleWheel);
+  });
+
+  function handleKeyDown(event) {
+    const step = event.shiftKey ? 40 : 10;
+    const moves = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
+    if (moves[event.key]) {
+      event.preventDefault();
+      setOffset((current) => clamp({ x: current.x + moves[event.key][0], y: current.y + moves[event.key][1] }));
+    } else if (event.key === '+' || event.key === '=') zoomTo(zoom + 0.2);
+    else if (event.key === '-') zoomTo(zoom - 0.2);
+  }
+
+  async function save() {
+    if (!image || !view) return;
+    setIsSaving(true);
+    setError('');
+
+    // Don't blow a small picture up past its real size
+    const size = Math.round(Math.min(CROP_OUTPUT, Math.max(256, view / scale)));
+    const ratio = size / view;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; // see-through PNGs would turn black as a JPG
+    ctx.fillRect(0, 0, size, size);
+    ctx.imageSmoothingQuality = 'high';
+    // The same moves as the preview's CSS transform, scaled up to the output
+    ctx.translate(size / 2 + offset.x * ratio, size / 2 + offset.y * ratio);
+    ctx.rotate((rotation * Math.PI) / 180);
+    ctx.scale(scale * ratio, scale * ratio);
+    ctx.drawImage(image, -image.naturalWidth / 2, -image.naturalHeight / 2);
+
+    try {
+      await onSave(await canvasToFile(canvas));
+    } catch (err) {
+      setError(err.message);
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <Dialog title="Crop photo" onClose={onClose}>
+      <div className="px-5 pt-4">
+        <div
+          ref={viewportRef}
+          tabIndex={0}
+          aria-label="Photo crop area. Drag or use the arrow keys to move, plus and minus to zoom."
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          onKeyDown={handleKeyDown}
+          className="relative aspect-square w-full cursor-grab touch-none overflow-hidden rounded-xl bg-black select-none focus-visible:outline-2 focus-visible:outline-brand active:cursor-grabbing"
+        >
+          {image && view > 0 && (
+            <img
+              src={image.src}
+              alt=""
+              draggable={false}
+              className="pointer-events-none absolute top-1/2 left-1/2 max-w-none"
+              style={{
+                width: image.naturalWidth,
+                height: image.naturalHeight,
+                transform: `translate(-50%, -50%) translate(${offset.x}px, ${offset.y}px) rotate(${rotation}deg) scale(${scale})`,
+              }}
+            />
+          )}
+          {!image && !error && (
+            <span className="absolute inset-0 flex items-center justify-center text-white">
+              <Loader2 className="animate-spin" />
+            </span>
+          )}
+          {/* Darkens everything outside the circle */}
+          <span className="pointer-events-none absolute inset-0 rounded-full shadow-[0_0_0_9999px_rgba(0,0,0,0.55)] ring-2 ring-white/80" />
+        </div>
+
+        <div className="mt-4 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => zoomTo(zoom - 0.25)}
+            disabled={!image || zoom <= 1}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-fg disabled:opacity-40"
+            aria-label="Zoom out"
+          >
+            <ZoomOut size={18} />
+          </button>
+          <input
+            type="range"
+            min={1}
+            max={MAX_ZOOM}
+            step={0.01}
+            value={zoom}
+            onChange={(e) => zoomTo(Number(e.target.value))}
+            disabled={!image}
+            aria-label="Zoom"
+            className="min-w-0 flex-1 accent-[var(--brand)]"
+          />
+          <button
+            type="button"
+            onClick={() => zoomTo(zoom + 0.25)}
+            disabled={!image || zoom >= MAX_ZOOM}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-fg disabled:opacity-40"
+            aria-label="Zoom in"
+          >
+            <ZoomIn size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={rotate}
+            disabled={!image}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-fg disabled:opacity-40"
+            aria-label="Rotate"
+            title="Rotate"
+          >
+            <RotateCw size={18} />
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={reset}
+          disabled={!image}
+          className="mt-1 text-xs font-medium text-brand hover:underline disabled:opacity-40"
+        >
+          Reset
+        </button>
+      </div>
+
+      {error && <p className="px-5 pt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      <div className="mt-3 flex shrink-0 gap-2 border-t border-line px-5 py-3">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-xl border border-line px-4 py-2 text-sm font-medium transition hover:bg-hover"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={save}
+          disabled={!image || isSaving}
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand py-2 text-sm font-medium text-on-brand transition hover:bg-brand-strong disabled:opacity-60"
+        >
+          {isSaving && <Loader2 size={16} className="animate-spin" />}
+          {isSaving ? 'Saving…' : 'Set as profile photo'}
+        </button>
+      </div>
+    </Dialog>
   );
 }
